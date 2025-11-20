@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "699802957399",
+    "project_id": "carcost-e0008",
+    "storage_bucket": "carcost-e0008.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:699802957399:android:30fb28ded8c6e466085512",
+        "android_client_info": {
+          "package_name": "com.aggin.carcost"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "699802957399-aoe807vtr63qmaoch1qo7jr12m5lr4ks.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aggin.carcost",
+            "certificate_hash": "00a2730fb336a06483338aadee835ca2f10b8a7c"
+          }
+        },
+        {
+          "client_id": "699802957399-jpa3792ti3rrq90ieuii2vrnm859de9u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYuTPfpEWH6WYzCSr3J2O5l3iZMOoTGRU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "699802957399-jpa3792ti3rrq90ieuii2vrnm859de9u.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
