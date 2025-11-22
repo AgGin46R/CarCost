@@ -1,40 +1,59 @@
-package com.aggin.carcost.data.local.repository
+package com.aggin.carcost.data.repository
 
 import com.aggin.carcost.data.local.database.dao.UserDao
 import com.aggin.carcost.data.local.database.entities.User
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.sync.SyncRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.flow.map
 
-class AuthRepository(
-    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance(),
-    private val userDao: UserDao
+/**
+ * Унифицированный репозиторий авторизации
+ * Использует Supabase вместо Firebase
+ */
+class UnifiedAuthRepository(
+    private val supabaseAuth: AuthRepository,
+    private val userDao: UserDao,
+    private val syncRepository: SyncRepository? = null
 ) {
 
     val currentUser: Flow<User?> = userDao.getCurrentUser()
 
     fun isUserLoggedIn(): Boolean {
-        return firebaseAuth.currentUser != null
+        return supabaseAuth.isUserLoggedIn()
     }
 
-    fun getCurrentFirebaseUser(): FirebaseUser? {
-        return firebaseAuth.currentUser
+    fun getCurrentUserId(): String? {
+        return supabaseAuth.getUserId()
     }
 
-    suspend fun signUp(email: String, password: String, displayName: String): Result<User> {
+    suspend fun signUp(
+        email: String,
+        password: String,
+        displayName: String
+    ): Result<User> {
         return try {
-            val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
-            val firebaseUser = result.user ?: throw Exception("User creation failed")
+            // Регистрация в Supabase
+            val result = supabaseAuth.signUp(email, password)
 
-            val user = User(
-                uid = firebaseUser.uid,
-                email = email,
-                displayName = displayName
+            result.fold(
+                onSuccess = { userInfo ->
+                    // Сохраняем пользователя локально
+                    val user = User(
+                        uid = userInfo.id,
+                        email = email,
+                        displayName = displayName,
+                        createdAt = System.currentTimeMillis()
+                    )
+
+                    userDao.insertUser(user)
+
+                    Result.success(user)
+                },
+                onFailure = { error ->
+                    Result.failure(error)
+                }
             )
-
-            userDao.insertUser(user)
-            Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -42,37 +61,42 @@ class AuthRepository(
 
     suspend fun signIn(email: String, password: String): Result<User> {
         return try {
-            val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
-            val firebaseUser = result.user ?: throw Exception("Sign in failed")
+            // Вход через Supabase
+            val result = supabaseAuth.signIn(email, password)
 
-            val user = User(
-                uid = firebaseUser.uid,
-                email = firebaseUser.email ?: email,
-                displayName = firebaseUser.displayName,
-                photoUrl = firebaseUser.photoUrl?.toString(),
-                lastLoginAt = System.currentTimeMillis()
+            result.fold(
+                onSuccess = { userInfo ->
+                    // Сохраняем пользователя локально
+                    val user = User(
+                        uid = userInfo.id,
+                        email = userInfo.email ?: email,
+                        displayName = userInfo.userMetadata?.get("display_name") as? String,
+                        lastLoginAt = System.currentTimeMillis()
+                    )
+
+                    userDao.insertUser(user)
+
+                    // Синхронизируем данные
+                    syncRepository?.fullSync()
+
+                    Result.success(user)
+                },
+                onFailure = { error ->
+                    Result.failure(error)
+                }
             )
-
-            userDao.insertUser(user)
-            Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     suspend fun signOut() {
-        firebaseAuth.signOut()
+        supabaseAuth.signOut()
         userDao.deleteAllUsers()
+        syncRepository?.clearLocalData()
     }
 
     suspend fun resetPassword(email: String): Result<Unit> {
-        return try {
-            firebaseAuth.sendPasswordResetEmail(email).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        return supabaseAuth.resetPassword(email)
     }
-
-
 }
