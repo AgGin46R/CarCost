@@ -11,7 +11,7 @@ import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
-import com.google.firebase.auth.FirebaseAuth
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -57,7 +57,8 @@ class CarDetailViewModel(
 ) : AndroidViewModel(application) {
 
     private val carId: Long = savedStateHandle.get<String>("carId")?.toLongOrNull() ?: 0L
-    private val userId: String? = FirebaseAuth.getInstance().currentUser?.uid
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val userId: String? = supabaseAuth.getUserId()
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
@@ -66,7 +67,7 @@ class CarDetailViewModel(
 
     private val _filter = MutableStateFlow(ExpenseFilter())
 
-    // --- ЛОГИКА СБОРА ДАННЫХ ПЕРЕПИСАНА ---
+    // --- ЛОГИКА СВЕРНАННЫХ ПЕРЕПИСАНА ---
     val uiState: StateFlow<CarDetailUiState> = flow {
         // Сначала загружаем данные, которые не меняются (или меняются редко)
         val car = carRepository.getCarById(carId)

@@ -8,8 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.aggin.carcost.data.local.database.AppDatabase
-import com.aggin.carcost.data.local.repository.AuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.presentation.screens.add_car.AddCarScreen
 import com.aggin.carcost.presentation.screens.add_expense.AddExpenseScreen
 import com.aggin.carcost.presentation.screens.analytics.EnhancedAnalyticsScreen
@@ -72,9 +71,8 @@ sealed class Screen(val route: String) {
 fun AppNavigation(
     navController: NavHostController = rememberNavController()
 ) {
-    val context = LocalContext.current
-    val authRepository = AuthRepository(userDao = AppDatabase.getDatabase(context).userDao())
-    val isLoggedIn = authRepository.isUserLoggedIn()
+    val supabaseAuth = SupabaseAuthRepository()
+    val isLoggedIn = supabaseAuth.isUserLoggedIn()
     val startDestination = if (isLoggedIn) Screen.Home.route else Screen.Login.route
 
     NavHost(

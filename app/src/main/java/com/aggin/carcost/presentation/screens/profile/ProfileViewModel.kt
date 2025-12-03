@@ -10,15 +10,11 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.User
-import com.aggin.carcost.data.local.repository.AuthRepository
 import com.aggin.carcost.data.local.settings.SettingsManager
-import com.google.firebase.auth.EmailAuthProvider
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.UserProfileChangeRequest
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -41,7 +37,8 @@ data class ProfileUiState(
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
-    private val authRepository = AuthRepository(userDao = database.userDao())
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val userDao = database.userDao()
     private val carDao = database.carDao()
     private val expenseDao = database.expenseDao()
     private val settingsManager = SettingsManager(application)
@@ -59,27 +56,42 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     private fun loadUserData() {
         viewModelScope.launch {
-            authRepository.currentUser.collect { user ->
-                if (user != null) {
-                    val cars = carDao.getAllActiveCars().first()
-                    val allExpenses = mutableListOf<Expense>()
-                    cars.forEach { car ->
-                        val carExpenses = expenseDao.getExpensesByCar(car.id).first()
-                        allExpenses.addAll(carExpenses)
-                    }
+            try {
+                // Получаем текущего пользователя из Supabase
+                val userId = supabaseAuth.getUserId()
 
-                    _uiState.value = ProfileUiState(
-                        user = user,
-                        statistics = UserStatistics(
-                            carsCount = cars.size,
-                            totalExpenses = allExpenses.sumOf { it.amount },
-                            totalOdometer = cars.sumOf { it.currentOdometer }
-                        ),
-                        isLoading = false
-                    )
+                if (userId != null) {
+                    // Получаем пользователя из локальной БД
+                    val user = userDao.getUserById(userId).first()
+
+                    if (user != null) {
+                        val cars = carDao.getAllActiveCars().first()
+                        val allExpenses = mutableListOf<Expense>()
+                        cars.forEach { car ->
+                            val carExpenses = expenseDao.getExpensesByCar(car.id).first()
+                            allExpenses.addAll(carExpenses)
+                        }
+
+                        _uiState.value = ProfileUiState(
+                            user = user,
+                            statistics = UserStatistics(
+                                carsCount = cars.size,
+                                totalExpenses = allExpenses.sumOf { it.amount },
+                                totalOdometer = cars.sumOf { it.currentOdometer }
+                            ),
+                            isLoading = false
+                        )
+                    } else {
+                        _uiState.value = ProfileUiState(isLoading = false)
+                    }
                 } else {
                     _uiState.value = ProfileUiState(isLoading = false)
                 }
+            } catch (e: Exception) {
+                _uiState.value = ProfileUiState(
+                    isLoading = false,
+                    errorMessage = "Ошибка загрузки данных: ${e.message}"
+                )
             }
         }
     }
@@ -151,16 +163,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 val updatedUser = currentUser.copy(photoUrl = photoPath)
                 database.userDao().updateUser(updatedUser)
 
-                // Обновляем также в Firebase Auth (опционально)
+                // Обновляем в Supabase
                 try {
-                    val firebaseUser = FirebaseAuth.getInstance().currentUser
-                    firebaseUser?.updateProfile(
-                        UserProfileChangeRequest.Builder()
-                            .setDisplayName(updatedUser.displayName)
-                            .build()
-                    )?.await()
+                    supabaseAuth.updateProfile(displayName = updatedUser.displayName, photoUrl = photoPath)
                 } catch (e: Exception) {
-                    // Игнорируем ошибки Firebase, работаем только локально
+                    // Игнорируем ошибки Supabase, работаем только локально
                     e.printStackTrace()
                 }
 
@@ -215,6 +222,14 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 val updatedUser = currentUser.copy(photoUrl = null)
                 database.userDao().updateUser(updatedUser)
 
+                // Обновляем в Supabase
+                try {
+                    supabaseAuth.updateProfile(displayName = updatedUser.displayName, photoUrl = null)
+                } catch (e: Exception) {
+                    // Игнорируем ошибки Supabase, работаем только локально
+                    e.printStackTrace()
+                }
+
                 // Немедленно обновляем UI
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
@@ -250,12 +265,13 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
                 database.userDao().updateUser(updatedUser)
 
-                // Обновляем также в Firebase
-                FirebaseAuth.getInstance().currentUser?.updateProfile(
-                    UserProfileChangeRequest.Builder()
-                        .setDisplayName(newName)
-                        .build()
-                )?.await()
+                // Обновляем также в Supabase
+                try {
+                    supabaseAuth.updateProfile(displayName = newName, photoUrl = currentUser.photoUrl)
+                } catch (e: Exception) {
+                    // Игнорируем ошибки Supabase, работаем только локально
+                    e.printStackTrace()
+                }
 
                 _uiState.value = _uiState.value.copy(
                     user = updatedUser,
@@ -272,23 +288,16 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun changePassword(oldPassword: String, newPassword: String) {
         viewModelScope.launch {
             try {
-                val firebaseUser = FirebaseAuth.getInstance().currentUser
-                if (firebaseUser == null || firebaseUser.email == null) {
+                val userId = supabaseAuth.getUserId()
+                if (userId == null) {
                     _uiState.value = _uiState.value.copy(
                         errorMessage = "Пользователь не найден"
                     )
                     return@launch
                 }
 
-                // Реаутентификация
-                val credential = EmailAuthProvider.getCredential(
-                    firebaseUser.email!!,
-                    oldPassword
-                )
-                firebaseUser.reauthenticate(credential).await()
-
-                // Смена пароля
-                firebaseUser.updatePassword(newPassword).await()
+                // Используем Supabase для смены пароля
+                supabaseAuth.updatePassword(newPassword)
 
                 _uiState.value = _uiState.value.copy(
                     errorMessage = null
@@ -303,7 +312,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun signOut(navController: NavController) {
         viewModelScope.launch(Dispatchers.IO) {
-            authRepository.signOut()
+            supabaseAuth.signOut()
 
             withContext(Dispatchers.Main) {
                 navController.navigate("login") {

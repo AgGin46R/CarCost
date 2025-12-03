@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.database.entities.TagWithExpenseCount
-import com.google.firebase.auth.FirebaseAuth
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -18,7 +18,7 @@ data class CategoryManagementUiState(
 class CategoryManagementViewModel(application: Application) : AndroidViewModel(application) {
 
     private val tagDao = AppDatabase.getDatabase(application).expenseTagDao()
-    private val auth = FirebaseAuth.getInstance()
+    private val supabaseAuth = SupabaseAuthRepository()
 
     private val _uiState = MutableStateFlow(CategoryManagementUiState())
     val uiState: StateFlow<CategoryManagementUiState> = _uiState.asStateFlow()
@@ -28,7 +28,7 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
     }
 
     private fun loadData() {
-        val userId = auth.currentUser?.uid ?: return
+        val userId = supabaseAuth.getUserId() ?: return
 
         viewModelScope.launch {
             tagDao.getTagsWithExpenseCount(userId).collect { tags ->
@@ -38,7 +38,7 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
     }
 
     fun addTag(name: String, color: String) {
-        val userId = auth.currentUser?.uid ?: return
+        val userId = supabaseAuth.getUserId() ?: return
         viewModelScope.launch {
             val tag = ExpenseTag(
                 name = name.trim(),
@@ -50,7 +50,7 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
     }
 
     fun updateTag(tagId: Long, name: String, color: String) {
-        val userId = auth.currentUser?.uid ?: return
+        val userId = supabaseAuth.getUserId() ?: return
         viewModelScope.launch {
             // Получаем текущий тег
             val currentTag = _uiState.value.tags.find { it.id == tagId } ?: return@launch

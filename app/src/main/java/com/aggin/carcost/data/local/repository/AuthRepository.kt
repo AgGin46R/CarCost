@@ -1,18 +1,17 @@
-package com.aggin.carcost.data.repository
+package com.aggin.carcost.data.local.repository
 
 import com.aggin.carcost.data.local.database.dao.UserDao
 import com.aggin.carcost.data.local.database.entities.User
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.sync.SyncRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 
 /**
- * Унифицированный репозиторий авторизации
- * Использует Supabase вместо Firebase
+ * Унифицированный репозиторий для работы с аутентификацией
+ * Объединяет локальное хранение пользователя и удаленную аутентификацию через Supabase
  */
-class UnifiedAuthRepository(
-    private val supabaseAuth: AuthRepository,
+class AuthRepository(
+    private val supabaseAuth: SupabaseAuthRepository,
     private val userDao: UserDao,
     private val syncRepository: SyncRepository? = null
 ) {
@@ -47,6 +46,9 @@ class UnifiedAuthRepository(
                     )
 
                     userDao.insertUser(user)
+
+                    // После регистрации обновляем профиль на сервере
+                    supabaseAuth.updateProfile(displayName, null)
 
                     Result.success(user)
                 },
@@ -98,5 +100,9 @@ class UnifiedAuthRepository(
 
     suspend fun resetPassword(email: String): Result<Unit> {
         return supabaseAuth.resetPassword(email)
+    }
+
+    suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> {
+        return supabaseAuth.updateProfile(displayName, photoUrl)
     }
 }

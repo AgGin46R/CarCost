@@ -9,7 +9,7 @@ import com.aggin.carcost.data.local.database.entities.*
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
-import com.google.firebase.auth.FirebaseAuth
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,7 +54,7 @@ class AddExpenseViewModel(
 
     private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(application)
     private val carId: Long = savedStateHandle.get<String>("carId")?.toLongOrNull() ?: 0L
-    private val auth = FirebaseAuth.getInstance()
+    private val supabaseAuth = SupabaseAuthRepository()
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
@@ -73,7 +73,7 @@ class AddExpenseViewModel(
             }
 
             // Загружаем доступные теги
-            val userId = auth.currentUser?.uid
+            val userId = supabaseAuth.getUserId()
             if (userId != null) {
                 tagDao.getAllTags(userId).collect { tags ->
                     _uiState.value = _uiState.value.copy(availableTags = tags)

@@ -4,7 +4,16 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
-import com.aggin.carcost.data.local.repository.AuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
+import com.aggin.carcost.data.local.repository.CarRepository
+import com.aggin.carcost.data.local.repository.ExpenseRepository
+import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
+import com.aggin.carcost.data.local.repository.ExpenseTagRepository
+import com.aggin.carcost.data.sync.SyncRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,8 +31,32 @@ data class RegisterUiState(
 
 class RegisterViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val authRepository = AuthRepository(
-        userDao = AppDatabase.getDatabase(application).userDao()
+    private val database = AppDatabase.getDatabase(application)
+
+    // Инициализация Supabase репозиториев
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
+    private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
+    private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
+    private val supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth)
+
+    // Инициализация локальных репозиториев
+    private val localCarRepo = CarRepository(database.carDao())
+    private val localExpenseRepo = ExpenseRepository(database.expenseDao())
+    private val localReminderRepo = MaintenanceReminderRepository(database.maintenanceReminderDao())
+    private val localTagRepo = ExpenseTagRepository(database.expenseTagDao())
+
+    // SyncRepository с полным набором репозиториев
+    private val syncRepo = SyncRepository(
+        localCarRepo = localCarRepo,
+        localExpenseRepo = localExpenseRepo,
+        localReminderRepo = localReminderRepo,
+        localTagRepo = localTagRepo,
+        supabaseAuthRepo = supabaseAuth,
+        supabaseCarRepo = supabaseCarRepo,
+        supabaseExpenseRepo = supabaseExpenseRepo,
+        supabaseReminderRepo = supabaseReminderRepo,
+        supabaseTagRepo = supabaseTagRepo
     )
 
     private val _uiState = MutableStateFlow(RegisterUiState())
@@ -75,18 +108,39 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         _uiState.value = state.copy(isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
-            val result = authRepository.signUp(
-                email = state.email,
-                password = state.password,
-                displayName = state.displayName
-            )
+            try {
+                val result = supabaseAuth.signUp(
+                    email = state.email,
+                    password = state.password
+                )
 
-            _uiState.value = if (result.isSuccess) {
-                state.copy(isLoading = false, isSuccess = true)
-            } else {
-                state.copy(
+                result.fold(
+                    onSuccess = {
+                        // Обновляем профиль пользователя
+                        supabaseAuth.updateProfile(
+                            displayName = state.displayName,
+                            photoUrl = null
+                        )
+
+                        // Синхронизация данных после регистрации
+                        syncRepo.fullSync()
+
+                        _uiState.value = state.copy(
+                            isLoading = false,
+                            isSuccess = true
+                        )
+                    },
+                    onFailure = { error ->
+                        _uiState.value = state.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Ошибка регистрации"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = state.copy(
                     isLoading = false,
-                    errorMessage = result.exceptionOrNull()?.message ?: "Ошибка регистрации"
+                    errorMessage = e.message ?: "Неизвестная ошибка"
                 )
             }
         }

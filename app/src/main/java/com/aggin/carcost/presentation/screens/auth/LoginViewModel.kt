@@ -4,12 +4,15 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
-import com.aggin.carcost.data.repository.UnifiedAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
+import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
+import com.aggin.carcost.data.local.repository.ExpenseTagRepository
 import com.aggin.carcost.data.sync.SyncRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,26 +31,30 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
 
-    // Инициализация репозиториев
-    private val supabaseAuth = AuthRepository()
-    private val supabaseCarRepo = CarRepository(supabaseAuth)
-    private val supabaseExpenseRepo = ExpenseRepository(supabaseAuth)
+    // Инициализация Supabase репозиториев
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
+    private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
+    private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
+    private val supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth)
 
+    // Инициализация локальных репозиториев
     private val localCarRepo = CarRepository(database.carDao())
     private val localExpenseRepo = ExpenseRepository(database.expenseDao())
+    private val localReminderRepo = MaintenanceReminderRepository(database.maintenanceReminderDao())
+    private val localTagRepo = ExpenseTagRepository(database.expenseTagDao())
 
+    // SyncRepository с полным набором репозиториев
     private val syncRepo = SyncRepository(
         localCarRepo = localCarRepo,
         localExpenseRepo = localExpenseRepo,
+        localReminderRepo = localReminderRepo,
+        localTagRepo = localTagRepo,
         supabaseAuthRepo = supabaseAuth,
         supabaseCarRepo = supabaseCarRepo,
-        supabaseExpenseRepo = supabaseExpenseRepo
-    )
-
-    private val authRepository = UnifiedAuthRepository(
-        supabaseAuth = supabaseAuth,
-        userDao = database.userDao(),
-        syncRepository = syncRepo
+        supabaseExpenseRepo = supabaseExpenseRepo,
+        supabaseReminderRepo = supabaseReminderRepo,
+        supabaseTagRepo = supabaseTagRepo
     )
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -79,10 +86,13 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                val result = authRepository.signIn(state.email, state.password)
+                val result = supabaseAuth.signIn(state.email, state.password)
 
                 result.fold(
                     onSuccess = {
+                        // Синхронизация данных после входа
+                        syncRepo.fullSync()
+
                         _uiState.value = state.copy(
                             isLoading = false,
                             isSuccess = true
