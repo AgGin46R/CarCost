@@ -148,15 +148,16 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                 val carId = carRepository.insertCar(car)
                 android.util.Log.d("AddCar", "Car saved locally with ID: $carId")
 
-                // 2. Синхронизируем с Supabase
-                val carWithId = car.copy(id = carId)
+                // 2. ✅ ИСПРАВЛЕНИЕ: Синхронизируем с Supabase БЕЗ локального ID
+                // НЕ передаём локальный ID - пусть Supabase сгенерирует свой!
+                // SupabaseCarRepository.insertCar автоматически добавит .copy(id = null)
 
-                // ✅ КРИТИЧНО: Используем Result для проверки ошибок!
-                val result = supabaseCarRepo.insertCar(carWithId)
+                val result = supabaseCarRepo.insertCar(car)  // ✅ Передаём car БЕЗ локального ID
 
                 result.fold(
                     onSuccess = { syncedCar ->
-                        android.util.Log.d("AddCar", "✅ SUCCESS! Car synced to Supabase: ${syncedCar.id}")
+                        android.util.Log.d("AddCar", "✅ SUCCESS! Car synced to Supabase with server ID: ${syncedCar.id}")
+                        android.util.Log.d("AddCar", "Local ID: $carId, Server ID: ${syncedCar.id}")
                         android.util.Log.d("AddCar", "Brand: ${syncedCar.brand}, Model: ${syncedCar.model}")
                     },
                     onFailure = { error ->

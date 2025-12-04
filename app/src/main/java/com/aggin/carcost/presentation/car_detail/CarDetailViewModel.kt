@@ -8,10 +8,12 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
+import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
+import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import kotlinx.coroutines.flow.*
@@ -19,7 +21,7 @@ import kotlinx.coroutines.launch
 
 // Data class для фильтра
 data class ExpenseFilter(
-    val categories: Set<com.aggin.carcost.data.local.database.entities.ExpenseCategory> = emptySet(),
+    val categories: Set<ExpenseCategory> = emptySet(),
     val tags: Set<Long> = emptySet(),
     val startDate: Long? = null,
     val endDate: Long? = null,
@@ -44,7 +46,7 @@ data class ExpenseFilter(
 
 data class CarDetailUiState(
     val car: Car? = null,
-    val expenses: List<Expense> = emptyList(), // Отфильтрованные расходы
+    val expenses: List<Expense> = emptyList(),
     val totalExpenses: Double = 0.0,
     val monthlyExpenses: Double = 0.0,
     val expenseCount: Int = 0,
@@ -64,19 +66,16 @@ class CarDetailViewModel(
     private val carRepository = CarRepository(database.carDao())
     private val expenseRepository = ExpenseRepository(database.expenseDao())
     private val tagRepository = ExpenseTagRepository(database.expenseTagDao())
+    private val reminderRepository = MaintenanceReminderRepository(database.maintenanceReminderDao())
 
-    // ✅ Supabase репозитории для синхронизации удаления
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
 
     private val _filter = MutableStateFlow(ExpenseFilter())
 
-    // --- ЛОГИКА СБОРА ДАННЫХ ПЕРЕПИСАНА ---
     val uiState: StateFlow<CarDetailUiState> = flow {
-        // Сначала загружаем данные, которые не меняются (или меняются редко)
         val car = carRepository.getCarById(carId)
 
-        // ✅ Получаем userId через Supabase (вместо FirebaseAuth)
         val userId = supabaseAuth.getUserId()
         val availableTags = if (userId != null) {
             tagRepository.getTagsByUser(userId).first()
@@ -84,16 +83,13 @@ class CarDetailViewModel(
             emptyList()
         }
 
-        // Теперь комбинируем потоки, которые меняются: все расходы и текущий фильтр
         combine(
             expenseRepository.getExpensesByCarId(carId),
             _filter
         ) { allExpenses, filter ->
 
-            // Применяем фильтрацию
             val filteredExpenses = applyFilterLogic(allExpenses, filter)
 
-            // Считаем статистику на основе отфильтрованных данных
             val total = filteredExpenses.sumOf { it.amount }
             val monthly = expenseRepository.calculateMonthlyExpenses(filteredExpenses)
             val count = filteredExpenses.size
@@ -120,7 +116,6 @@ class CarDetailViewModel(
     private fun applyFilterLogic(expenses: List<Expense>, filter: ExpenseFilter): List<Expense> {
         return expenses.filter { expense ->
             val categoryMatch = filter.categories.isEmpty() || expense.category in filter.categories
-            // TODO: Добавить логику для фильтрации по тегам
             val startDateMatch = filter.startDate == null || expense.date >= filter.startDate
             val endDateMatch = filter.endDate == null || expense.date <= filter.endDate
             val minAmountMatch = filter.minAmount == null || expense.amount >= filter.minAmount
@@ -139,24 +134,62 @@ class CarDetailViewModel(
     }
 
     fun deleteExpense(expense: Expense) {
-        viewModelScope.launch {
-            // 1. Удаляем локально
-            expenseRepository.deleteExpense(expense)
-            Log.d("CarDetailViewModel", "Expense deleted locally: ${expense.id}")
+        Log.d("CarDetailVM", "🔴 deleteExpense called for expense ID: ${expense.id}")
+        Log.d("CarDetailVM", "Category: ${expense.category}, ServiceType: ${expense.serviceType}")
 
-            // 2. ✅ Синхронизируем удаление с Supabase
+        viewModelScope.launch {
+            // 1. ✅ Если это расход ТО - удаляем связанное напоминание
+            if (expense.category == ExpenseCategory.MAINTENANCE) {
+                Log.d("CarDetailVM", "✅ Expense is MAINTENANCE category")
+
+                if (expense.serviceType != null) {
+                    Log.d("CarDetailVM", "✅ ServiceType is NOT null: ${expense.serviceType}")
+
+                    try {
+                        val maintenanceType = reminderRepository.serviceTypeToMaintenanceType(expense.serviceType)
+                        Log.d("CarDetailVM", "Converted to MaintenanceType: $maintenanceType")
+
+                        if (maintenanceType != null) {
+                            Log.d("CarDetailVM", "Attempting to delete reminder: carId=${expense.carId}, type=$maintenanceType")
+
+                            reminderRepository.deleteReminderByType(expense.carId, maintenanceType)
+
+                            Log.d("CarDetailVM", "✅ Successfully deleted maintenance reminder for type: $maintenanceType")
+                        } else {
+                            Log.w("CarDetailVM", "⚠️ MaintenanceType is NULL - cannot delete reminder")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("CarDetailVM", "❌ Error deleting maintenance reminder", e)
+                        e.printStackTrace()
+                    }
+                } else {
+                    Log.w("CarDetailVM", "⚠️ ServiceType is NULL - skipping reminder deletion")
+                }
+            } else {
+                Log.d("CarDetailVM", "ℹ️ Expense is NOT maintenance (${expense.category}) - skipping reminder deletion")
+            }
+
+            // 2. Удаляем расход локально
+            try {
+                expenseRepository.deleteExpense(expense)
+                Log.d("CarDetailVM", "✅ Expense deleted locally: ${expense.id}")
+            } catch (e: Exception) {
+                Log.e("CarDetailVM", "❌ Error deleting expense locally", e)
+            }
+
+            // 3. Синхронизируем удаление с Supabase
             try {
                 val result = supabaseExpenseRepo.deleteExpense(expense.id)
                 result.fold(
                     onSuccess = {
-                        Log.d("CarDetailViewModel", "✅ Expense deleted from Supabase: ${expense.id}")
+                        Log.d("CarDetailVM", "✅ Expense deleted from Supabase: ${expense.id}")
                     },
                     onFailure = { error ->
-                        Log.e("CarDetailViewModel", "❌ Failed to delete expense from Supabase: ${error.message}", error)
+                        Log.e("CarDetailVM", "❌ Failed to delete expense from Supabase: ${error.message}", error)
                     }
                 )
             } catch (e: Exception) {
-                Log.e("CarDetailViewModel", "❌ Exception deleting expense from Supabase", e)
+                Log.e("CarDetailVM", "❌ Exception deleting expense from Supabase", e)
             }
         }
     }
