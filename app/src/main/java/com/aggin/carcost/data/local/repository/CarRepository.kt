@@ -12,11 +12,11 @@ class CarRepository(private val carDao: CarDao) {
     }
 
     // Read
-    suspend fun getCarById(carId: Long): Car? {
+    suspend fun getCarById(carId: String): Car? {
         return carDao.getCarById(carId)
     }
 
-    fun getCarByIdFlow(carId: Long): Flow<Car?> {
+    fun getCarByIdFlow(carId: String): Flow<Car?> {
         return carDao.getCarByIdFlow(carId)
     }
 
@@ -41,15 +41,15 @@ class CarRepository(private val carDao: CarDao) {
         carDao.updateCar(car.copy(updatedAt = System.currentTimeMillis()))
     }
 
-    suspend fun updateOdometer(carId: Long, odometer: Int) {
+    suspend fun updateOdometer(carId: String, odometer: Int) {
         carDao.updateOdometer(carId, odometer)
     }
 
-    suspend fun updateCarActiveStatus(carId: Long, isActive: Boolean) {
+    suspend fun updateCarActiveStatus(carId: String, isActive: Boolean) {
         carDao.updateCarActiveStatus(carId, isActive)
     }
 
-    suspend fun updateCarPhoto(carId: Long, photoUri: String?) {
+    suspend fun updateCarPhoto(carId: String, photoUri: String?) {
         carDao.updateCarPhoto(carId, photoUri)
     }
 
@@ -58,16 +58,16 @@ class CarRepository(private val carDao: CarDao) {
         carDao.deleteCar(car)
     }
 
-    suspend fun deleteCarById(carId: Long) {
+    suspend fun deleteCarById(carId: String) {
         carDao.deleteCarById(carId)
     }
 
     // Business logic
-    suspend fun archiveCar(carId: Long) {
+    suspend fun archiveCar(carId: String) {
         updateCarActiveStatus(carId, false)
     }
 
-    suspend fun restoreCar(carId: Long) {
+    suspend fun restoreCar(carId: String) {
         updateCarActiveStatus(carId, true)
     }
 }

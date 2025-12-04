@@ -23,7 +23,7 @@ data class ExportUiState(
 
 class ExportViewModel(
     application: Application,
-    private val carId: Long // ID автомобиля для экспорта
+    private val carId: String // ID автомобиля для экспорта
 ) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
@@ -109,7 +109,7 @@ private enum class ExportType {
 // Фабрика для ViewModel, чтобы передать carId
 class ExportViewModelFactory(
     private val application: Application,
-    private val carId: Long
+    private val carId: String
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ExportViewModel::class.java)) {

@@ -15,6 +15,7 @@ import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
 import com.aggin.carcost.data.sync.SyncRepository
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 
 data class LoginUiState(
     val email: String = "",
@@ -58,7 +61,6 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         supabaseTagRepo = supabaseTagRepo
     )
 
-    // ✅ Отдельный scope для фоновой синхронизации
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -92,16 +94,41 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                 val result = supabaseAuth.signIn(state.email, state.password)
 
                 result.fold(
-                    onSuccess = {
+                    onSuccess = { userInfo ->
                         Log.d("Login", "✅ Login successful")
+                        Log.d("Login", "UserInfo: id=${userInfo.id}, email=${userInfo.email}")
+                        Log.d("Login", "UserMetadata: ${userInfo.userMetadata}")
 
-                        // ✅ Сразу переходим на главный экран
+                        // Загружаем displayName из Supabase таблицы users
+                        viewModelScope.launch {
+                            val displayName = try {
+                                fetchDisplayNameFromSupabase(userInfo.id)
+                            } catch (e: Exception) {
+                                Log.e("Login", "❌ Error fetching displayName", e)
+                                null
+                            }
+
+                            Log.d("Login", "Fetched displayName: $displayName")
+
+                            // Сохраняем пользователя локально с правильным displayName
+                            val user = com.aggin.carcost.data.local.database.entities.User(
+                                uid = userInfo.id,
+                                email = userInfo.email ?: state.email,
+                                displayName = displayName ?: "Пользователь",
+                                lastLoginAt = System.currentTimeMillis()
+                            )
+
+                            database.userDao().insertUser(user)
+                            Log.d("Login", "✅ User saved locally with displayName: ${user.displayName}")
+                        }
+
+                        // Сразу переходим на главный экран
                         _uiState.value = state.copy(
                             isLoading = false,
                             isSuccess = true
                         )
 
-                        // ✅ Синхронизация в фоне (не блокирует)
+                        // Синхронизация в фоне
                         backgroundScope.launch {
                             try {
                                 Log.d("Login", "Starting background sync...")
@@ -129,4 +156,33 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    // ✅ Получение displayName из таблицы users в Supabase
+    private suspend fun fetchDisplayNameFromSupabase(userId: String): String? {
+        return try {
+            val supabase = com.aggin.carcost.supabase
+
+            val response = supabase.from("users")
+                .select {
+                    filter {
+                        eq("id", userId)
+                    }
+                }
+                .decodeSingle<UserResponse>()
+
+            response.displayName // ✅ Исправлено: displayName вместо display_name
+        } catch (e: Exception) {
+            Log.e("Login", "❌ Failed to fetch displayName from Supabase", e)
+            null
+        }
+    }
 }
+
+// ✅ Data class с правильным именем поля
+@Serializable
+data class UserResponse(
+    val id: String,
+    val email: String? = null,
+    @SerialName("display_name") // ✅ Указываем mapping для Supabase
+    val displayName: String? = null // ✅ Kotlin property без подчеркивания
+)

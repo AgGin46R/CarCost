@@ -16,10 +16,10 @@ interface CarDao {
 
     // READ
     @Query("SELECT * FROM cars WHERE id = :carId")
-    suspend fun getCarById(carId: Long): Car?
+    suspend fun getCarById(carId: String): Car?
 
     @Query("SELECT * FROM cars WHERE id = :carId")
-    fun getCarByIdFlow(carId: Long): Flow<Car?>
+    fun getCarByIdFlow(carId: String): Flow<Car?>
 
     @Query("SELECT * FROM cars WHERE isActive = 1 ORDER BY updatedAt DESC")
     fun getAllActiveCars(): Flow<List<Car>>
@@ -38,20 +38,20 @@ interface CarDao {
     suspend fun updateCar(car: Car)
 
     @Query("UPDATE cars SET currentOdometer = :odometer, updatedAt = :timestamp WHERE id = :carId")
-    suspend fun updateOdometer(carId: Long, odometer: Int, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateOdometer(carId: String, odometer: Int, timestamp: Long = System.currentTimeMillis())
 
     @Query("UPDATE cars SET isActive = :isActive, updatedAt = :timestamp WHERE id = :carId")
-    suspend fun updateCarActiveStatus(carId: Long, isActive: Boolean, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateCarActiveStatus(carId: String, isActive: Boolean, timestamp: Long = System.currentTimeMillis())
 
     @Query("UPDATE cars SET photoUri = :photoUri, updatedAt = :timestamp WHERE id = :carId")
-    suspend fun updateCarPhoto(carId: Long, photoUri: String?, timestamp: Long = System.currentTimeMillis())
+    suspend fun updateCarPhoto(carId: String, photoUri: String?, timestamp: Long = System.currentTimeMillis())
 
     // DELETE
     @Delete
     suspend fun deleteCar(car: Car)
 
     @Query("DELETE FROM cars WHERE id = :carId")
-    suspend fun deleteCarById(carId: Long)
+    suspend fun deleteCarById(carId: String)
 
     @Query("DELETE FROM cars")
     suspend fun deleteAllCars()

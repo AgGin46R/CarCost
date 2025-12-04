@@ -55,45 +55,6 @@ class SyncRepository(
     val syncState: Flow<SyncState> = _syncState.asStateFlow()
 
     /**
-     * Безопасная начальная синхронизация после входа/регистрации
-     * Синхронизирует сначала автомобили, затем только если они есть - расходы и напоминания
-     */
-    suspend fun safeInitialSync(): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            if (!supabaseAuthRepo.isUserLoggedIn()) {
-                return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
-            }
-
-            _syncState.value = SyncState.Syncing
-            Log.d(TAG, "Starting safe initial sync...")
-
-            // 1. Сначала синхронизируем автомобили
-            syncCars()
-
-            // 2. Затем остальное только если есть автомобили
-            val localCars = localCarRepo.getAllCars().first()
-            if (localCars.isNotEmpty()) {
-                Log.d(TAG, "Found ${localCars.size} cars, syncing expenses and reminders...")
-                syncExpenses()
-                syncReminders()
-            } else {
-                Log.d(TAG, "No cars found, skipping expenses and reminders sync")
-            }
-
-            // 3. Теги синхронизируем всегда
-            syncTags()
-
-            _syncState.value = SyncState.Success()
-            Log.d(TAG, "Safe initial sync completed successfully")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            _syncState.value = SyncState.Error(e.message ?: "Ошибка синхронизации")
-            Log.e(TAG, "Safe initial sync failed", e)
-            Result.failure(e)
-        }
-    }
-
-    /**
      * Полная синхронизация всех данных
      */
     suspend fun fullSync(): Result<Unit> = withContext(Dispatchers.IO) {
@@ -179,20 +140,7 @@ class SyncRepository(
 
         val localCars = localCarRepo.getAllCars().first()
 
-        // Проверяем, что автомобили уже синхронизированы
-        if (localCars.isEmpty()) {
-            Log.w(TAG, "No cars found locally, skipping expense sync")
-            return
-        }
-
         for (car in localCars) {
-            // Проверяем, что автомобиль существует на сервере
-            val remoteCarResult = supabaseCarRepo.getCarById(car.id)
-            if (remoteCarResult.isFailure) {
-                Log.w(TAG, "Car ${car.id} not found on server, skipping its expenses")
-                continue
-            }
-
             // 1. Pull - получаем расходы с сервера
             val remoteExpensesResult = supabaseExpenseRepo.getExpensesByCarId(car.id)
             val remoteExpenses = remoteExpensesResult.getOrNull() ?: emptyList()
@@ -245,20 +193,7 @@ class SyncRepository(
 
         val localCars = localCarRepo.getAllCars().first()
 
-        // Проверяем, что автомобили уже синхронизированы
-        if (localCars.isEmpty()) {
-            Log.w(TAG, "No cars found locally, skipping reminder sync")
-            return
-        }
-
         for (car in localCars) {
-            // Проверяем, что автомобиль существует на сервере
-            val remoteCarResult = supabaseCarRepo.getCarById(car.id)
-            if (remoteCarResult.isFailure) {
-                Log.w(TAG, "Car ${car.id} not found on server, skipping its reminders")
-                continue
-            }
-
             // 1. Pull - получаем напоминания с сервера
             val remoteRemindersResult = supabaseReminderRepo.getRemindersByCarId(car.id)
             val remoteReminders = remoteRemindersResult.getOrNull() ?: emptyList()
@@ -381,12 +316,6 @@ class SyncRepository(
 
             _syncState.value = SyncState.Syncing
 
-            // Проверяем, что автомобиль существует на сервере
-            val remoteCarResult = supabaseCarRepo.getCarById(carId)
-            if (remoteCarResult.isFailure) {
-                return@withContext Result.failure(Exception("Автомобиль не найден на сервере"))
-            }
-
             val remoteExpensesResult = supabaseExpenseRepo.getExpensesByCarId(carId)
             val remoteExpenses = remoteExpensesResult.getOrNull() ?: emptyList()
             val localExpenses = localExpenseRepo.getExpensesByCarId(carId).first()
@@ -433,6 +362,32 @@ class SyncRepository(
             _syncState.value = SyncState.Idle
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear local data", e)
+        }
+    }
+
+    /**
+     * ✅ Безопасная начальная синхронизация (не бросает исключения)
+     */
+    suspend fun safeInitialSync() = withContext(Dispatchers.IO) {
+        try {
+            if (!supabaseAuthRepo.isUserLoggedIn()) {
+                Log.w(TAG, "User not logged in - skipping sync")
+                return@withContext
+            }
+
+            Log.d(TAG, "Starting safe initial sync...")
+            _syncState.value = SyncState.Syncing
+
+            try { syncCars(); Log.d(TAG, "✅ Cars synced") } catch (e: Exception) { Log.e(TAG, "❌ Cars failed", e) }
+            try { syncExpenses(); Log.d(TAG, "✅ Expenses synced") } catch (e: Exception) { Log.e(TAG, "❌ Expenses failed", e) }
+            try { syncReminders(); Log.d(TAG, "✅ Reminders synced") } catch (e: Exception) { Log.e(TAG, "❌ Reminders failed", e) }
+            try { syncTags(); Log.d(TAG, "✅ Tags synced") } catch (e: Exception) { Log.e(TAG, "❌ Tags failed", e) }
+
+            _syncState.value = SyncState.Success()
+            Log.d(TAG, "✅ Safe initial sync completed")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Safe sync failed", e)
+            _syncState.value = SyncState.Error(e.message ?: "Ошибка")
         }
     }
 

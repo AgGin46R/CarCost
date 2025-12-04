@@ -19,41 +19,41 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
         return expenseDao.getExpenseById(expenseId)
     }
 
-    fun getExpensesByCarId(carId: Long): Flow<List<Expense>> {
+    fun getExpensesByCarId(carId: String): Flow<List<Expense>> {
         return expenseDao.getExpensesByCarId(carId)
     }
 
-    fun getExpensesByCategory(carId: Long, category: ExpenseCategory): Flow<List<Expense>> {
+    fun getExpensesByCategory(carId: String, category: ExpenseCategory): Flow<List<Expense>> {
         return expenseDao.getExpensesByCategory(carId, category)
     }
 
-    fun getExpensesInDateRange(carId: Long, startDate: Long, endDate: Long): Flow<List<Expense>> {
+    fun getExpensesInDateRange(carId: String, startDate: Long, endDate: Long): Flow<List<Expense>> {
         return expenseDao.getExpensesInDateRange(carId, startDate, endDate)
     }
 
-    fun getRecentExpenses(carId: Long, limit: Int = 10): Flow<List<Expense>> {
+    fun getRecentExpenses(carId: String, limit: Int = 10): Flow<List<Expense>> {
         return expenseDao.getRecentExpenses(carId, limit)
     }
 
     // Statistics
-    fun getTotalExpenses(carId: Long): Flow<Double> {
+    fun getTotalExpenses(carId: String): Flow<Double> {
         return expenseDao.getTotalExpenses(carId).map { it ?: 0.0 }
     }
 
-    fun getTotalExpensesByCategory(carId: Long, category: ExpenseCategory): Flow<Double> {
+    fun getTotalExpensesByCategory(carId: String, category: ExpenseCategory): Flow<Double> {
         return expenseDao.getTotalExpensesByCategory(carId, category).map { it ?: 0.0 }
     }
 
-    fun getTotalExpensesInDateRange(carId: Long, startDate: Long, endDate: Long): Flow<Double> {
+    fun getTotalExpensesInDateRange(carId: String, startDate: Long, endDate: Long): Flow<Double> {
         return expenseDao.getTotalExpensesInDateRange(carId, startDate, endDate).map { it ?: 0.0 }
     }
 
-    fun getExpenseCount(carId: Long): Flow<Int> {
+    fun getExpenseCount(carId: String): Flow<Int> {
         return expenseDao.getExpenseCount(carId)
     }
 
     // Fuel-specific
-    fun getFullTankRefuels(carId: Long, limit: Int = 10): Flow<List<Expense>> {
+    fun getFullTankRefuels(carId: String, limit: Int = 10): Flow<List<Expense>> {
         return expenseDao.getFullTankRefuels(carId, limit)
     }
 
@@ -82,7 +82,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     // Business logic - Date ranges
-    fun getMonthlyExpenses(carId: Long): Flow<Double> {
+    fun getMonthlyExpenses(carId: String): Flow<Double> {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.DAY_OF_MONTH, 1)
         calendar.set(Calendar.HOUR_OF_DAY, 0)
@@ -94,7 +94,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
         return getTotalExpensesInDateRange(carId, startOfMonth, endOfMonth)
     }
 
-    fun getYearlyExpenses(carId: Long): Flow<Double> {
+    fun getYearlyExpenses(carId: String): Flow<Double> {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.DAY_OF_YEAR, 1)
         calendar.set(Calendar.HOUR_OF_DAY, 0)

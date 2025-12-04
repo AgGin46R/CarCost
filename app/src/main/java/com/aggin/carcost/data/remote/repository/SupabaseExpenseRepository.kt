@@ -13,11 +13,11 @@ import kotlinx.serialization.SerialName
 
 @Serializable
 data class ExpenseDto(
-    val id: Long? = null,
+    val id: String, // ✅ Изменено на String (UUID)
     @SerialName("user_id")
     val userId: String,
     @SerialName("car_id")
-    val carId: Long,
+    val carId: String,
     val category: String,
     val amount: Double,
     val currency: String = "RUB",
@@ -59,33 +59,24 @@ class SupabaseExpenseRepository(private val authRepository: SupabaseAuthReposito
 
             val expenseDto = expense.toDto(userId)
 
-            val response = supabase.from("expenses")
-                .insert(expenseDto)
+            // ✅ Используем UPSERT вместо INSERT
+            supabase.from("expenses")
+                .upsert(expenseDto)
 
-            // Получаем вставленную запись через select
-            val insertedList = supabase.from("expenses")
-                .select {
-                    filter { eq("id", expense.id) }
-                }
-                .decodeAs<List<ExpenseDto>>()
-
-            val insertedExpense = insertedList.firstOrNull()
-                ?: return@withContext Result.failure(Exception("Не удалось получить вставленную запись"))
-
-            Result.success(insertedExpense.toExpense())
+            Result.success(expense)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun getExpensesByCarId(carId: Long): Result<List<Expense>> = withContext(Dispatchers.IO) {
+    suspend fun getExpensesByCarId(carId: String): Result<List<Expense>> = withContext(Dispatchers.IO) {
         try {
             val expenses = supabase.from("expenses")
                 .select {
                     filter { eq("car_id", carId) }
                     order("date", Order.DESCENDING)
                 }
-                .decodeAs<List<ExpenseDto>>()
+                .decodeList<ExpenseDto>()
 
             Result.success(expenses.map { it.toExpense() })
         } catch (e: Exception) {
@@ -103,7 +94,7 @@ class SupabaseExpenseRepository(private val authRepository: SupabaseAuthReposito
                     filter { eq("user_id", userId) }
                     order("date", Order.DESCENDING)
                 }
-                .decodeAs<List<ExpenseDto>>()
+                .decodeList<ExpenseDto>()
 
             Result.success(expenses.map { it.toExpense() })
         } catch (e: Exception) {
@@ -123,25 +114,18 @@ class SupabaseExpenseRepository(private val authRepository: SupabaseAuthReposito
                     filter { eq("id", expense.id) }
                 }
 
-            // Получаем обновленную запись
-            val updatedList = supabase.from("expenses")
-                .select {
-                    filter { eq("id", expense.id) }
-                }
-                .decodeAs<List<ExpenseDto>>()
-
-            val updatedExpense = updatedList.firstOrNull()
-                ?: return@withContext Result.failure(Exception("Не удалось получить обновленную запись"))
-
-            Result.success(updatedExpense.toExpense())
+            Result.success(expense)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun deleteExpense(expenseId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun deleteExpense(expenseId: String): Result<Unit> = withContext(Dispatchers.IO) { // ✅ String
         try {
-            supabase.from("expenses").delete { filter { eq("id", expenseId) } }
+            supabase.from("expenses")
+                .delete {
+                    filter { eq("id", expenseId) }
+                }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -149,9 +133,9 @@ class SupabaseExpenseRepository(private val authRepository: SupabaseAuthReposito
     }
 }
 
-// ✅ КРИТИЧНО: userId добавлен в toDto!
+// ✅ Extension functions с правильными типами
 private fun Expense.toDto(userId: String) = ExpenseDto(
-    id = if (id == 0L) null else id,
+    id = id, // ✅ String UUID
     userId = userId,
     carId = carId,
     category = category.name,
@@ -177,7 +161,7 @@ private fun Expense.toDto(userId: String) = ExpenseDto(
 )
 
 private fun ExpenseDto.toExpense() = Expense(
-    id = id ?: 0L,
+    id = id, // ✅ String UUID
     carId = carId,
     category = try { ExpenseCategory.valueOf(category) } catch (e: Exception) { ExpenseCategory.OTHER },
     amount = amount,

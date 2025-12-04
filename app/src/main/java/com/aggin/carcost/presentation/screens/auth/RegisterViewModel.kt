@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.screens.auth
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
@@ -34,20 +35,17 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
     private val database = AppDatabase.getDatabase(application)
 
-    // Инициализация Supabase репозиториев
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
     private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
     private val supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth)
 
-    // Инициализация локальных репозиториев
     private val localCarRepo = CarRepository(database.carDao())
     private val localExpenseRepo = ExpenseRepository(database.expenseDao())
     private val localReminderRepo = MaintenanceReminderRepository(database.maintenanceReminderDao())
     private val localTagRepo = ExpenseTagRepository(database.expenseTagDao())
 
-    // SyncRepository с полным набором репозиториев
     private val syncRepo = SyncRepository(
         localCarRepo = localCarRepo,
         localExpenseRepo = localExpenseRepo,
@@ -136,24 +134,35 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                                 photoUrl = null
                             )
                             database.userDao().insertUser(user)
+                            Log.d("RegisterViewModel", "✅ User saved locally")
 
-                            // 5. НЕМЕДЛЕННО показываем успех (не ждем синхронизацию!)
+                            // ✅ 5. ИСПРАВЛЕНО: СРАЗУ показываем успех (НЕ ждем синхронизацию!)
                             _uiState.value = state.copy(
                                 isLoading = false,
                                 isSuccess = true
                             )
+                            Log.d("RegisterViewModel", "✅ Registration successful - navigating to home")
 
-                            // 6. Безопасная синхронизация В ФОНЕ (НЕ блокирует UI)
+                            // ✅ 6. Безопасная синхронизация В ФОНЕ (НЕ блокирует вход)
                             viewModelScope.launch {
                                 try {
-                                    syncRepo.safeInitialSync()
-                                    android.util.Log.d("RegisterViewModel", "Safe sync completed")
+                                    Log.d("RegisterViewModel", "Starting background sync...")
+
+                                    // Проверяем интернет перед синхронизацией
+                                    if (supabaseAuth.isUserLoggedIn()) {
+                                        syncRepo.safeInitialSync()
+                                        Log.d("RegisterViewModel", "✅ Background sync completed")
+                                    } else {
+                                        Log.w("RegisterViewModel", "⚠️ User not logged in - skipping sync")
+                                    }
                                 } catch (e: Exception) {
-                                    // Синхронизация не критична - просто логируем
-                                    android.util.Log.e("RegisterViewModel", "Sync failed", e)
+                                    // ⚠️ Синхронизация не критична - просто логируем
+                                    Log.e("RegisterViewModel", "❌ Background sync failed (non-critical)", e)
+                                    // НЕ показываем ошибку пользователю - регистрация прошла успешно!
                                 }
                             }
                         } else {
+                            Log.e("RegisterViewModel", "❌ UserId is NULL after registration")
                             _uiState.value = state.copy(
                                 isLoading = false,
                                 errorMessage = "Не удалось получить данные пользователя"
@@ -161,6 +170,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                         }
                     },
                     onFailure = { error ->
+                        Log.e("RegisterViewModel", "❌ Registration failed: ${error.message}")
                         _uiState.value = state.copy(
                             isLoading = false,
                             errorMessage = error.message ?: "Ошибка регистрации"
@@ -168,6 +178,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     }
                 )
             } catch (e: Exception) {
+                Log.e("RegisterViewModel", "❌ Exception during registration", e)
                 _uiState.value = state.copy(
                     isLoading = false,
                     errorMessage = e.message ?: "Неизвестная ошибка"

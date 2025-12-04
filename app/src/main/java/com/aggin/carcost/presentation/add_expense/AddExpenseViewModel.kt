@@ -59,7 +59,7 @@ class AddExpenseViewModel(
 
     private val fusedLocationClient: FusedLocationProviderClient =
         LocationServices.getFusedLocationProviderClient(application)
-    private val carId: Long = savedStateHandle.get<String>("carId")?.toLongOrNull() ?: 0L
+    private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String UUID
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
@@ -224,7 +224,7 @@ class AddExpenseViewModel(
     /**
      * Проверяет и синхронизирует автомобиль с Supabase перед добавлением расхода
      */
-    private suspend fun ensureCarSyncedToSupabase(carId: Long): Boolean {
+    private suspend fun ensureCarSyncedToSupabase(carId: String): Boolean {
         return try {
             android.util.Log.d("AddExpense", "Checking if car $carId exists on server...")
 

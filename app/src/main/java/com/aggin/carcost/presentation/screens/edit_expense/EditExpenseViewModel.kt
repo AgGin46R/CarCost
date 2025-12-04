@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.screens.edit_expense
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
@@ -8,12 +9,16 @@ import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ServiceType
 import com.aggin.carcost.data.local.repository.ExpenseRepository
+import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class EditExpenseUiState(
-    val expenseId: Long = 0L,
-    val carId: Long = 0L,
+    val expenseId: String = "", // ✅ String UUID
+    val carId: String = "", // ✅ String UUID
     val category: ExpenseCategory = ExpenseCategory.FUEL,
     val amount: String = "",
     val odometer: String = "",
@@ -28,6 +33,9 @@ data class EditExpenseUiState(
     // Для обслуживания и ремонта
     val serviceType: ServiceType? = null,
     val workshopName: String = "",
+
+    // Сохраняем старый serviceType для отслеживания изменений
+    val originalServiceType: ServiceType? = null,
 
     // Геолокация (сохраняем старые значения)
     val latitude: Double? = null,
@@ -44,11 +52,17 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
 
     private val database = AppDatabase.getDatabase(application)
     private val expenseRepository = ExpenseRepository(database.expenseDao())
+    private val reminderRepository = MaintenanceReminderRepository(database.maintenanceReminderDao())
+
+    // ✅ ДОБАВЛЕНО: Supabase репозитории
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
+    private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
 
     private val _uiState = MutableStateFlow(EditExpenseUiState())
     val uiState: StateFlow<EditExpenseUiState> = _uiState.asStateFlow()
 
-    fun loadExpense(carId: Long, expenseId: Long) {
+    fun loadExpense(carId: String, expenseId: String) { // ✅ String UUID
         viewModelScope.launch {
             try {
                 val expense = expenseRepository.getExpenseById(expenseId)
@@ -65,6 +79,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                         fuelLiters = expense.fuelLiters?.toString() ?: "",
                         isFullTank = expense.isFullTank,
                         serviceType = expense.serviceType,
+                        originalServiceType = expense.serviceType, // ✅ Сохраняем оригинальный тип
                         workshopName = expense.workshopName ?: "",
                         latitude = expense.latitude,
                         longitude = expense.longitude,
@@ -195,9 +210,99 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                     } else null
                 )
 
+                // 1. Обновляем локально
                 expenseRepository.updateExpense(updatedExpense)
+                Log.d("EditExpense", "✅ Expense updated locally")
+
+                // ✅ 2. НОВЫЙ КОД: Обновляем напоминание при изменении типа ТО
+                if (state.category == ExpenseCategory.MAINTENANCE) {
+                    Log.d("EditExpense", "Checking if reminder needs update...")
+                    Log.d("EditExpense", "Original: ${state.originalServiceType}, New: ${state.serviceType}")
+
+                    if (state.originalServiceType != state.serviceType) {
+                        Log.d("EditExpense", "ServiceType CHANGED - updating reminder")
+
+                        // Локально
+                        reminderRepository.updateAfterExpenseEdit(
+                            carId = state.carId,
+                            oldServiceType = state.originalServiceType,
+                            newServiceType = state.serviceType,
+                            newOdometer = odometer
+                        )
+                        Log.d("EditExpense", "✅ Reminder updated locally")
+
+                        // С Supabase
+                        try {
+                            // Удаляем старое напоминание
+                            if (state.originalServiceType != null) {
+                                val oldMaintenanceType = reminderRepository.serviceTypeToMaintenanceType(state.originalServiceType)
+                                oldMaintenanceType?.let { type ->
+                                    val oldReminderResult = supabaseReminderRepo.getReminderByType(state.carId, type)
+                                    oldReminderResult.getOrNull()?.let { reminder ->
+                                        supabaseReminderRepo.deleteReminder(reminder.id)
+                                        Log.d("EditExpense", "✅ Old reminder deleted from Supabase")
+                                    }
+                                }
+                            }
+
+                            // Создаем новое напоминание
+                            if (state.serviceType != null) {
+                                val newMaintenanceType = reminderRepository.serviceTypeToMaintenanceType(state.serviceType)
+                                newMaintenanceType?.let { type ->
+                                    val newReminder = reminderRepository.getReminderByType(state.carId, type)
+                                    if (newReminder != null) {
+                                        supabaseReminderRepo.insertReminder(newReminder)
+                                        Log.d("EditExpense", "✅ New reminder created on Supabase")
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("EditExpense", "❌ Failed to sync reminder to Supabase", e)
+                            // Не критично - продолжаем
+                        }
+                    } else if (state.serviceType != null) {
+                        // Тип не изменился - просто обновляем пробег
+                        Log.d("EditExpense", "ServiceType UNCHANGED - updating odometer only")
+
+                        val maintenanceType = reminderRepository.serviceTypeToMaintenanceType(state.serviceType)
+                        maintenanceType?.let { type ->
+                            // Локально
+                            reminderRepository.updateAfterMaintenance(state.carId, type, odometer)
+
+                            // С Supabase
+                            try {
+                                val reminder = reminderRepository.getReminderByType(state.carId, type)
+                                if (reminder != null) {
+                                    supabaseReminderRepo.updateReminder(reminder)
+                                    Log.d("EditExpense", "✅ Reminder updated on Supabase")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("EditExpense", "❌ Failed to update reminder on Supabase", e)
+                            }
+                        }
+                    }
+                }
+
+                // ✅ 3. Синхронизируем расход с Supabase
+                try {
+                    val result = supabaseExpenseRepo.updateExpense(updatedExpense)
+                    result.fold(
+                        onSuccess = {
+                            Log.d("EditExpense", "✅ Expense synced to Supabase")
+                        },
+                        onFailure = { error ->
+                            Log.e("EditExpense", "❌ Failed to sync expense to Supabase: ${error.message}")
+                        }
+                    )
+                } catch (e: Exception) {
+                    Log.e("EditExpense", "❌ Exception syncing expense to Supabase", e)
+                }
+
+                _uiState.value = _uiState.value.copy(isSaving = false)
                 onSuccess()
+
             } catch (e: Exception) {
+                Log.e("EditExpense", "❌ Error saving expense", e)
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "Ошибка сохранения: ${e.message}",
                     isSaving = false

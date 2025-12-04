@@ -15,13 +15,13 @@ interface MaintenanceReminderDao {
     suspend fun insertReminders(reminders: List<MaintenanceReminder>)
 
     @Query("SELECT * FROM maintenance_reminders WHERE carId = :carId AND isActive = 1 ORDER BY nextChangeOdometer ASC")
-    fun getActiveReminders(carId: Long): Flow<List<MaintenanceReminder>>
+    fun getActiveReminders(carId: String): Flow<List<MaintenanceReminder>>
 
     @Query("SELECT * FROM maintenance_reminders WHERE carId = :carId ORDER BY nextChangeOdometer ASC")
-    fun getAllRemindersByCarId(carId: Long): Flow<List<MaintenanceReminder>>
+    fun getAllRemindersByCarId(carId: String): Flow<List<MaintenanceReminder>>
 
     @Query("SELECT * FROM maintenance_reminders WHERE carId = :carId AND type = :type AND isActive = 1 LIMIT 1")
-    suspend fun getReminderByType(carId: Long, type: MaintenanceType): MaintenanceReminder?
+    suspend fun getReminderByType(carId: String, type: MaintenanceType): MaintenanceReminder?
 
     @Update
     suspend fun updateReminder(reminder: MaintenanceReminder)
@@ -30,5 +30,5 @@ interface MaintenanceReminderDao {
     suspend fun deleteReminder(id: Long)
 
     @Query("DELETE FROM maintenance_reminders WHERE carId = :carId")
-    suspend fun deleteRemindersByCarId(carId: Long)
+    suspend fun deleteRemindersByCarId(carId: String)
 }

@@ -9,30 +9,31 @@ import kotlinx.coroutines.flow.Flow
 
 class MaintenanceReminderRepository(private val dao: MaintenanceReminderDao) {
 
-    fun getActiveReminders(carId: Long): Flow<List<MaintenanceReminder>> {
+    fun getActiveReminders(carId: String): Flow<List<MaintenanceReminder>> {
         return dao.getActiveReminders(carId)
     }
 
-    suspend fun getReminderByType(carId: Long, type: MaintenanceType): MaintenanceReminder? {
+    suspend fun getReminderByType(carId: String, type: MaintenanceType): MaintenanceReminder? {
         return dao.getReminderByType(carId, type)
     }
 
-    suspend fun insertReminder(reminder: MaintenanceReminder): Long {
-        return dao.insertReminder(reminder)
+    suspend fun insertReminder(reminder: MaintenanceReminder): String { // ✅ Возвращает String
+        dao.insertReminder(reminder)
+        return reminder.id // ✅ Возвращаем ID
     }
 
     suspend fun updateReminder(reminder: MaintenanceReminder) {
         dao.updateReminder(reminder.copy(updatedAt = System.currentTimeMillis()))
     }
 
-    suspend fun deleteReminder(id: Long) {
+    suspend fun deleteReminder(id: String) { // ✅ Принимает String
         dao.deleteReminder(id)
     }
 
     /**
      * ✅ Удалить напоминание определённого типа
      */
-    suspend fun deleteReminderByType(carId: Long, type: MaintenanceType) {
+    suspend fun deleteReminderByType(carId: String, type: MaintenanceType) {
         Log.d("ReminderRepo", "🔴 deleteReminderByType called: carId=$carId, type=$type")
 
         try {
@@ -56,7 +57,7 @@ class MaintenanceReminderRepository(private val dao: MaintenanceReminderDao) {
      * Обновить напоминание после выполнения ТО
      */
     suspend fun updateAfterMaintenance(
-        carId: Long,
+        carId: String,
         type: MaintenanceType,
         currentOdometer: Int
     ) {
@@ -92,7 +93,7 @@ class MaintenanceReminderRepository(private val dao: MaintenanceReminderDao) {
      * ✅ Обновить напоминание при редактировании расхода ТО
      */
     suspend fun updateAfterExpenseEdit(
-        carId: Long,
+        carId: String,
         oldServiceType: ServiceType?,
         newServiceType: ServiceType?,
         newOdometer: Int

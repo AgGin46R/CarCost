@@ -16,10 +16,10 @@ import com.aggin.carcost.data.local.repository.ExpenseTagRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-// Data class для фильтра
 data class ExpenseFilter(
     val categories: Set<ExpenseCategory> = emptySet(),
     val tags: Set<Long> = emptySet(),
@@ -60,7 +60,7 @@ class CarDetailViewModel(
     savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
-    private val carId: Long = savedStateHandle.get<String>("carId")?.toLongOrNull() ?: 0L
+    private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
@@ -70,6 +70,7 @@ class CarDetailViewModel(
 
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
+    private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
 
     private val _filter = MutableStateFlow(ExpenseFilter())
 
@@ -138,7 +139,7 @@ class CarDetailViewModel(
         Log.d("CarDetailVM", "Category: ${expense.category}, ServiceType: ${expense.serviceType}")
 
         viewModelScope.launch {
-            // 1. ✅ Если это расход ТО - удаляем связанное напоминание
+            // 1. Если это расход ТО - удаляем связанное напоминание
             if (expense.category == ExpenseCategory.MAINTENANCE) {
                 Log.d("CarDetailVM", "✅ Expense is MAINTENANCE category")
 
@@ -152,7 +153,20 @@ class CarDetailViewModel(
                         if (maintenanceType != null) {
                             Log.d("CarDetailVM", "Attempting to delete reminder: carId=${expense.carId}, type=$maintenanceType")
 
+                            // Удаляем локально
                             reminderRepository.deleteReminderByType(expense.carId, maintenanceType)
+                            Log.d("CarDetailVM", "✅ Deleted reminder locally")
+
+                            // Удаляем с Supabase
+                            try {
+                                val reminderResult = supabaseReminderRepo.getReminderByType(expense.carId, maintenanceType)
+                                reminderResult.getOrNull()?.let { reminder ->
+                                    supabaseReminderRepo.deleteReminder(reminder.id)
+                                    Log.d("CarDetailVM", "✅ Deleted reminder from Supabase: ${reminder.id}")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("CarDetailVM", "❌ Failed to delete reminder from Supabase", e)
+                            }
 
                             Log.d("CarDetailVM", "✅ Successfully deleted maintenance reminder for type: $maintenanceType")
                         } else {
@@ -179,7 +193,7 @@ class CarDetailViewModel(
 
             // 3. Синхронизируем удаление с Supabase
             try {
-                val result = supabaseExpenseRepo.deleteExpense(expense.id)
+                val result = supabaseExpenseRepo.deleteExpense(expense.id) // ✅ String
                 result.fold(
                     onSuccess = {
                         Log.d("CarDetailVM", "✅ Expense deleted from Supabase: ${expense.id}")

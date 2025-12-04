@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.remote.repository
 
+import android.util.Log
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.data.local.database.entities.OdometerUnit
@@ -14,7 +15,7 @@ import kotlinx.serialization.SerialName
 
 @Serializable
 data class CarDto(
-    val id: Long? = null,
+    val id: String,
     @SerialName("user_id")
     val userId: String,
     val brand: String,
@@ -48,14 +49,8 @@ data class CarDto(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
-/**
- * Репозиторий для работы с автомобилями через Supabase
- */
 class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) {
 
-    /**
-     * Создать автомобиль
-     */
     suspend fun insertCar(car: Car): Result<Car> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
@@ -63,21 +58,22 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
 
             val carDto = car.toDto(userId)
 
-            val insertedCar = supabase.from("cars")
-                .insert(carDto) {
+            Log.d("SupabaseCar", "🔄 Attempting UPSERT for car: ${car.id}")
+
+            val upsertedCar = supabase.from("cars")
+                .upsert(carDto) {
                     select(Columns.ALL)
                 }
                 .decodeSingle<CarDto>()
 
-            Result.success(insertedCar.toCar())
+            Log.d("SupabaseCar", "✅ UPSERT successful: ${upsertedCar.id}")
+            Result.success(upsertedCar.toCar())
         } catch (e: Exception) {
+            Log.e("SupabaseCar", "❌ UPSERT failed", e)
             Result.failure(e)
         }
     }
 
-    /**
-     * Получить все автомобили пользователя
-     */
     suspend fun getAllCars(): Result<List<Car>> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
@@ -98,9 +94,6 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
         }
     }
 
-    /**
-     * Получить активные автомобили
-     */
     suspend fun getActiveCars(): Result<List<Car>> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
@@ -122,10 +115,7 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
         }
     }
 
-    /**
-     * Получить автомобиль по ID
-     */
-    suspend fun getCarById(carId: Long): Result<Car> = withContext(Dispatchers.IO) {
+    suspend fun getCarById(carId: String): Result<Car> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
                 ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
@@ -145,9 +135,6 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
         }
     }
 
-    /**
-     * Обновить автомобиль
-     */
     suspend fun updateCar(car: Car): Result<Car> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
@@ -156,6 +143,8 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
             val carDto = car.toDto(userId).copy(
                 updatedAt = System.currentTimeMillis()
             )
+
+            Log.d("SupabaseCar", "🔄 Updating car: ${car.id}")
 
             val updatedCar = supabase.from("cars")
                 .update(carDto) {
@@ -167,19 +156,20 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
                 }
                 .decodeSingle<CarDto>()
 
+            Log.d("SupabaseCar", "✅ Update successful")
             Result.success(updatedCar.toCar())
         } catch (e: Exception) {
+            Log.e("SupabaseCar", "❌ Update failed", e)
             Result.failure(e)
         }
     }
 
-    /**
-     * Удалить автомобиль
-     */
-    suspend fun deleteCar(carId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun deleteCar(carId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
                 ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
+
+            Log.d("SupabaseCar", "🗑️ Deleting car: $carId")
 
             supabase.from("cars")
                 .delete {
@@ -189,15 +179,14 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
                     }
                 }
 
+            Log.d("SupabaseCar", "✅ Delete successful")
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.e("SupabaseCar", "❌ Delete failed", e)
             Result.failure(e)
         }
     }
 
-    /**
-     * Получить автомобили, обновленные после указанной временной метки
-     */
     suspend fun getCarsUpdatedAfter(timestamp: Long): Result<List<Car>> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
@@ -219,9 +208,9 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
     }
 }
 
-// Extension functions для конвертации между Car и CarDto
+// Extension functions
 private fun Car.toDto(userId: String) = CarDto(
-    id = if (id == 0L) null else id,
+    id = id, // ✅ ИСПРАВЛЕНО
     userId = userId,
     brand = brand,
     model = model,
@@ -243,7 +232,7 @@ private fun Car.toDto(userId: String) = CarDto(
 )
 
 private fun CarDto.toCar() = Car(
-    id = id ?: 0L,
+    id = id, // ✅ ИСПРАВЛЕНО
     brand = brand,
     model = model,
     year = year,

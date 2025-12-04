@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.screens.edit_car
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -38,12 +39,11 @@ class EditCarViewModel(
     savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
-    private val carId: Long = savedStateHandle.get<String>("carId")?.toLongOrNull() ?: 0L
+    private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
 
-    // Supabase репозитории
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
 
@@ -166,10 +166,9 @@ class EditCarViewModel(
                 viewModelScope.launch {
                     try {
                         supabaseCarRepo.updateCar(updatedCar)
-                        android.util.Log.d("EditCar", "Synced to Supabase: ${updatedCar.id}")
+                        Log.d("EditCar", "Synced to Supabase: ${updatedCar.id}")
                     } catch (e: Exception) {
-                        android.util.Log.e("EditCar", "Sync failed", e)
-                        // Не критично - продолжаем
+                        Log.e("EditCar", "Sync failed", e)
                     }
                 }
 
@@ -178,7 +177,7 @@ class EditCarViewModel(
                 onSuccess()
 
             } catch (e: Exception) {
-                android.util.Log.e("EditCar", "Error updating car", e)
+                Log.e("EditCar", "Error updating car", e)
                 _uiState.value = state.copy(
                     isSaving = false,
                     showError = true,
@@ -191,26 +190,35 @@ class EditCarViewModel(
     fun deleteCar(onSuccess: () -> Unit) {
         val car = _uiState.value.car ?: return
 
+        Log.d("EditCarVM", "🚗 ===== DELETING CAR =====")
+        Log.d("EditCarVM", "Car ID: ${car.id}")
+        Log.d("EditCarVM", "Brand: ${car.brand}")
+        Log.d("EditCarVM", "Model: ${car.model}")
+        Log.d("EditCarVM", "User ID: ${supabaseAuth.getUserId()}")
+        Log.d("EditCarVM", "============================")
+
         viewModelScope.launch {
             try {
                 // 1. Удаляем локально
                 carRepository.deleteCar(car)
+                Log.d("EditCarVM", "✅ Car deleted locally")
 
                 // 2. Удаляем из Supabase (в фоне)
                 viewModelScope.launch {
                     try {
-                        supabaseCarRepo.deleteCar(car.id)
-                        android.util.Log.d("EditCar", "Deleted from Supabase: ${car.id}")
+                        supabaseCarRepo.deleteCar(car.id) // ✅ String
+                        Log.d("EditCarVM", "✅ Car deleted from Supabase: ${car.id}")
                     } catch (e: Exception) {
-                        android.util.Log.e("EditCar", "Delete sync failed", e)
-                        // Не критично
+                        Log.e("EditCarVM", "❌ Failed to delete car from Supabase", e)
                     }
                 }
 
+                Log.d("EditCarVM", "✅ Calling onSuccess() - navigating away")
                 onSuccess()
 
             } catch (e: Exception) {
-                android.util.Log.e("EditCar", "Error deleting car", e)
+                Log.e("EditCarVM", "❌ Error deleting car", e)
+                e.printStackTrace()
                 _uiState.value = _uiState.value.copy(
                     showError = true,
                     errorMessage = "Ошибка удаления: ${e.message}",

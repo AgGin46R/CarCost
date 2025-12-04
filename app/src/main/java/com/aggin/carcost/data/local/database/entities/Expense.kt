@@ -6,6 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
+import java.util.UUID
 
 @Parcelize
 @Entity(
@@ -21,11 +22,11 @@ import kotlinx.parcelize.Parcelize
     indices = [Index("carId"), Index("date")]
 )
 data class Expense(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    @PrimaryKey
+    val id: String = UUID.randomUUID().toString(), // ✅ Изменено на String UUID
 
     // Связь с автомобилем
-    val carId: Long,
+    val carId: String, // ✅ Изменено на String
 
     // Основная информация
     val category: ExpenseCategory,
@@ -40,7 +41,7 @@ data class Expense(
     val receiptPhotoUri: String? = null,
     val location: String? = null,
 
-    // ДОБАВЬ ЭТИ ПОЛЯ ДЛЯ ГЕОЛОКАЦИИ
+    // Геолокация
     val latitude: Double? = null,
     val longitude: Double? = null,
 
