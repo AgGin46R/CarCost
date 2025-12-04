@@ -1,6 +1,10 @@
 package com.aggin.carcost.presentation.screens.add_expense
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import android.location.Location
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -10,16 +14,17 @@ import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import android.location.Location
+import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 data class AddExpenseUiState(
@@ -52,14 +57,19 @@ class AddExpenseViewModel(
     savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
-    private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(application)
+    private val fusedLocationClient: FusedLocationProviderClient =
+        LocationServices.getFusedLocationProviderClient(application)
     private val carId: Long = savedStateHandle.get<String>("carId")?.toLongOrNull() ?: 0L
-    private val supabaseAuth = SupabaseAuthRepository()
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
     private val expenseRepository = ExpenseRepository(database.expenseDao())
     private val tagDao = database.expenseTagDao()
+
+    // Supabase репозитории
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
+    private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
 
     private val _uiState = MutableStateFlow(AddExpenseUiState())
     val uiState: StateFlow<AddExpenseUiState> = _uiState.asStateFlow()
@@ -128,7 +138,6 @@ class AddExpenseViewModel(
         _uiState.value = _uiState.value.copy(workshopName = value)
     }
 
-    // Новые функции для работы с тегами
     fun addTag(tag: ExpenseTag) {
         val currentTags = _uiState.value.selectedTags
         if (currentTags.none { it.id == tag.id }) {
@@ -164,9 +173,22 @@ class AddExpenseViewModel(
         }
     }
 
+    private fun hasLocationPermission(): Boolean {
+        return ActivityCompat.checkSelfPermission(
+            getApplication(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(
+            getApplication(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private suspend fun getLocationWithTimeout(): Location? {
+        if (!hasLocationPermission()) {
+            return null
+        }
+
         return try {
-            // Пытаемся получить локацию с таймаутом 3 секунды
             withTimeoutOrNull(3000L) {
                 var result: Location? = null
                 val cancellationToken = CancellationTokenSource()
@@ -181,16 +203,14 @@ class AddExpenseViewModel(
                         result = null
                     }
 
-                    // Ждем результата с небольшими интервалами
                     var attempts = 0
-                    while (result == null && attempts < 30) { // 30 * 100ms = 3 секунды
+                    while (result == null && attempts < 30) {
                         delay(100)
                         attempts++
                     }
 
                     cancellationToken.cancel()
                 } catch (e: SecurityException) {
-                    // Нет разрешения на геолокацию
                     null
                 }
 
@@ -198,6 +218,47 @@ class AddExpenseViewModel(
             }
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /**
+     * Проверяет и синхронизирует автомобиль с Supabase перед добавлением расхода
+     */
+    private suspend fun ensureCarSyncedToSupabase(carId: Long): Boolean {
+        return try {
+            android.util.Log.d("AddExpense", "Checking if car $carId exists on server...")
+
+            // Проверяем, есть ли автомобиль на сервере
+            val remoteCarResult = supabaseCarRepo.getCarById(carId)
+
+            if (remoteCarResult.isFailure) {
+                android.util.Log.w("AddExpense", "Car not found on server, syncing...")
+
+                // Если автомобиля нет на сервере - синхронизируем его
+                val localCar = carRepository.getCarById(carId)
+                if (localCar != null) {
+                    val insertResult = supabaseCarRepo.insertCar(localCar)
+                    insertResult.fold(
+                        onSuccess = {
+                            android.util.Log.d("AddExpense", "✅ Car synced to server successfully")
+                            true
+                        },
+                        onFailure = { error ->
+                            android.util.Log.e("AddExpense", "❌ Failed to sync car: ${error.message}")
+                            false
+                        }
+                    )
+                } else {
+                    android.util.Log.e("AddExpense", "❌ Local car not found!")
+                    false
+                }
+            } else {
+                android.util.Log.d("AddExpense", "✅ Car already exists on server")
+                true
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AddExpense", "Exception ensuring car synced", e)
+            false
         }
     }
 
@@ -231,16 +292,18 @@ class AddExpenseViewModel(
                 } else null
             )
 
+            // 1. Сохраняем локально
             val expenseId = expenseRepository.insertExpense(expense)
+            android.util.Log.d("AddExpense", "Expense saved locally with ID: $expenseId")
 
-            // Сохраняем связи с тегами
+            // 2. Сохраняем связи с тегами
             state.selectedTags.forEach { tag ->
                 tagDao.insertExpenseTagCrossRef(
                     ExpenseTagCrossRef(expenseId = expenseId, tagId = tag.id)
                 )
             }
 
-            // Если это обслуживание - создаем/обновляем напоминание
+            // 3. Если это обслуживание - создаем/обновляем напоминание
             if (state.category == ExpenseCategory.MAINTENANCE && state.serviceType != null) {
                 val reminderRepository = MaintenanceReminderRepository(
                     AppDatabase.getDatabase(getApplication()).maintenanceReminderDao()
@@ -256,6 +319,7 @@ class AddExpenseViewModel(
                 }
             }
 
+            // 4. Обновляем одометр машины
             val car = carRepository.getCarById(carId)
             car?.let {
                 if (state.odometer.toInt() > it.currentOdometer) {
@@ -263,8 +327,46 @@ class AddExpenseViewModel(
                 }
             }
 
+            // 5. ✅ СИНХРОНИЗИРУЕМ С SUPABASE
+            try {
+                val userId = supabaseAuth.getUserId()
+                if (userId == null) {
+                    android.util.Log.e("AddExpense", "User not authenticated!")
+                } else {
+                    // ✅ СНАЧАЛА убеждаемся, что автомобиль есть на сервере
+                    val carSynced = ensureCarSyncedToSupabase(carId)
+
+                    if (carSynced) {
+                        // Теперь безопасно синхронизируем расход
+                        val expenseWithId = expense.copy(id = expenseId)
+                        val result = supabaseExpenseRepo.insertExpense(expenseWithId)
+
+                        result.fold(
+                            onSuccess = { syncedExpense ->
+                                android.util.Log.d("AddExpense", "✅ SUCCESS! Expense synced to Supabase: ${syncedExpense.id}")
+                            },
+                            onFailure = { error ->
+                                android.util.Log.e("AddExpense", "❌ FAILED to sync expense to Supabase!", error)
+                                android.util.Log.e("AddExpense", "Error message: ${error.message}")
+                            }
+                        )
+                    } else {
+                        android.util.Log.w("AddExpense", "Car not synced, skipping expense sync")
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AddExpense", "Exception syncing expense", e)
+                // Не критично - продолжаем
+            }
+
+            // 6. Сбрасываем состояние
+            _uiState.value = state.copy(isSaving = false)
+
+            // 7. Вызываем onSuccess
             onSuccess()
+
         } catch (e: Exception) {
+            android.util.Log.e("AddExpense", "Error saving expense", e)
             _uiState.value = state.copy(
                 isSaving = false,
                 showError = true,

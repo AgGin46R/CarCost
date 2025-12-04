@@ -8,11 +8,12 @@ import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.data.local.database.entities.OdometerUnit
 import com.aggin.carcost.data.local.repository.CarRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 
 data class AddCarUiState(
     val brand: String = "",
@@ -35,6 +36,10 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
 
+    // Supabase репозитории
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
+
     private val _uiState = MutableStateFlow(AddCarUiState())
     val uiState: StateFlow<AddCarUiState> = _uiState.asStateFlow()
 
@@ -47,7 +52,6 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun updateYear(value: String) {
-        // Разрешаем только цифры
         if (value.isEmpty() || value.all { it.isDigit() }) {
             _uiState.value = _uiState.value.copy(year = value, showError = false)
         }
@@ -110,6 +114,20 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
         viewModelScope.launch {
             try {
+                // Проверяем авторизацию
+                val userId = supabaseAuth.getUserId()
+                if (userId == null) {
+                    android.util.Log.e("AddCar", "User not authenticated!")
+                    _uiState.value = state.copy(
+                        isSaving = false,
+                        showError = true,
+                        errorMessage = "Пользователь не авторизован"
+                    )
+                    return@launch
+                }
+
+                android.util.Log.d("AddCar", "Creating car for user: $userId")
+
                 val car = Car(
                     brand = state.brand.trim(),
                     model = state.model.trim(),
@@ -123,12 +141,47 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                     vin = state.vin.ifBlank { null },
                     color = state.color.ifBlank { null },
                     odometerUnit = OdometerUnit.KM
+                    // userId будет добавлен автоматически в SupabaseCarRepository
                 )
 
+                // 1. Сохраняем локально
                 val carId = carRepository.insertCar(car)
+                android.util.Log.d("AddCar", "Car saved locally with ID: $carId")
 
+                // 2. Синхронизируем с Supabase
+                val carWithId = car.copy(id = carId)
+
+                // ✅ КРИТИЧНО: Используем Result для проверки ошибок!
+                val result = supabaseCarRepo.insertCar(carWithId)
+
+                result.fold(
+                    onSuccess = { syncedCar ->
+                        android.util.Log.d("AddCar", "✅ SUCCESS! Car synced to Supabase: ${syncedCar.id}")
+                        android.util.Log.d("AddCar", "Brand: ${syncedCar.brand}, Model: ${syncedCar.model}")
+                    },
+                    onFailure = { error ->
+                        android.util.Log.e("AddCar", "❌ FAILED to sync to Supabase!", error)
+                        android.util.Log.e("AddCar", "Error message: ${error.message}")
+                        android.util.Log.e("AddCar", "Error type: ${error::class.simpleName}")
+                        error.printStackTrace()
+
+                        // Показываем ошибку пользователю
+                        _uiState.value = state.copy(
+                            isSaving = false,
+                            showError = true,
+                            errorMessage = "Машина сохранена локально, но не синхронизирована: ${error.message}"
+                        )
+                        return@launch
+                    }
+                )
+
+                // 3. Успех - сбрасываем состояние
+                _uiState.value = state.copy(isSaving = false)
                 onSuccess()
+
             } catch (e: Exception) {
+                android.util.Log.e("AddCar", "❌ Exception in saveCar!", e)
+                e.printStackTrace()
                 _uiState.value = state.copy(
                     isSaving = false,
                     showError = true,

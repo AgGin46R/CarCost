@@ -56,14 +56,13 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     private fun loadUserData() {
         viewModelScope.launch {
-            try {
-                // Получаем текущего пользователя из Supabase
-                val userId = supabaseAuth.getUserId()
+            // Получаем текущего пользователя из Supabase
+            val userId = supabaseAuth.getUserId()
 
-                if (userId != null) {
-                    // Получаем пользователя из локальной БД
-                    val user = userDao.getUserById(userId).first()
-
+            if (userId != null) {
+                // Загружаем пользователя из локальной БД
+                // getUserById() возвращает Flow, поэтому используем .first()
+                userDao.getUserById(userId).collect { user ->
                     if (user != null) {
                         val cars = carDao.getAllActiveCars().first()
                         val allExpenses = mutableListOf<Expense>()
@@ -84,14 +83,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     } else {
                         _uiState.value = ProfileUiState(isLoading = false)
                     }
-                } else {
-                    _uiState.value = ProfileUiState(isLoading = false)
                 }
-            } catch (e: Exception) {
-                _uiState.value = ProfileUiState(
-                    isLoading = false,
-                    errorMessage = "Ошибка загрузки данных: ${e.message}"
-                )
+            } else {
+                _uiState.value = ProfileUiState(isLoading = false)
             }
         }
     }
@@ -163,14 +157,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 val updatedUser = currentUser.copy(photoUrl = photoPath)
                 database.userDao().updateUser(updatedUser)
 
-                // Обновляем в Supabase
-                try {
-                    supabaseAuth.updateProfile(displayName = updatedUser.displayName, photoUrl = photoPath)
-                } catch (e: Exception) {
-                    // Игнорируем ошибки Supabase, работаем только локально
-                    e.printStackTrace()
-                }
-
                 // Немедленно обновляем UI
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
@@ -222,14 +208,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 val updatedUser = currentUser.copy(photoUrl = null)
                 database.userDao().updateUser(updatedUser)
 
-                // Обновляем в Supabase
-                try {
-                    supabaseAuth.updateProfile(displayName = updatedUser.displayName, photoUrl = null)
-                } catch (e: Exception) {
-                    // Игнорируем ошибки Supabase, работаем только локально
-                    e.printStackTrace()
-                }
-
                 // Немедленно обновляем UI
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
@@ -261,17 +239,13 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 val currentUser = _uiState.value.user ?: return@launch
+
+                // Обновляем в Supabase
+                supabaseAuth.updateProfile(displayName = newName, photoUrl = null)
+
+                // Обновляем локально
                 val updatedUser = currentUser.copy(displayName = newName)
-
                 database.userDao().updateUser(updatedUser)
-
-                // Обновляем также в Supabase
-                try {
-                    supabaseAuth.updateProfile(displayName = newName, photoUrl = currentUser.photoUrl)
-                } catch (e: Exception) {
-                    // Игнорируем ошибки Supabase, работаем только локально
-                    e.printStackTrace()
-                }
 
                 _uiState.value = _uiState.value.copy(
                     user = updatedUser,
@@ -288,15 +262,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun changePassword(oldPassword: String, newPassword: String) {
         viewModelScope.launch {
             try {
-                val userId = supabaseAuth.getUserId()
-                if (userId == null) {
-                    _uiState.value = _uiState.value.copy(
-                        errorMessage = "Пользователь не найден"
-                    )
-                    return@launch
-                }
-
-                // Используем Supabase для смены пароля
+                // Меняем пароль через Supabase
                 supabaseAuth.updatePassword(newPassword)
 
                 _uiState.value = _uiState.value.copy(
@@ -312,11 +278,35 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun signOut(navController: NavController) {
         viewModelScope.launch(Dispatchers.IO) {
-            supabaseAuth.signOut()
+            try {
+                // 1. Выходим из Supabase
+                supabaseAuth.signOut()
 
-            withContext(Dispatchers.Main) {
-                navController.navigate("login") {
-                    popUpTo(0) { inclusive = true }
+                // 2. КРИТИЧНО: Очищаем ВСЕ локальные данные
+                database.userDao().deleteAllUsers()
+                database.carDao().deleteAllCars()
+                database.expenseDao().deleteAllExpenses()
+
+                // Очищаем все таблицы (включая reminders и tags)
+                try {
+                    database.clearAllTables()
+                } catch (e: Exception) {
+                    android.util.Log.e("ProfileViewModel", "Error clearing tables", e)
+                }
+
+                // 3. Переходим на экран входа
+                withContext(Dispatchers.Main) {
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileViewModel", "Error signing out", e)
+                // Даже при ошибке выходим
+                withContext(Dispatchers.Main) {
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             }
         }

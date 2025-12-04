@@ -8,6 +8,8 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.data.local.repository.CarRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,6 +42,10 @@ class EditCarViewModel(
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
+
+    // Supabase репозитории
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
 
     private val _uiState = MutableStateFlow(EditCarUiState())
     val uiState: StateFlow<EditCarUiState> = _uiState.asStateFlow()
@@ -153,9 +159,26 @@ class EditCarViewModel(
                     color = state.color.ifBlank { null }
                 )
 
+                // 1. Обновляем локально
                 carRepository.updateCar(updatedCar)
+
+                // 2. Синхронизируем с Supabase (в фоне)
+                viewModelScope.launch {
+                    try {
+                        supabaseCarRepo.updateCar(updatedCar)
+                        android.util.Log.d("EditCar", "Synced to Supabase: ${updatedCar.id}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("EditCar", "Sync failed", e)
+                        // Не критично - продолжаем
+                    }
+                }
+
+                // 3. Сбрасываем состояние и вызываем onSuccess
+                _uiState.value = state.copy(isSaving = false)
                 onSuccess()
+
             } catch (e: Exception) {
+                android.util.Log.e("EditCar", "Error updating car", e)
                 _uiState.value = state.copy(
                     isSaving = false,
                     showError = true,
@@ -170,9 +193,24 @@ class EditCarViewModel(
 
         viewModelScope.launch {
             try {
+                // 1. Удаляем локально
                 carRepository.deleteCar(car)
+
+                // 2. Удаляем из Supabase (в фоне)
+                viewModelScope.launch {
+                    try {
+                        supabaseCarRepo.deleteCar(car.id)
+                        android.util.Log.d("EditCar", "Deleted from Supabase: ${car.id}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("EditCar", "Delete sync failed", e)
+                        // Не критично
+                    }
+                }
+
                 onSuccess()
+
             } catch (e: Exception) {
+                android.util.Log.e("EditCar", "Error deleting car", e)
                 _uiState.value = _uiState.value.copy(
                     showError = true,
                     errorMessage = "Ошибка удаления: ${e.message}",

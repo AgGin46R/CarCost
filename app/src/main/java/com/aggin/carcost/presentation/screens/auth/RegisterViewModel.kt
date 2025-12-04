@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
+import com.aggin.carcost.data.local.database.entities.User
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
@@ -109,6 +110,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch {
             try {
+                // 1. Регистрируем через Supabase
                 val result = supabaseAuth.signUp(
                     email = state.email,
                     password = state.password
@@ -116,19 +118,47 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
                 result.fold(
                     onSuccess = {
-                        // Обновляем профиль пользователя
+                        // 2. Обновляем профиль пользователя
                         supabaseAuth.updateProfile(
                             displayName = state.displayName,
                             photoUrl = null
                         )
 
-                        // Синхронизация данных после регистрации
-                        syncRepo.fullSync()
+                        // 3. Получаем userId
+                        val userId = supabaseAuth.getUserId()
 
-                        _uiState.value = state.copy(
-                            isLoading = false,
-                            isSuccess = true
-                        )
+                        if (userId != null) {
+                            // 4. Создаем и сохраняем пользователя в локальной БД
+                            val user = User(
+                                uid = userId,
+                                email = state.email,
+                                displayName = state.displayName,
+                                photoUrl = null
+                            )
+                            database.userDao().insertUser(user)
+
+                            // 5. НЕМЕДЛЕННО показываем успех (не ждем синхронизацию!)
+                            _uiState.value = state.copy(
+                                isLoading = false,
+                                isSuccess = true
+                            )
+
+                            // 6. Безопасная синхронизация В ФОНЕ (НЕ блокирует UI)
+                            viewModelScope.launch {
+                                try {
+                                    syncRepo.safeInitialSync()
+                                    android.util.Log.d("RegisterViewModel", "Safe sync completed")
+                                } catch (e: Exception) {
+                                    // Синхронизация не критична - просто логируем
+                                    android.util.Log.e("RegisterViewModel", "Sync failed", e)
+                                }
+                            }
+                        } else {
+                            _uiState.value = state.copy(
+                                isLoading = false,
+                                errorMessage = "Не удалось получить данные пользователя"
+                            )
+                        }
                     },
                     onFailure = { error ->
                         _uiState.value = state.copy(
