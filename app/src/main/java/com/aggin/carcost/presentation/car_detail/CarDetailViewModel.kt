@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.screens.car_detail
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,7 @@ import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -57,21 +59,30 @@ class CarDetailViewModel(
 ) : AndroidViewModel(application) {
 
     private val carId: Long = savedStateHandle.get<String>("carId")?.toLongOrNull() ?: 0L
-    private val supabaseAuth = SupabaseAuthRepository()
-    private val userId: String? = supabaseAuth.getUserId()
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
     private val expenseRepository = ExpenseRepository(database.expenseDao())
     private val tagRepository = ExpenseTagRepository(database.expenseTagDao())
 
+    // ✅ Supabase репозитории для синхронизации удаления
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
+
     private val _filter = MutableStateFlow(ExpenseFilter())
 
-    // --- ЛОГИКА СВЕРНАННЫХ ПЕРЕПИСАНА ---
+    // --- ЛОГИКА СБОРА ДАННЫХ ПЕРЕПИСАНА ---
     val uiState: StateFlow<CarDetailUiState> = flow {
         // Сначала загружаем данные, которые не меняются (или меняются редко)
         val car = carRepository.getCarById(carId)
-        val availableTags = if (userId != null) tagRepository.getTagsByUser(userId).first() else emptyList()
+
+        // ✅ Получаем userId через Supabase (вместо FirebaseAuth)
+        val userId = supabaseAuth.getUserId()
+        val availableTags = if (userId != null) {
+            tagRepository.getTagsByUser(userId).first()
+        } else {
+            emptyList()
+        }
 
         // Теперь комбинируем потоки, которые меняются: все расходы и текущий фильтр
         combine(
@@ -84,7 +95,7 @@ class CarDetailViewModel(
 
             // Считаем статистику на основе отфильтрованных данных
             val total = filteredExpenses.sumOf { it.amount }
-            val monthly = expenseRepository.calculateMonthlyExpenses(filteredExpenses) // Нужен новый метод
+            val monthly = expenseRepository.calculateMonthlyExpenses(filteredExpenses)
             val count = filteredExpenses.size
 
             CarDetailUiState(
@@ -129,7 +140,24 @@ class CarDetailViewModel(
 
     fun deleteExpense(expense: Expense) {
         viewModelScope.launch {
+            // 1. Удаляем локально
             expenseRepository.deleteExpense(expense)
+            Log.d("CarDetailViewModel", "Expense deleted locally: ${expense.id}")
+
+            // 2. ✅ Синхронизируем удаление с Supabase
+            try {
+                val result = supabaseExpenseRepo.deleteExpense(expense.id)
+                result.fold(
+                    onSuccess = {
+                        Log.d("CarDetailViewModel", "✅ Expense deleted from Supabase: ${expense.id}")
+                    },
+                    onFailure = { error ->
+                        Log.e("CarDetailViewModel", "❌ Failed to delete expense from Supabase: ${error.message}", error)
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("CarDetailViewModel", "❌ Exception deleting expense from Supabase", e)
+            }
         }
     }
 }

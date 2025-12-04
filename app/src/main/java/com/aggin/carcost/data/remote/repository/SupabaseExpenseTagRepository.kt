@@ -4,7 +4,6 @@ import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.postgrest.from
-import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -30,36 +29,22 @@ data class ExpenseTagCrossRefDto(
     val tagId: Long
 )
 
-/**
- * Репозиторий для работы с тегами расходов через Supabase
- */
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepository) {
 
-    /**
-     * Создать тег
-     */
     suspend fun insertTag(tag: ExpenseTag): Result<ExpenseTag> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
                 ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
 
             val tagDto = tag.toDto(userId)
-
-            val insertedTag = supabase.from("expense_tags")
-                .insert(tagDto) {
-                    select(Columns.ALL)
-                }
-                .decodeSingle<ExpenseTagDto>()
-
-            Result.success(insertedTag.toExpenseTag())
+            supabase.from("expense_tags").insert(tagDto)
+            Result.success(tag)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    /**
-     * Получить все теги пользователя
-     */
     suspend fun getAllTags(): Result<List<ExpenseTag>> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
@@ -67,12 +52,10 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
 
             val tags = supabase.from("expense_tags")
                 .select {
-                    filter {
-                        eq("user_id", userId)
-                    }
+                    filter { eq("user_id", userId) }
                     order("name", Order.ASCENDING)
                 }
-                .decodeList<ExpenseTagDto>()
+                .decodeAs<List<ExpenseTagDto>>()
 
             Result.success(tags.map { it.toExpenseTag() })
         } catch (e: Exception) {
@@ -80,18 +63,14 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    /**
-     * Получить тег по ID
-     */
     suspend fun getTagById(tagId: Long): Result<ExpenseTag> = withContext(Dispatchers.IO) {
         try {
-            val tag = supabase.from("expense_tags")
-                .select {
-                    filter {
-                        eq("id", tagId)
-                    }
-                }
-                .decodeSingle<ExpenseTagDto>()
+            val tags = supabase.from("expense_tags")
+                .select { filter { eq("id", tagId) } }
+                .decodeAs<List<ExpenseTagDto>>()
+
+            val tag = tags.firstOrNull()
+                ?: return@withContext Result.failure(Exception("Тег не найден"))
 
             Result.success(tag.toExpenseTag())
         } catch (e: Exception) {
@@ -99,44 +78,27 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    /**
-     * Получить теги для конкретного расхода
-     */
-    suspend fun getTagsForExpense(expenseId: Long): Result<List<ExpenseTag>> =
-        withContext(Dispatchers.IO) {
-            try {
-                // Сначала получаем связи
-                val crossRefs = supabase.from("expense_tag_cross_ref")
-                    .select {
-                        filter {
-                            eq("expense_id", expenseId)
-                        }
-                    }
-                    .decodeList<ExpenseTagCrossRefDto>()
+    suspend fun getTagsForExpense(expenseId: Long): Result<List<ExpenseTag>> = withContext(Dispatchers.IO) {
+        try {
+            val crossRefs = supabase.from("expense_tag_cross_ref")
+                .select { filter { eq("expense_id", expenseId) } }
+                .decodeAs<List<ExpenseTagCrossRefDto>>()
 
-                if (crossRefs.isEmpty()) {
-                    return@withContext Result.success(emptyList())
-                }
-
-                // Затем получаем теги по их ID
-                val tagIds = crossRefs.map { it.tagId }
-                val tags = supabase.from("expense_tags")
-                    .select {
-                        filter {
-                            isIn("id", tagIds)
-                        }
-                    }
-                    .decodeList<ExpenseTagDto>()
-
-                Result.success(tags.map { it.toExpenseTag() })
-            } catch (e: Exception) {
-                Result.failure(e)
+            if (crossRefs.isEmpty()) {
+                return@withContext Result.success(emptyList())
             }
-        }
 
-    /**
-     * Обновить тег
-     */
+            val tagIds = crossRefs.map { it.tagId }
+            val tags = supabase.from("expense_tags")
+                .select { filter { isIn("id", tagIds) } }
+                .decodeAs<List<ExpenseTagDto>>()
+
+            Result.success(tags.map { it.toExpenseTag() })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateTag(tag: ExpenseTag): Result<ExpenseTag> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
@@ -144,31 +106,25 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
 
             val tagDto = tag.toDto(userId)
 
-            val updatedTag = supabase.from("expense_tags")
+            supabase.from("expense_tags")
                 .update(tagDto) {
                     filter {
                         eq("id", tag.id)
                         eq("user_id", userId)
                     }
-                    select(Columns.ALL)
                 }
-                .decodeSingle<ExpenseTagDto>()
 
-            Result.success(updatedTag.toExpenseTag())
+            Result.success(tag)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    /**
-     * Удалить тег
-     */
     suspend fun deleteTag(tagId: Long): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()
                 ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
 
-            // Удаление тега автоматически удалит связи через CASCADE
             supabase.from("expense_tags")
                 .delete {
                     filter {
@@ -183,92 +139,59 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    /**
-     * Добавить тег к расходу
-     */
-    suspend fun addTagToExpense(expenseId: Long, tagId: Long): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            try {
-                val crossRef = ExpenseTagCrossRefDto(
-                    expenseId = expenseId,
-                    tagId = tagId
-                )
-
-                supabase.from("expense_tag_cross_ref")
-                    .insert(crossRef)
-
-                Result.success(Unit)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
+    suspend fun addTagToExpense(expenseId: Long, tagId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val crossRef = ExpenseTagCrossRefDto(expenseId = expenseId, tagId = tagId)
+            supabase.from("expense_tag_cross_ref").insert(crossRef)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
+    }
 
-    /**
-     * Удалить тег у расхода
-     */
-    suspend fun removeTagFromExpense(expenseId: Long, tagId: Long): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            try {
-                supabase.from("expense_tag_cross_ref")
-                    .delete {
-                        filter {
-                            eq("expense_id", expenseId)
-                            eq("tag_id", tagId)
-                        }
+    suspend fun removeTagFromExpense(expenseId: Long, tagId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            supabase.from("expense_tag_cross_ref")
+                .delete {
+                    filter {
+                        eq("expense_id", expenseId)
+                        eq("tag_id", tagId)
                     }
-
-                Result.success(Unit)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
-    /**
-     * Удалить все теги у расхода
-     */
-    suspend fun removeAllTagsFromExpense(expenseId: Long): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            try {
-                supabase.from("expense_tag_cross_ref")
-                    .delete {
-                        filter {
-                            eq("expense_id", expenseId)
-                        }
-                    }
-
-                Result.success(Unit)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
-    /**
-     * Установить теги для расхода (заменяет все существующие)
-     */
-    suspend fun setTagsForExpense(expenseId: Long, tagIds: List<Long>): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            try {
-                // Сначала удаляем все существующие связи
-                removeAllTagsFromExpense(expenseId)
-
-                // Затем добавляем новые
-                if (tagIds.isNotEmpty()) {
-                    val crossRefs = tagIds.map { tagId ->
-                        ExpenseTagCrossRefDto(expenseId = expenseId, tagId = tagId)
-                    }
-
-                    supabase.from("expense_tag_cross_ref")
-                        .insert(crossRefs)
                 }
-
-                Result.success(Unit)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
+    }
+
+    suspend fun removeAllTagsFromExpense(expenseId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            supabase.from("expense_tag_cross_ref")
+                .delete { filter { eq("expense_id", expenseId) } }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun setTagsForExpense(expenseId: Long, tagIds: List<Long>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            removeAllTagsFromExpense(expenseId)
+
+            if (tagIds.isNotEmpty()) {
+                val crossRefs = tagIds.map { tagId ->
+                    ExpenseTagCrossRefDto(expenseId = expenseId, tagId = tagId)
+                }
+                supabase.from("expense_tag_cross_ref").insert(crossRefs)
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
-// Extension functions для конвертации
 private fun ExpenseTag.toDto(userId: String) = ExpenseTagDto(
     id = if (id == 0L) null else id,
     name = name,

@@ -4,7 +4,6 @@ import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
 import com.aggin.carcost.data.local.database.entities.MaintenanceType
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.postgrest.from
-import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,6 +13,8 @@ import kotlinx.serialization.SerialName
 @Serializable
 data class MaintenanceReminderDto(
     val id: Long? = null,
+    @SerialName("user_id")
+    val userId: String,
     @SerialName("car_id")
     val carId: Long,
     val type: String,
@@ -34,45 +35,32 @@ data class MaintenanceReminderDto(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
-/**
- * Репозиторий для работы с напоминаниями о техобслуживании через Supabase
- */
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 class SupabaseMaintenanceReminderRepository(private val authRepository: SupabaseAuthRepository) {
 
-    /**
-     * Создать напоминание
-     */
     suspend fun insertReminder(reminder: MaintenanceReminder): Result<MaintenanceReminder> =
         withContext(Dispatchers.IO) {
             try {
-                val reminderDto = reminder.toDto()
+                val userId = authRepository.getUserId()
+                    ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
 
-                val insertedReminder = supabase.from("maintenance_reminders")
-                    .insert(reminderDto) {
-                        select(Columns.ALL)
-                    }
-                    .decodeSingle<MaintenanceReminderDto>()
-
-                Result.success(insertedReminder.toMaintenanceReminder())
+                val reminderDto = reminder.toDto(userId)
+                supabase.from("maintenance_reminders").insert(reminderDto)
+                Result.success(reminder)
             } catch (e: Exception) {
                 Result.failure(e)
             }
         }
 
-    /**
-     * Получить все напоминания для автомобиля
-     */
     suspend fun getRemindersByCarId(carId: Long): Result<List<MaintenanceReminder>> =
         withContext(Dispatchers.IO) {
             try {
                 val reminders = supabase.from("maintenance_reminders")
                     .select {
-                        filter {
-                            eq("car_id", carId)
-                        }
+                        filter { eq("car_id", carId) }
                         order("next_change_odometer", Order.DESCENDING)
                     }
-                    .decodeList<MaintenanceReminderDto>()
+                    .decodeAs<List<MaintenanceReminderDto>>()
 
                 Result.success(reminders.map { it.toMaintenanceReminder() })
             } catch (e: Exception) {
@@ -80,9 +68,6 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
             }
         }
 
-    /**
-     * Получить активные напоминания для автомобиля
-     */
     suspend fun getActiveReminders(carId: Long): Result<List<MaintenanceReminder>> =
         withContext(Dispatchers.IO) {
             try {
@@ -94,7 +79,7 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
                         }
                         order("next_change_odometer", Order.DESCENDING)
                     }
-                    .decodeList<MaintenanceReminderDto>()
+                    .decodeAs<List<MaintenanceReminderDto>>()
 
                 Result.success(reminders.map { it.toMaintenanceReminder() })
             } catch (e: Exception) {
@@ -102,19 +87,15 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
             }
         }
 
-    /**
-     * Получить напоминание по ID
-     */
     suspend fun getReminderById(reminderId: Long): Result<MaintenanceReminder> =
         withContext(Dispatchers.IO) {
             try {
-                val reminder = supabase.from("maintenance_reminders")
-                    .select {
-                        filter {
-                            eq("id", reminderId)
-                        }
-                    }
-                    .decodeSingle<MaintenanceReminderDto>()
+                val reminders = supabase.from("maintenance_reminders")
+                    .select { filter { eq("id", reminderId) } }
+                    .decodeAs<List<MaintenanceReminderDto>>()
+
+                val reminder = reminders.firstOrNull()
+                    ?: return@withContext Result.failure(Exception("Напоминание не найдено"))
 
                 Result.success(reminder.toMaintenanceReminder())
             } catch (e: Exception) {
@@ -122,9 +103,6 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
             }
         }
 
-    /**
-     * Получить напоминание по типу
-     */
     suspend fun getReminderByType(
         carId: Long,
         type: MaintenanceType
@@ -139,7 +117,7 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
                     }
                     limit(1)
                 }
-                .decodeList<MaintenanceReminderDto>()
+                .decodeAs<List<MaintenanceReminderDto>>()
 
             Result.success(reminders.firstOrNull()?.toMaintenanceReminder())
         } catch (e: Exception) {
@@ -147,70 +125,47 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
         }
     }
 
-    /**
-     * Обновить напоминание
-     */
     suspend fun updateReminder(reminder: MaintenanceReminder): Result<MaintenanceReminder> =
         withContext(Dispatchers.IO) {
             try {
-                val reminderDto = reminder.toDto().copy(
+                val userId = authRepository.getUserId()
+                    ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
+
+                val reminderDto = reminder.toDto(userId).copy(
                     updatedAt = System.currentTimeMillis()
                 )
 
-                val updatedReminder = supabase.from("maintenance_reminders")
+                supabase.from("maintenance_reminders")
                     .update(reminderDto) {
-                        filter {
-                            eq("id", reminder.id)
-                        }
-                        select(Columns.ALL)
+                        filter { eq("id", reminder.id) }
                     }
-                    .decodeSingle<MaintenanceReminderDto>()
 
-                Result.success(updatedReminder.toMaintenanceReminder())
+                Result.success(reminder)
             } catch (e: Exception) {
                 Result.failure(e)
             }
         }
 
-    /**
-     * Удалить напоминание
-     */
     suspend fun deleteReminder(reminderId: Long): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             supabase.from("maintenance_reminders")
-                .delete {
-                    filter {
-                        eq("id", reminderId)
-                    }
-                }
-
+                .delete { filter { eq("id", reminderId) } }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    /**
-     * Удалить все напоминания для автомобиля
-     */
     suspend fun deleteRemindersByCarId(carId: Long): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             supabase.from("maintenance_reminders")
-                .delete {
-                    filter {
-                        eq("car_id", carId)
-                    }
-                }
-
+                .delete { filter { eq("car_id", carId) } }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    /**
-     * Получить напоминания, обновленные после указанной временной метки
-     */
     suspend fun getRemindersUpdatedAfter(
         carId: Long,
         timestamp: Long
@@ -223,7 +178,7 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
                         gt("updated_at", timestamp)
                     }
                 }
-                .decodeList<MaintenanceReminderDto>()
+                .decodeAs<List<MaintenanceReminderDto>>()
 
             Result.success(reminders.map { it.toMaintenanceReminder() })
         } catch (e: Exception) {
@@ -232,9 +187,9 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
     }
 }
 
-// Extension functions для конвертации
-private fun MaintenanceReminder.toDto() = MaintenanceReminderDto(
+private fun MaintenanceReminder.toDto(userId: String) = MaintenanceReminderDto(
     id = if (id == 0L) null else id,
+    userId = userId,
     carId = carId,
     type = type.name,
     lastChangeOdometer = lastChangeOdometer,
@@ -253,7 +208,7 @@ private fun MaintenanceReminderDto.toMaintenanceReminder() = MaintenanceReminder
     type = try {
         MaintenanceType.valueOf(type)
     } catch (e: Exception) {
-        MaintenanceType.OIL_CHANGE // fallback
+        MaintenanceType.OIL_CHANGE
     },
     lastChangeOdometer = lastChangeOdometer,
     lastChangeDate = lastChangeDate,
