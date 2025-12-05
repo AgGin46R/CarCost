@@ -23,6 +23,7 @@ import com.aggin.carcost.presentation.screens.map.MapScreen
 import com.aggin.carcost.presentation.screens.profile.ProfileScreen
 import com.aggin.carcost.presentation.screens.receipt_scan.ReceiptScanScreen
 import com.aggin.carcost.presentation.screens.categories.CategoryManagementScreen
+import com.aggin.carcost.presentation.screens.bug_report.BugReportScreen  // ✅ ДОБАВЛЕНО
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -32,38 +33,41 @@ sealed class Screen(val route: String) {
     object AddCar : Screen("add_car")
 
     object CarDetail : Screen("car_detail/{carId}") {
-        fun createRoute(carId: String) = "car_detail/$carId" // ✅ String UUID
+        fun createRoute(carId: String) = "car_detail/$carId"
     }
 
     object EditCar : Screen("edit_car/{carId}") {
-        fun createRoute(carId: String) = "edit_car/$carId" // ✅ String UUID
+        fun createRoute(carId: String) = "edit_car/$carId"
     }
 
     object AddExpense : Screen("add_expense/{carId}") {
-        fun createRoute(carId: String) = "add_expense/$carId" // ✅ String UUID
+        fun createRoute(carId: String) = "add_expense/$carId"
     }
 
     object EditExpense : Screen("edit_expense/{carId}/{expenseId}") {
-        fun createRoute(carId: String, expenseId: String) = "edit_expense/$carId/$expenseId" // ✅ String UUID
+        fun createRoute(carId: String, expenseId: String) = "edit_expense/$carId/$expenseId"
     }
 
     object Analytics : Screen("analytics/{carId}") {
-        fun createRoute(carId: String) = "analytics/$carId" // ✅ String UUID
+        fun createRoute(carId: String) = "analytics/$carId"
     }
 
     object Map : Screen("map/{carId}") {
-        fun createRoute(carId: String) = "map/$carId" // ✅ String UUID
+        fun createRoute(carId: String) = "map/$carId"
     }
 
     object Export : Screen("export/{carId}") {
-        fun createRoute(carId: String) = "export/$carId" // ✅ String UUID
+        fun createRoute(carId: String) = "export/$carId"
     }
 
     object ReceiptScan : Screen("receipt_scan/{carId}") {
-        fun createRoute(carId: String) = "receipt_scan/$carId" // ✅ String UUID
+        fun createRoute(carId: String) = "receipt_scan/$carId"
     }
 
     object CategoryManagement : Screen("category_management")
+
+    // ✅ ДОБАВЛЕНО
+    object BugReport : Screen("bug_report")
 }
 
 @Composable
@@ -105,7 +109,7 @@ fun AppNavigation(
             route = Screen.CarDetail.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
             CarDetailScreen(carId = carId, navController = navController)
         }
 
@@ -114,7 +118,7 @@ fun AppNavigation(
             route = Screen.Map.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
             MapScreen(carId = carId, navController = navController)
         }
 
@@ -123,7 +127,7 @@ fun AppNavigation(
             route = Screen.EditCar.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
             EditCarScreen(carId = carId, navController = navController)
         }
 
@@ -132,11 +136,11 @@ fun AppNavigation(
             route = Screen.AddExpense.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
             AddExpenseScreen(carId = carId, navController = navController)
         }
 
-        // РЕДАКТИРОВАНИЕ РАСХОДА (НОВЫЙ МАРШРУТ)
+        // Редактирование расхода
         composable(
             route = Screen.EditExpense.route,
             arguments = listOf(
@@ -144,8 +148,8 @@ fun AppNavigation(
                 navArgument("expenseId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
-            val expenseId = backStackEntry.arguments?.getString("expenseId") ?: "" // ✅ String UUID
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
             EditExpenseScreen(
                 carId = carId,
                 expenseId = expenseId,
@@ -158,7 +162,7 @@ fun AppNavigation(
             route = Screen.Analytics.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
             EnhancedAnalyticsScreen(carId = carId, navController = navController)
         }
 
@@ -167,7 +171,7 @@ fun AppNavigation(
             route = Screen.Export.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
             ExportScreen(carId = carId, navController = navController)
         }
 
@@ -176,7 +180,7 @@ fun AppNavigation(
             route = Screen.ReceiptScan.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
             ReceiptScanScreen(
                 carId = carId,
                 navController = navController
@@ -186,6 +190,11 @@ fun AppNavigation(
         // Управление категориями
         composable(Screen.CategoryManagement.route) {
             CategoryManagementScreen(navController = navController)
+        }
+
+        // ✅ ДОБАВЛЕНО: Отчет об ошибках
+        composable(Screen.BugReport.route) {
+            BugReportScreen(navController = navController)
         }
     }
 }

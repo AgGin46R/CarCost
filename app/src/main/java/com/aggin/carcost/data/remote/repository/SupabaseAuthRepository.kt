@@ -127,6 +127,20 @@ class SupabaseAuthRepository {
     }
 
     /**
+     * ✅ ДОБАВЛЕНО: Получение email текущего пользователя
+     */
+    fun getCurrentUserEmail(): String? {
+        return supabase.auth.currentUserOrNull()?.email
+    }
+
+    /**
+     * ✅ ДОБАВЛЕНО: Получение имени текущего пользователя
+     */
+    fun getCurrentUserDisplayName(): String? {
+        return supabase.auth.currentUserOrNull()?.userMetadata?.get("display_name") as? String
+    }
+
+    /**
      * Обновление профиля пользователя
      */
     suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> = withContext(Dispatchers.IO) {

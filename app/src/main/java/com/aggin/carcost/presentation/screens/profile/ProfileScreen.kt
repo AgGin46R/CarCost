@@ -347,7 +347,6 @@ fun PhotoOptionsDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoOptionItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -355,40 +354,24 @@ fun PhotoOptionItem(
     onClick: () -> Unit,
     isDestructive: Boolean = false
 ) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isDestructive)
-                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (isDestructive)
-                    MaterialTheme.colorScheme.error
-                else
-                    MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (isDestructive)
-                    MaterialTheme.colorScheme.error
-                else
-                    MaterialTheme.colorScheme.onSurface
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -401,51 +384,48 @@ fun StatisticsSection(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Статистика",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            StatisticItem(
+                title = "Автомобилей",
+                value = carsCount.toString(),
+                icon = Icons.Default.DirectionsCar
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatItem(
-                    icon = Icons.Default.DirectionsCar,
-                    label = "Автомобилей",
-                    value = carsCount.toString()
-                )
-                StatItem(
-                    icon = Icons.Default.MonetizationOn,
-                    label = "Расходы",
-                    value = String.format("%.0f ₽", totalExpenses)
-                )
-                StatItem(
-                    icon = Icons.Default.Speed,
-                    label = "Пробег",
-                    value = "$totalOdometer км"
-                )
-            }
+            StatisticItem(
+                title = "Потрачено",
+                value = String.format("%.2f ₽", totalExpenses),
+                icon = Icons.Default.Payments
+            )
+            StatisticItem(
+                title = "Пробег",
+                value = "$totalOdometer км",
+                icon = Icons.Default.Speed
+            )
         }
     }
 }
 
 @Composable
-fun StatItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String
+fun StatisticItem(
+    title: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(32.dp),
-            tint = MaterialTheme.colorScheme.primary
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(32.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -454,7 +434,7 @@ fun StatItem(
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = label,
+            text = title,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
@@ -472,7 +452,8 @@ fun ActionsSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = "Действия",
@@ -487,6 +468,12 @@ fun ActionsSection(
             icon = Icons.Default.Category,
             title = "Категории и теги",
             onClick = { navController.navigate(Screen.CategoryManagement.route) }
+        )
+        // ✅ ДОБАВЛЕНО: Кнопка отчета об ошибках
+        ActionItem(
+            icon = Icons.Default.BugReport,
+            title = "Сообщить об ошибке",
+            onClick = { navController.navigate(Screen.BugReport.route) }
         )
         ActionItem(
             icon = Icons.Default.Logout,
