@@ -2,6 +2,8 @@ package com.aggin.carcost.presentation.screens.profile
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
@@ -12,12 +14,14 @@ import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.User
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.supabase
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 
 data class UserStatistics(
@@ -116,6 +120,39 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // ✅ Функция для сжатия изображения
+    private suspend fun compressImage(uri: Uri): ByteArray = withContext(Dispatchers.IO) {
+        val inputStream = context.contentResolver.openInputStream(uri)
+            ?: throw Exception("Не удалось открыть файл")
+
+        // Читаем изображение
+        val bitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream.close()
+
+        // Определяем размер для сжатия (макс 1024px по большей стороне)
+        val maxSize = 1024
+        val ratio = minOf(
+            maxSize.toFloat() / bitmap.width,
+            maxSize.toFloat() / bitmap.height
+        )
+
+        val width = (bitmap.width * ratio).toInt()
+        val height = (bitmap.height * ratio).toInt()
+
+        // Масштабируем
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true)
+
+        // Сжимаем в JPEG с качеством 85%
+        val outputStream = ByteArrayOutputStream()
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+
+        // Освобождаем память
+        bitmap.recycle()
+        scaledBitmap.recycle()
+
+        outputStream.toByteArray()
+    }
+
     fun updateProfilePhoto(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -134,27 +171,30 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
 
-                // Создаем директорию для фото профиля
-                val profilePhotosDir = File(context.filesDir, "profile_photos")
-                if (!profilePhotosDir.exists()) {
-                    profilePhotosDir.mkdirs()
-                }
+                val userId = supabaseAuth.getUserId() ?: throw Exception("User ID not found")
+                val fileName = "$userId/avatar_${System.currentTimeMillis()}.jpg"
 
-                // Создаем файл для сохранения фото
-                val photoFile = File(profilePhotosDir, "${currentUser.uid}_${UUID.randomUUID()}.jpg")
+                // ✅ Сжимаем изображение перед загрузкой
+                val bytes = compressImage(uri)
 
-                // Копируем содержимое URI в наш файл
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    FileOutputStream(photoFile).use { output ->
-                        input.copyTo(output)
-                    }
-                }
+                android.util.Log.d("ProfileViewModel", "Размер сжатого файла: ${bytes.size / 1024} KB")
 
-                // Получаем путь к сохраненному файлу
-                val photoPath = photoFile.absolutePath
+                // Загружаем в Supabase Storage
+                val bucket = supabase.storage.from("avatars")
+                bucket.upload(
+                    path = fileName,
+                    data = bytes,
+                    upsert = true
+                )
+
+                // Получаем публичный URL
+                val photoUrl = bucket.publicUrl(fileName)
+
+                // Обновляем в Supabase таблице users
+                supabaseAuth.updateProfile(displayName = null, photoUrl = photoUrl)
 
                 // Обновляем в локальной БД
-                val updatedUser = currentUser.copy(photoUrl = photoPath)
+                val updatedUser = currentUser.copy(photoUrl = photoUrl)
                 database.userDao().updateUser(updatedUser)
 
                 // Немедленно обновляем UI
@@ -168,6 +208,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
             } catch (e: Exception) {
                 e.printStackTrace()
+                android.util.Log.e("ProfileViewModel", "Ошибка загрузки фото", e)
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
                         isUploadingPhoto = false,
@@ -196,13 +237,23 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
 
-                // Удаляем старое фото из файловой системы
-                currentUser.photoUrl?.let { photoPath ->
-                    val photoFile = File(photoPath)
-                    if (photoFile.exists()) {
-                        photoFile.delete()
+                // Удаляем старое фото из Supabase Storage (если есть)
+                currentUser.photoUrl?.let { url ->
+                    try {
+                        // Извлекаем путь к файлу из URL
+                        val userId = supabaseAuth.getUserId()
+                        if (userId != null && url.contains(userId)) {
+                            val fileName = url.substringAfter("avatars/")
+                            val bucket = supabase.storage.from("avatars")
+                            bucket.delete(fileName)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("ProfileViewModel", "Не удалось удалить файл из Storage", e)
                     }
                 }
+
+                // Обновляем в Supabase таблице users
+                supabaseAuth.updateProfile(displayName = null, photoUrl = null)
 
                 // Обновляем в локальной БД
                 val updatedUser = currentUser.copy(photoUrl = null)

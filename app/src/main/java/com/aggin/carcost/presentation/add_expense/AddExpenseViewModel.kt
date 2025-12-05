@@ -82,9 +82,29 @@ class AddExpenseViewModel(
                 _uiState.value = _uiState.value.copy(odometer = it.currentOdometer.toString())
             }
 
-            // Загружаем доступные теги
+            // ✅ СНАЧАЛА синхронизируем теги из Supabase
             val userId = supabaseAuth.getUserId()
             if (userId != null) {
+                try {
+                    val supabaseTagRepo = com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository(supabaseAuth)
+                    val remoteTagsResult = supabaseTagRepo.getAllTags()
+
+                    remoteTagsResult.getOrNull()?.let { remoteTags ->
+                        // Сохраняем удаленные теги в локальную БД
+                        for (remoteTag in remoteTags) {
+                            try {
+                                tagDao.insertTag(remoteTag)
+                            } catch (e: Exception) {
+                                android.util.Log.e("AddExpense", "Error saving tag: ${e.message}")
+                            }
+                        }
+                        android.util.Log.d("AddExpense", "✅ Synced ${remoteTags.size} tags from Supabase")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AddExpense", "Failed to sync tags from Supabase", e)
+                }
+
+                // ПОТОМ загружаем из локальной БД
                 tagDao.getAllTags(userId).collect { tags ->
                     _uiState.value = _uiState.value.copy(availableTags = tags)
                 }
@@ -359,10 +379,82 @@ class AddExpenseViewModel(
                 // Не критично - продолжаем
             }
 
-            // 6. Сбрасываем состояние
+            // ✅ 6. СИНХРОНИЗИРУЕМ ТЕГИ С SUPABASE
+            try {
+                if (state.selectedTags.isNotEmpty()) {
+                    val supabaseTagRepo = com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository(supabaseAuth)
+
+                    // ВАЖНО: Сначала убеждаемся что САМ ТЕГ существует в Supabase
+                    for (tag in state.selectedTags) {
+                        try {
+                            // Пытаемся вставить тег (если уже есть - ничего не произойдет)
+                            val tagResult = supabaseTagRepo.insertTag(tag)
+                            tagResult.fold(
+                                onSuccess = {
+                                    android.util.Log.d("AddExpense", "✅ Tag ensured in Supabase: ${tag.id}")
+                                },
+                                onFailure = { error ->
+                                    // Возможно тег уже существует - это нормально
+                                    android.util.Log.d("AddExpense", "Tag already exists or error: ${error.message}")
+                                }
+                            )
+                        } catch (e: Exception) {
+                            android.util.Log.d("AddExpense", "Tag insert exception (probably exists): ${e.message}")
+                        }
+                    }
+
+                    // Теперь безопасно создаем связи
+                    val tagIds = state.selectedTags.map { it.id }
+                    val result = supabaseTagRepo.setTagsForExpense(expenseId, tagIds)
+
+                    result.fold(
+                        onSuccess = {
+                            android.util.Log.d("AddExpense", "✅ Tag links synced to Supabase: ${tagIds.size} tags")
+                        },
+                        onFailure = { error ->
+                            android.util.Log.e("AddExpense", "❌ Failed to sync tag links", error)
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AddExpense", "Exception syncing tags", e)
+            }
+
+            // ✅ 7. СИНХРОНИЗИРУЕМ НАПОМИНАНИЕ С SUPABASE
+            if (state.category == ExpenseCategory.MAINTENANCE && state.serviceType != null) {
+                try {
+                    val maintenanceType = convertServiceTypeToMaintenanceType(state.serviceType)
+                    if (maintenanceType != null) {
+                        val supabaseReminderRepo = com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository(supabaseAuth)
+                        val reminderRepository = MaintenanceReminderRepository(
+                            AppDatabase.getDatabase(getApplication()).maintenanceReminderDao()
+                        )
+
+                        // Получаем напоминание которое только что создали/обновили локально
+                        val localReminder = reminderRepository.getReminderByType(carId, maintenanceType)
+
+                        if (localReminder != null) {
+                            // Синхронизируем с Supabase
+                            val result = supabaseReminderRepo.insertReminder(localReminder)
+                            result.fold(
+                                onSuccess = {
+                                    android.util.Log.d("AddExpense", "✅ Reminder synced to Supabase")
+                                },
+                                onFailure = { error ->
+                                    android.util.Log.e("AddExpense", "❌ Failed to sync reminder", error)
+                                }
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AddExpense", "Exception syncing reminder", e)
+                }
+            }
+
+            // 8. Сбрасываем состояние
             _uiState.value = state.copy(isSaving = false)
 
-            // 7. Вызываем onSuccess
+            // 9. Вызываем onSuccess
             onSuccess()
 
         } catch (e: Exception) {

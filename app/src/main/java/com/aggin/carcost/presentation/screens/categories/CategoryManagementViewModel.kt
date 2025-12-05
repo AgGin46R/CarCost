@@ -1,12 +1,14 @@
 package com.aggin.carcost.presentation.screens.categories
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.database.entities.TagWithExpenseCount
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -19,6 +21,7 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
 
     private val tagDao = AppDatabase.getDatabase(application).expenseTagDao()
     private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth) // ✅ ДОБАВЛЕНО
 
     private val _uiState = MutableStateFlow(CategoryManagementUiState())
     val uiState: StateFlow<CategoryManagementUiState> = _uiState.asStateFlow()
@@ -45,7 +48,25 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
                 color = color,
                 userId = userId
             )
+
+            // 1. Сохраняем локально
             tagDao.insertTag(tag)
+            Log.d("CategoryManagement", "✅ Tag saved locally: ${tag.id}")
+
+            // 2. ✅ СИНХРОНИЗИРУЕМ С SUPABASE
+            try {
+                val result = supabaseTagRepo.insertTag(tag)
+                result.fold(
+                    onSuccess = {
+                        Log.d("CategoryManagement", "✅ Tag synced to Supabase: ${tag.id}")
+                    },
+                    onFailure = { error ->
+                        Log.e("CategoryManagement", "❌ Failed to sync tag to Supabase", error)
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("CategoryManagement", "Exception syncing tag", e)
+            }
         }
     }
 
@@ -62,7 +83,25 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
                 userId = userId,
                 createdAt = currentTag.createdAt
             )
+
+            // 1. Обновляем локально
             tagDao.insertTag(updatedTag)
+            Log.d("CategoryManagement", "✅ Tag updated locally: ${updatedTag.id}")
+
+            // 2. ✅ СИНХРОНИЗИРУЕМ С SUPABASE
+            try {
+                val result = supabaseTagRepo.updateTag(updatedTag)
+                result.fold(
+                    onSuccess = {
+                        Log.d("CategoryManagement", "✅ Tag updated in Supabase: ${updatedTag.id}")
+                    },
+                    onFailure = { error ->
+                        Log.e("CategoryManagement", "❌ Failed to update tag in Supabase", error)
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("CategoryManagement", "Exception updating tag", e)
+            }
         }
     }
 
@@ -75,7 +114,25 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
                 userId = tagToDelete.userId,
                 createdAt = tagToDelete.createdAt
             )
+
+            // 1. Удаляем локально
             tagDao.deleteTag(tag)
+            Log.d("CategoryManagement", "✅ Tag deleted locally: ${tag.id}")
+
+            // 2. ✅ СИНХРОНИЗИРУЕМ С SUPABASE
+            try {
+                val result = supabaseTagRepo.deleteTag(tag.id)
+                result.fold(
+                    onSuccess = {
+                        Log.d("CategoryManagement", "✅ Tag deleted from Supabase: ${tag.id}")
+                    },
+                    onFailure = { error ->
+                        Log.e("CategoryManagement", "❌ Failed to delete tag from Supabase", error)
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("CategoryManagement", "Exception deleting tag", e)
+            }
         }
     }
 }

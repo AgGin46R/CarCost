@@ -39,6 +39,7 @@ class SyncRepository(
     private val localExpenseRepo: ExpenseRepository,
     private val localReminderRepo: MaintenanceReminderRepository,
     private val localTagRepo: ExpenseTagRepository,
+    private val localTagDao: com.aggin.carcost.data.local.database.dao.ExpenseTagDao, // ✅ ДОБАВЛЕНО
     private val supabaseAuthRepo: SupabaseAuthRepository,
     private val supabaseCarRepo: SupabaseCarRepository,
     private val supabaseExpenseRepo: SupabaseExpenseRepository,
@@ -71,6 +72,7 @@ class SyncRepository(
             syncExpenses()
             syncReminders()
             syncTags()
+            syncTagLinks() // ✅ Синхронизируем связи тегов ПОСЛЕ тегов и расходов
 
             _syncState.value = SyncState.Success()
             Log.d(TAG, "Full sync completed successfully")
@@ -280,9 +282,62 @@ class SyncRepository(
         for (remoteTag in remoteTags) {
             if (localTags.none { it.id == remoteTag.id }) {
                 Log.d(TAG, "Pulling new tag from server: ${remoteTag.id}")
-                // Вставка тега в локальную БД
-                // Примечание: требуется метод insertTag в localTagRepo
+                // ✅ ИСПРАВЛЕНО: Сохраняем тег в локальную БД
+                try {
+                    localTagRepo.insertTag(remoteTag)
+                    Log.d(TAG, "✅ Tag saved locally: ${remoteTag.id}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Failed to save tag locally: ${remoteTag.id}", e)
+                }
             }
+        }
+
+        Log.d(TAG, "✅ Tags sync completed: ${remoteTags.size} remote, ${localTags.size} local")
+    }
+
+    /**
+     * ✅ Синхронизация связей тегов с расходами
+     */
+    private suspend fun syncTagLinks() {
+        Log.d(TAG, "Syncing tag links...")
+
+        val userId = supabaseAuthRepo.getUserId() ?: return
+
+        try {
+            // Получаем все расходы из Supabase для пользователя
+            val remoteExpensesResult = supabaseExpenseRepo.getAllUserExpenses()
+            val remoteExpenses = remoteExpensesResult.getOrNull() ?: emptyList()
+
+            Log.d(TAG, "Found ${remoteExpenses.size} expenses to sync tag links")
+
+            for (expense in remoteExpenses) {
+                // Получаем теги для этого расхода из Supabase
+                val remoteTagsResult = supabaseTagRepo.getTagsForExpense(expense.id)
+                val remoteTags = remoteTagsResult.getOrNull() ?: emptyList()
+
+                if (remoteTags.isNotEmpty()) {
+                    Log.d(TAG, "Expense ${expense.id} has ${remoteTags.size} tags")
+
+                    // Сохраняем связи локально
+                    for (tag in remoteTags) {
+                        try {
+                            localTagDao.insertExpenseTagCrossRef(
+                                com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef(
+                                    expenseId = expense.id,
+                                    tagId = tag.id
+                                )
+                            )
+                            Log.d(TAG, "✅ Tag link saved: expense=${expense.id}, tag=${tag.id}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ Failed to save tag link: ${e.message}")
+                        }
+                    }
+                }
+            }
+
+            Log.d(TAG, "✅ Tag links sync completed")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Tag links sync failed", e)
         }
     }
 

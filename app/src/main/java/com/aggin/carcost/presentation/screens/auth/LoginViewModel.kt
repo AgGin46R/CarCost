@@ -54,6 +54,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         localExpenseRepo = localExpenseRepo,
         localReminderRepo = localReminderRepo,
         localTagRepo = localTagRepo,
+        localTagDao = AppDatabase.getDatabase(getApplication()).expenseTagDao(), // ✅ ДОБАВЛЕНО
         supabaseAuthRepo = supabaseAuth,
         supabaseCarRepo = supabaseCarRepo,
         supabaseExpenseRepo = supabaseExpenseRepo,
