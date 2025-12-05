@@ -10,12 +10,13 @@ import java.util.Calendar
 class ExpenseRepository(private val expenseDao: ExpenseDao) {
 
     // Create
-    suspend fun insertExpense(expense: Expense): Long {
-        return expenseDao.insertExpense(expense)
+    suspend fun insertExpense(expense: Expense): String { // ✅ Возвращает String UUID
+        expenseDao.insertExpense(expense)
+        return expense.id // ✅ Возвращаем UUID
     }
 
     // Read
-    suspend fun getExpenseById(expenseId: Long): Expense? {
+    suspend fun getExpenseById(expenseId: String): Expense? { // ✅ String UUID
         return expenseDao.getExpenseById(expenseId)
     }
 
@@ -67,6 +68,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
             calendar.get(Calendar.YEAR) == currentYear && calendar.get(Calendar.MONTH) == currentMonth
         }.sumOf { it.amount }
     }
+
     // Update
     suspend fun updateExpense(expense: Expense) {
         expenseDao.updateExpense(expense.copy(updatedAt = System.currentTimeMillis()))
@@ -77,7 +79,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
         expenseDao.deleteExpense(expense)
     }
 
-    suspend fun deleteExpenseById(expenseId: Long) {
+    suspend fun deleteExpenseById(expenseId: String) { // ✅ String UUID
         expenseDao.deleteExpenseById(expenseId)
     }
 

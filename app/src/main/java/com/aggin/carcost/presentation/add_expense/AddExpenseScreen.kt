@@ -30,7 +30,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseScreen(
-    carId: Long,
+    carId: String, // ✅ String UUID
     navController: NavController,
     viewModel: AddExpenseViewModel = viewModel()
 ) {

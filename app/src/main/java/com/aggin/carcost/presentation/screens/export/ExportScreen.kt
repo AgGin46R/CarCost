@@ -22,7 +22,7 @@ import androidx.navigation.NavController
 @Composable
 fun ExportScreen(
     navController: NavController,
-    carId: Long
+    carId: String // ✅ String UUID
 ) {
     // --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
     // 1. Получаем контекст приложения

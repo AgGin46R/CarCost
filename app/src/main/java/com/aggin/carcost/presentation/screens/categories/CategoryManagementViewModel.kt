@@ -49,14 +49,14 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
         }
     }
 
-    fun updateTag(tagId: Long, name: String, color: String) {
+    fun updateTag(tagId: String, name: String, color: String) { // ✅ String UUID
         val userId = supabaseAuth.getUserId() ?: return
         viewModelScope.launch {
             // Получаем текущий тег
             val currentTag = _uiState.value.tags.find { it.id == tagId } ?: return@launch
 
             val updatedTag = ExpenseTag(
-                id = tagId,
+                id = tagId, // ✅ String UUID
                 name = name.trim(),
                 color = color,
                 userId = userId,
@@ -69,7 +69,7 @@ class CategoryManagementViewModel(application: Application) : AndroidViewModel(a
     fun deleteTag(tagToDelete: TagWithExpenseCount) {
         viewModelScope.launch {
             val tag = ExpenseTag(
-                id = tagToDelete.id,
+                id = tagToDelete.id, // ✅ String UUID
                 name = tagToDelete.name,
                 color = tagToDelete.color,
                 userId = tagToDelete.userId,

@@ -29,40 +29,37 @@ import com.yandex.mapkit.mapview.MapView
 import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
-@SuppressLint("MissingPermission") // Мы проверяем разрешения вручную
+@SuppressLint("MissingPermission")
 @Composable
 fun MapScreen(
-    carId: Long,
+    carId: String,
     navController: NavController,
     viewModel: MapViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
-    // НОВОЕ: Клиент для получения геолокации
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
     }
 
-    // НОВОЕ: Состояние для хранения текущего местоположения
     var currentLocation by remember {
         mutableStateOf<Point?>(null)
     }
 
-    // Устанавливаем ID автомобиля
     LaunchedEffect(carId) {
         viewModel.setCarId(carId)
     }
 
-    // Инициализируем MapKit
+    // ✅ УДАЛЕНО: Инициализация MapKit теперь в App.kt
+    // Оставляем только управление жизненным циклом
     DisposableEffect(Unit) {
-        MapKitFactory.initialize(context)
+        MapKitFactory.getInstance().onStart()
         onDispose {
             MapKitFactory.getInstance().onStop()
         }
     }
 
-    // Запрос разрешений на геолокацию
     var hasLocationPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -79,7 +76,6 @@ fun MapScreen(
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
 
-    // НОВОЕ: Эффект для получения геолокации после получения разрешения
     LaunchedEffect(hasLocationPermission) {
         if (hasLocationPermission) {
             try {
@@ -88,7 +84,6 @@ fun MapScreen(
                     currentLocation = Point(it.latitude, it.longitude)
                 }
             } catch (e: Exception) {
-                // Обработка ошибок
                 e.printStackTrace()
             }
         }
@@ -145,14 +140,12 @@ fun MapScreen(
                         modifier = Modifier.align(Alignment.Center)
                     )
                 } else {
-                    // ИЗМЕНЕНО: Передаем текущее местоположение в YandexMapView
                     YandexMapView(
                         expenses = uiState.expenses,
-                        currentLocation = currentLocation, // Передаем сюда
+                        currentLocation = currentLocation,
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Информация о количестве точек
                     if (uiState.expenses.isNotEmpty()) {
                         Card(
                             modifier = Modifier
@@ -175,17 +168,14 @@ fun MapScreen(
 @Composable
 fun YandexMapView(
     expenses: List<Expense>,
-    // ИЗМЕНЕНО: Добавляем новый параметр
     currentLocation: Point?,
     modifier: Modifier = Modifier
 ) {
-    // НОВОЕ: Флаг, чтобы переместить камеру только один раз
     var isInitialCameraMoveDone by remember { mutableStateOf(false) }
 
     AndroidView(
         factory = { ctx ->
             MapView(ctx).apply {
-                // Начальная позиция (центр России) - она будет быстро заменена
                 val startPoint = Point(55.751244, 37.618423)
                 map.move(
                     CameraPosition(startPoint, 5.0f, 0.0f, 0.0f)
@@ -197,10 +187,8 @@ fun YandexMapView(
         },
         modifier = modifier,
         update = { mapView ->
-            // Удаляем старые метки
             mapView.map.mapObjects.clear()
 
-            // Добавляем метки для каждого расхода
             expenses.forEach { expense ->
                 if (expense.latitude != null && expense.longitude != null) {
                     val point = Point(expense.latitude, expense.longitude)
@@ -210,15 +198,12 @@ fun YandexMapView(
                 }
             }
 
-            // ИЗМЕНЕНО: Логика перемещения камеры
-            // Если мы получили геолокацию и еще не перемещали камеру
             if (currentLocation != null && !isInitialCameraMoveDone) {
                 mapView.map.move(
                     CameraPosition(currentLocation, 15.0f, 0.0f, 0.0f),
                     Animation(Animation.Type.SMOOTH, 1f),
                     null
                 )
-                // Устанавливаем флаг, чтобы больше не перемещать камеру автоматически
                 isInitialCameraMoveDone = true
             }
         }

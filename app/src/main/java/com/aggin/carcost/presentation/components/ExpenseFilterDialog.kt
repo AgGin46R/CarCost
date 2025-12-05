@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
-import com.aggin.carcost.data.local.database.entities.ExpenseTag // <-- ИЗМЕНЕН ТИП
+import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.presentation.screens.car_detail.ExpenseFilter
 import java.text.SimpleDateFormat
 import java.util.*
@@ -20,12 +20,12 @@ import java.util.*
 @Composable
 fun ExpenseFilterDialog(
     currentFilter: ExpenseFilter,
-    availableTags: List<ExpenseTag>, // <-- ИЗМЕНЕН ТИП НА ExpenseTag
+    availableTags: List<ExpenseTag>,
     onFilterApplied: (ExpenseFilter) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedCategories by remember { mutableStateOf(currentFilter.categories) }
-    var selectedTags by remember { mutableStateOf(currentFilter.tags) }
+    var selectedTags by remember { mutableStateOf<Set<String>>(currentFilter.tags) } // ✅ ЯВНЫЙ ТИП Set<String>
     var minAmount by remember { mutableStateOf(currentFilter.minAmount?.toString() ?: "") }
     var maxAmount by remember { mutableStateOf(currentFilter.maxAmount?.toString() ?: "") }
     var startDate by remember { mutableStateOf(currentFilter.startDate) }
@@ -64,14 +64,14 @@ fun ExpenseFilterDialog(
                 if (availableTags.isNotEmpty()) {
                     Text("Теги", style = MaterialTheme.typography.titleMedium)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        availableTags.forEach { tag -> // <-- теперь это ExpenseTag
+                        availableTags.forEach { tag ->
                             FilterChip(
                                 selected = tag.id in selectedTags,
                                 onClick = {
                                     selectedTags = if (tag.id in selectedTags) {
-                                        selectedTags - tag.id
+                                        selectedTags - tag.id // ✅ String - String = Set<String>
                                     } else {
-                                        selectedTags + tag.id
+                                        selectedTags + tag.id // ✅ String + String = Set<String>
                                     }
                                 },
                                 label = { Text(tag.name) }
@@ -125,7 +125,7 @@ fun ExpenseFilterDialog(
                 onClick = {
                     val newFilter = ExpenseFilter(
                         categories = selectedCategories,
-                        tags = selectedTags,
+                        tags = selectedTags, // ✅ Set<String>
                         startDate = startDate,
                         endDate = endDate,
                         minAmount = minAmount.toDoubleOrNull(),

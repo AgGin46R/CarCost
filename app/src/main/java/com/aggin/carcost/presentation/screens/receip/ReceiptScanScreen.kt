@@ -35,7 +35,7 @@ import java.util.*
 @Composable
 fun ReceiptScanScreen(
     navController: NavController,
-    carId: Long,
+    carId: String,
     viewModel: ReceiptScanViewModel = viewModel()
 ) {
     val context = LocalContext.current

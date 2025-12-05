@@ -10,20 +10,17 @@ interface ExpenseDao {
 
     // CREATE
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExpense(expense: Expense): Long
+    suspend fun insertExpense(expense: Expense) // ✅ Void - не возвращает ID
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpenses(expenses: List<Expense>)
 
     // READ
     @Query("SELECT * FROM expenses WHERE id = :expenseId")
-    suspend fun getExpenseById(expenseId: Long): Expense?
+    suspend fun getExpenseById(expenseId: String): Expense? // ✅ String UUID
 
-    // --- ДОБАВЛЕННЫЙ МЕТОД ---
-    // Используется в ProfileViewModel для получения всех расходов для автомобиля
     @Query("SELECT * FROM expenses WHERE carId = :carId")
     fun getExpensesByCar(carId: String): Flow<List<Expense>>
-    // --- КОНЕЦ ДОБАВЛЕННОГО МЕТОДА ---
 
     @Query("SELECT * FROM expenses WHERE carId = :carId ORDER BY date DESC")
     fun getExpensesByCarId(carId: String): Flow<List<Expense>>
@@ -38,9 +35,9 @@ interface ExpenseDao {
     fun getRecentExpenses(carId: String, limit: Int = 10): Flow<List<Expense>>
 
     @Query("SELECT * FROM expenses WHERE carId = :carId AND category = :category ORDER BY date DESC LIMIT 1")
-    suspend fun getLastExpenseByCategory(carId: String, category: ExpenseCategory): Expense?
+    fun getLastExpenseByCategory(carId: String, category: ExpenseCategory): Flow<Expense?>
 
-    // Статистика
+    // STATISTICS
     @Query("SELECT SUM(amount) FROM expenses WHERE carId = :carId")
     fun getTotalExpenses(carId: String): Flow<Double?>
 
@@ -53,29 +50,27 @@ interface ExpenseDao {
     @Query("SELECT COUNT(*) FROM expenses WHERE carId = :carId")
     fun getExpenseCount(carId: String): Flow<Int>
 
-    // Расчет расхода топлива
-    @Query("""
-        SELECT * FROM expenses 
-        WHERE carId = :carId AND category = 'FUEL' AND isFullTank = 1
-        ORDER BY date DESC 
-        LIMIT :limit
-    """)
+    // FUEL-SPECIFIC
+    @Query("SELECT * FROM expenses WHERE carId = :carId AND category = 'FUEL' AND isFullTank = 1 ORDER BY date DESC LIMIT :limit")
     fun getFullTankRefuels(carId: String, limit: Int = 10): Flow<List<Expense>>
 
     // UPDATE
     @Update
     suspend fun updateExpense(expense: Expense)
 
+    @Update
+    suspend fun updateExpenses(expenses: List<Expense>)
+
     // DELETE
     @Delete
     suspend fun deleteExpense(expense: Expense)
 
     @Query("DELETE FROM expenses WHERE id = :expenseId")
-    suspend fun deleteExpenseById(expenseId: Long)
+    suspend fun deleteExpenseById(expenseId: String) // ✅ String UUID
 
     @Query("DELETE FROM expenses WHERE carId = :carId")
     suspend fun deleteExpensesByCarId(carId: String)
 
     @Query("DELETE FROM expenses")
-    suspend fun deleteAllExpenses()
+    suspend fun deleteAllExpenses() // ✅ Удалить все расходы
 }

@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ExpenseTagDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTag(tag: ExpenseTag): Long
+    suspend fun insertTag(tag: ExpenseTag) // ✅ Void - не возвращает ID
 
     @Delete
     suspend fun deleteTag(tag: ExpenseTag)
@@ -18,7 +18,7 @@ interface ExpenseTagDao {
     suspend fun insertExpenseTagCrossRef(crossRef: ExpenseTagCrossRef)
 
     @Query("DELETE FROM expense_tag_cross_ref WHERE expenseId = :expenseId")
-    suspend fun deleteExpenseTagsByExpenseId(expenseId: Long)
+    suspend fun deleteExpenseTagsByExpenseId(expenseId: String) // ✅ String UUID
 
     // Базовый запрос для получения всех тегов
     @Query("SELECT * FROM expense_tags WHERE userId = :userId ORDER BY name ASC")
@@ -47,5 +47,17 @@ interface ExpenseTagDao {
         INNER JOIN expense_tag_cross_ref as xt ON t.id = xt.tagId
         WHERE xt.expenseId = :expenseId
     """)
-    fun getTagsForExpense(expenseId: Long): Flow<List<ExpenseTag>>
+    fun getTagsForExpense(expenseId: String): Flow<List<ExpenseTag>> // ✅ String UUID
+
+    // Получить расходы по тегу
+    @Query("""
+        SELECT e.* FROM expenses as e
+        INNER JOIN expense_tag_cross_ref as xt ON e.id = xt.expenseId
+        WHERE xt.tagId = :tagId
+        ORDER BY e.date DESC
+    """)
+    fun getExpensesByTag(tagId: String): Flow<List<com.aggin.carcost.data.local.database.entities.Expense>> // ✅ String UUID
+
+    @Query("SELECT * FROM expense_tags WHERE userId = :userId ORDER BY name ASC")
+    fun getTagsByUser(userId: String): Flow<List<ExpenseTag>>
 }

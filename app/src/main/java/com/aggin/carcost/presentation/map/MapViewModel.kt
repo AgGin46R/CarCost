@@ -19,7 +19,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val expenseRepository = ExpenseRepository(database.expenseDao())
 
-    private val _selectedCarId = MutableStateFlow<Long?>(null)
+    private val _selectedCarId = MutableStateFlow<String?>(null) // ✅ String UUID
 
     val uiState: StateFlow<MapUiState> = _selectedCarId
         .flatMapLatest { carId ->
@@ -40,7 +40,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = MapUiState()
         )
 
-    fun setCarId(carId: Long) {
+    fun setCarId(carId: String) { // ✅ String UUID
         _selectedCarId.value = carId
     }
 }

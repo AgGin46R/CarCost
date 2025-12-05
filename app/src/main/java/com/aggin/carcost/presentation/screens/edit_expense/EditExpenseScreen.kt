@@ -22,8 +22,8 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditExpenseScreen(
-    carId: Long,
-    expenseId: Long,
+    carId: String, // ✅ String UUID
+    expenseId: String, // ✅ String UUID
     navController: NavController,
     viewModel: EditExpenseViewModel = viewModel()
 ) {

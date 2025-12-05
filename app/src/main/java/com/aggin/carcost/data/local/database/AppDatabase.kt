@@ -66,7 +66,7 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         ExpenseTag::class,
         ExpenseTagCrossRef::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

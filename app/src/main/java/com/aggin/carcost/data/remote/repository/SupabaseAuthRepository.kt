@@ -7,6 +7,8 @@ import io.github.jan.supabase.gotrue.user.UserInfo
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Репозиторий для работы с аутентификацией через Supabase
@@ -26,15 +28,17 @@ class SupabaseAuthRepository {
             val user = supabase.auth.currentUserOrNull()
                 ?: return@withContext Result.failure(Exception("Пользователь не найден после регистрации"))
 
-            // Создаем профиль пользователя в таблице users
-            supabase.from("users").insert(
-                mapOf(
-                    "id" to user.id,
-                    "email" to email,
-                    "created_at" to System.currentTimeMillis(),
-                    "last_login_at" to System.currentTimeMillis()
-                )
-            )
+            // ✅ Используем buildJsonObject для создания профиля
+            val profile = buildJsonObject {
+                put("id", user.id)
+                put("email", email)
+                put("display_name", null as String?)
+                put("photo_url", null as String?)
+                put("created_at", System.currentTimeMillis())
+                put("last_login_at", System.currentTimeMillis())
+            }
+
+            supabase.from("users").insert(profile)
 
             Result.success(user)
         } catch (e: Exception) {
@@ -55,10 +59,12 @@ class SupabaseAuthRepository {
             val user = supabase.auth.currentUserOrNull()
                 ?: return@withContext Result.failure(Exception("Пользователь не найден"))
 
-            // Обновляем время последнего входа
-            supabase.from("users").update(
-                mapOf("last_login_at" to System.currentTimeMillis())
-            ) {
+            // ✅ Используем buildJsonObject для обновления
+            val update = buildJsonObject {
+                put("last_login_at", System.currentTimeMillis())
+            }
+
+            supabase.from("users").update(update) {
                 filter {
                     eq("id", user.id)
                 }
@@ -77,7 +83,6 @@ class SupabaseAuthRepository {
         try {
             supabase.auth.signOut()
         } catch (e: Exception) {
-            // Логируем ошибку, но не бросаем исключение
             e.printStackTrace()
         }
     }
@@ -129,15 +134,15 @@ class SupabaseAuthRepository {
             val userId = getUserId()
                 ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
 
-            val updates = mutableMapOf<String, Any?>()
-            displayName?.let { updates["display_name"] = it }
-            photoUrl?.let { updates["photo_url"] = it }
+            // ✅ Используем buildJsonObject для обновления профиля
+            val update = buildJsonObject {
+                displayName?.let { put("display_name", it) }
+                photoUrl?.let { put("photo_url", it) }
+            }
 
-            if (updates.isNotEmpty()) {
-                supabase.from("users").update(updates) {
-                    filter {
-                        eq("id", userId)
-                    }
+            supabase.from("users").update(update) {
+                filter {
+                    eq("id", userId)
                 }
             }
 

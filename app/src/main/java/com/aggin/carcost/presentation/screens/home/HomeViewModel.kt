@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val cars: List<Car> = emptyList(),
-    val remindersByCarId: Map<Long, List<MaintenanceReminder>> = emptyMap(),
+    val remindersByCarId: Map<String, List<MaintenanceReminder>> = emptyMap(), // ✅ String UUID
     val isLoading: Boolean = true
 )
 

@@ -19,7 +19,7 @@ import com.aggin.carcost.data.local.database.entities.FuelType
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditCarScreen(
-    carId: Long,
+    carId: String, // ✅ String UUID
     navController: NavController,
     viewModel: EditCarViewModel = viewModel()
 ) {

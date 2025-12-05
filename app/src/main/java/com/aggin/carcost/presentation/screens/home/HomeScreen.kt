@@ -112,11 +112,11 @@ fun EmptyState(modifier: Modifier = Modifier) {
 @Composable
 fun CarsList(
     cars: List<Car>,
-    reminders: Map<Long, List<MaintenanceReminder>>,
+    reminders: Map<String, List<MaintenanceReminder>>, // ✅ String UUID
     modifier: Modifier = Modifier,
     onCarClick: (Car) -> Unit
 ) {
-    var expandedCarId by remember { mutableStateOf<Long?>(null) }
+    var expandedCarId by remember { mutableStateOf<String?>(null) } // ✅ String UUID
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),

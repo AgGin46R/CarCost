@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 interface MaintenanceReminderDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertReminder(reminder: MaintenanceReminder): Long
+    suspend fun insertReminder(reminder: MaintenanceReminder) // ✅ Void - не возвращает ID
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReminders(reminders: List<MaintenanceReminder>)
@@ -27,7 +27,7 @@ interface MaintenanceReminderDao {
     suspend fun updateReminder(reminder: MaintenanceReminder)
 
     @Query("DELETE FROM maintenance_reminders WHERE id = :id")
-    suspend fun deleteReminder(id: Long)
+    suspend fun deleteReminder(id: String) // ✅ String UUID
 
     @Query("DELETE FROM maintenance_reminders WHERE carId = :carId")
     suspend fun deleteRemindersByCarId(carId: String)

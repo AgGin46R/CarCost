@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 
 data class ExpenseFilter(
     val categories: Set<ExpenseCategory> = emptySet(),
-    val tags: Set<Long> = emptySet(),
+    val tags: Set<String> = emptySet(),
     val startDate: Long? = null,
     val endDate: Long? = null,
     val minAmount: Double? = null,

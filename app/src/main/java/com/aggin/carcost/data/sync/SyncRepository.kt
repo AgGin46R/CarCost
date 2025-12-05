@@ -308,7 +308,7 @@ class SyncRepository(
     /**
      * Синхронизация только расходов для конкретного автомобиля
      */
-    suspend fun syncExpensesForCar(carId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun syncExpensesForCar(carId: String): Result<Unit> = withContext(Dispatchers.IO) { // ✅ String UUID
         try {
             if (!supabaseAuthRepo.isUserLoggedIn()) {
                 return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))

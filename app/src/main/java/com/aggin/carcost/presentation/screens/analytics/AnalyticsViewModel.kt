@@ -69,7 +69,7 @@ class EnhancedAnalyticsViewModel(
     savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
-    private val carId: Long = savedStateHandle.get<String>("carId")?.toLongOrNull() ?: 0L
+    private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String UUID
 
     private val database = AppDatabase.getDatabase(application)
     private val carDao = database.carDao()

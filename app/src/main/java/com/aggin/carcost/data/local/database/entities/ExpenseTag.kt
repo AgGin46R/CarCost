@@ -4,11 +4,12 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
 import androidx.room.Index
+import java.util.UUID
 
 @Entity(tableName = "expense_tags")
 data class ExpenseTag(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    @PrimaryKey
+    val id: String = UUID.randomUUID().toString(), // ✅ String UUID
     val name: String,
     val color: String, // e.g., "#FF5733"
     val userId: String,
@@ -39,13 +40,13 @@ data class ExpenseTag(
     ]
 )
 data class ExpenseTagCrossRef(
-    val expenseId: Long,
-    val tagId: Long
+    val expenseId: String, // ✅ String UUID
+    val tagId: String      // ✅ String UUID
 )
 
 // POJO для запроса, который возвращает тег с количеством расходов
 data class TagWithExpenseCount(
-    val id: Long,
+    val id: String, // ✅ String UUID
     val name: String,
     val color: String,
     val userId: String,

@@ -2,6 +2,7 @@ package com.aggin.carcost
 
 import android.app.Application
 import android.util.Log
+import com.yandex.mapkit.MapKitFactory
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.gotrue.Auth
@@ -20,6 +21,15 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        try {
+            // ✅ Инициализируем Yandex MapKit
+            MapKitFactory.setApiKey("9f9cb0c7-777a-4085-b75f-20758abb5abf")
+            MapKitFactory.initialize(this)
+            Log.d(TAG, "Yandex MapKit initialized successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize MapKit", e)
+        }
 
         try {
             initializeSupabase()

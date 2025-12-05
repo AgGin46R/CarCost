@@ -7,21 +7,29 @@ import kotlinx.coroutines.flow.Flow
 
 class ExpenseTagRepository(private val dao: ExpenseTagDao) {
 
-    // Этот метод нужен для экрана управления тегами
+    // Метод для экрана управления тегами с подсчётом
     fun getTagsWithCount(userId: String): Flow<List<TagWithExpenseCount>> {
         return dao.getTagsWithExpenseCount(userId)
     }
 
-    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-    // Этот метод нужен для ViewModel, чтобы получить простой список тегов для фильтра
+    // Метод для получения простого списка тегов для фильтра
     fun getTagsByUser(userId: String): Flow<List<ExpenseTag>> {
-        // Вызываем правильный метод из DAO - getAllTags
         return dao.getAllTags(userId)
     }
-    // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
-    // Этот метод понадобится для фильтрации по тегам в будущем
-    fun getTagsForExpense(expenseId: Long): Flow<List<ExpenseTag>> {
+    // Метод для получения тегов конкретного расхода
+    fun getTagsForExpense(expenseId: String): Flow<List<ExpenseTag>> { // ✅ String UUID
         return dao.getTagsForExpense(expenseId)
+    }
+
+    // Добавление нового тега
+    suspend fun insertTag(tag: ExpenseTag): String { // ✅ Возвращает String UUID
+        dao.insertTag(tag)
+        return tag.id
+    }
+
+    // Удаление тега
+    suspend fun deleteTag(tag: ExpenseTag) {
+        dao.deleteTag(tag)
     }
 }

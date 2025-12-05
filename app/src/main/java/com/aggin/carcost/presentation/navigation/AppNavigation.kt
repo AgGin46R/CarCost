@@ -32,36 +32,35 @@ sealed class Screen(val route: String) {
     object AddCar : Screen("add_car")
 
     object CarDetail : Screen("car_detail/{carId}") {
-        fun createRoute(carId: Long) = "car_detail/$carId"
+        fun createRoute(carId: String) = "car_detail/$carId" // ✅ String UUID
     }
 
     object EditCar : Screen("edit_car/{carId}") {
-        fun createRoute(carId: Long) = "edit_car/$carId"
+        fun createRoute(carId: String) = "edit_car/$carId" // ✅ String UUID
     }
 
     object AddExpense : Screen("add_expense/{carId}") {
-        fun createRoute(carId: Long) = "add_expense/$carId"
+        fun createRoute(carId: String) = "add_expense/$carId" // ✅ String UUID
     }
 
-
     object EditExpense : Screen("edit_expense/{carId}/{expenseId}") {
-        fun createRoute(carId: Long, expenseId: Long) = "edit_expense/$carId/$expenseId"
+        fun createRoute(carId: String, expenseId: String) = "edit_expense/$carId/$expenseId" // ✅ String UUID
     }
 
     object Analytics : Screen("analytics/{carId}") {
-        fun createRoute(carId: Long) = "analytics/$carId"
+        fun createRoute(carId: String) = "analytics/$carId" // ✅ String UUID
     }
 
     object Map : Screen("map/{carId}") {
-        fun createRoute(carId: Long) = "map/$carId"
+        fun createRoute(carId: String) = "map/$carId" // ✅ String UUID
     }
 
     object Export : Screen("export/{carId}") {
-        fun createRoute(carId: Long) = "export/$carId"
+        fun createRoute(carId: String) = "export/$carId" // ✅ String UUID
     }
 
     object ReceiptScan : Screen("receipt_scan/{carId}") {
-        fun createRoute(carId: Long) = "receipt_scan/$carId"
+        fun createRoute(carId: String) = "receipt_scan/$carId" // ✅ String UUID
     }
 
     object CategoryManagement : Screen("category_management")
@@ -106,7 +105,7 @@ fun AppNavigation(
             route = Screen.CarDetail.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId")?.toLongOrNull() ?: 0L
+            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
             CarDetailScreen(carId = carId, navController = navController)
         }
 
@@ -115,7 +114,7 @@ fun AppNavigation(
             route = Screen.Map.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId")?.toLongOrNull() ?: 0L
+            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
             MapScreen(carId = carId, navController = navController)
         }
 
@@ -124,7 +123,7 @@ fun AppNavigation(
             route = Screen.EditCar.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId")?.toLongOrNull() ?: 0L
+            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
             EditCarScreen(carId = carId, navController = navController)
         }
 
@@ -133,7 +132,7 @@ fun AppNavigation(
             route = Screen.AddExpense.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId")?.toLongOrNull() ?: 0L
+            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
             AddExpenseScreen(carId = carId, navController = navController)
         }
 
@@ -145,8 +144,8 @@ fun AppNavigation(
                 navArgument("expenseId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId")?.toLongOrNull() ?: 0L
-            val expenseId = backStackEntry.arguments?.getString("expenseId")?.toLongOrNull() ?: 0L
+            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
+            val expenseId = backStackEntry.arguments?.getString("expenseId") ?: "" // ✅ String UUID
             EditExpenseScreen(
                 carId = carId,
                 expenseId = expenseId,
@@ -159,7 +158,7 @@ fun AppNavigation(
             route = Screen.Analytics.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId")?.toLongOrNull() ?: 0L
+            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
             EnhancedAnalyticsScreen(carId = carId, navController = navController)
         }
 
@@ -168,7 +167,7 @@ fun AppNavigation(
             route = Screen.Export.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId")?.toLongOrNull() ?: 0L
+            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
             ExportScreen(carId = carId, navController = navController)
         }
 
@@ -177,7 +176,7 @@ fun AppNavigation(
             route = Screen.ReceiptScan.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId")?.toLongOrNull() ?: 0L
+            val carId = backStackEntry.arguments?.getString("carId") ?: "" // ✅ String UUID
             ReceiptScanScreen(
                 carId = carId,
                 navController = navController

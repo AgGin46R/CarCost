@@ -36,7 +36,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 // --- ФАБРИКА ДЛЯ СОЗДАНИЯ VIEWMODEL С ПАРАМЕТРАМИ ---
 class AnalyticsViewModelFactory(
     private val application: Application,
-    private val carId: Long
+    private val carId: String // ✅ String UUID
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(EnhancedAnalyticsViewModel::class.java)) {
@@ -54,7 +54,7 @@ class AnalyticsViewModelFactory(
 @Composable
 fun EnhancedAnalyticsScreen(
     navController: NavController,
-    carId: Long
+    carId: String // ✅ String UUID
 ) {
     val application = LocalContext.current.applicationContext as Application
     val viewModel: EnhancedAnalyticsViewModel = viewModel(

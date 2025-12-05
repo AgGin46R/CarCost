@@ -26,7 +26,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CarDetailScreen(
-    carId: Long,
+    carId: String, // ✅ String UUID
     navController: NavController,
     viewModel: CarDetailViewModel = viewModel()
 ) {

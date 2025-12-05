@@ -12,7 +12,7 @@ import kotlinx.serialization.SerialName
 
 @Serializable
 data class ExpenseTagDto(
-    val id: Long? = null,
+    val id: String, // ✅ String UUID
     val name: String,
     val color: String,
     @SerialName("user_id")
@@ -24,12 +24,11 @@ data class ExpenseTagDto(
 @Serializable
 data class ExpenseTagCrossRefDto(
     @SerialName("expense_id")
-    val expenseId: Long,
+    val expenseId: String, // ✅ String UUID
     @SerialName("tag_id")
-    val tagId: Long
+    val tagId: String // ✅ String UUID
 )
 
-@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepository) {
 
     suspend fun insertTag(tag: ExpenseTag): Result<ExpenseTag> = withContext(Dispatchers.IO) {
@@ -38,7 +37,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
                 ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
 
             val tagDto = tag.toDto(userId)
-            supabase.from("expense_tags").insert(tagDto)
+            supabase.from("expense_tags").upsert(tagDto)
             Result.success(tag)
         } catch (e: Exception) {
             Result.failure(e)
@@ -55,7 +54,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
                     filter { eq("user_id", userId) }
                     order("name", Order.ASCENDING)
                 }
-                .decodeAs<List<ExpenseTagDto>>()
+                .decodeList<ExpenseTagDto>()
 
             Result.success(tags.map { it.toExpenseTag() })
         } catch (e: Exception) {
@@ -63,11 +62,11 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    suspend fun getTagById(tagId: Long): Result<ExpenseTag> = withContext(Dispatchers.IO) {
+    suspend fun getTagById(tagId: String): Result<ExpenseTag> = withContext(Dispatchers.IO) { // ✅ String
         try {
             val tags = supabase.from("expense_tags")
                 .select { filter { eq("id", tagId) } }
-                .decodeAs<List<ExpenseTagDto>>()
+                .decodeList<ExpenseTagDto>()
 
             val tag = tags.firstOrNull()
                 ?: return@withContext Result.failure(Exception("Тег не найден"))
@@ -78,11 +77,11 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    suspend fun getTagsForExpense(expenseId: Long): Result<List<ExpenseTag>> = withContext(Dispatchers.IO) {
+    suspend fun getTagsForExpense(expenseId: String): Result<List<ExpenseTag>> = withContext(Dispatchers.IO) { // ✅ String
         try {
             val crossRefs = supabase.from("expense_tag_cross_ref")
                 .select { filter { eq("expense_id", expenseId) } }
-                .decodeAs<List<ExpenseTagCrossRefDto>>()
+                .decodeList<ExpenseTagCrossRefDto>()
 
             if (crossRefs.isEmpty()) {
                 return@withContext Result.success(emptyList())
@@ -91,7 +90,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
             val tagIds = crossRefs.map { it.tagId }
             val tags = supabase.from("expense_tags")
                 .select { filter { isIn("id", tagIds) } }
-                .decodeAs<List<ExpenseTagDto>>()
+                .decodeList<ExpenseTagDto>()
 
             Result.success(tags.map { it.toExpenseTag() })
         } catch (e: Exception) {
@@ -120,7 +119,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    suspend fun deleteTag(tagId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun deleteTag(tagId: String): Result<Unit> = withContext(Dispatchers.IO) { // ✅ String
         try {
             val userId = authRepository.getUserId()
                 ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
@@ -139,7 +138,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    suspend fun addTagToExpense(expenseId: Long, tagId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun addTagToExpense(expenseId: String, tagId: String): Result<Unit> = withContext(Dispatchers.IO) { // ✅ String
         try {
             val crossRef = ExpenseTagCrossRefDto(expenseId = expenseId, tagId = tagId)
             supabase.from("expense_tag_cross_ref").insert(crossRef)
@@ -149,7 +148,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    suspend fun removeTagFromExpense(expenseId: Long, tagId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun removeTagFromExpense(expenseId: String, tagId: String): Result<Unit> = withContext(Dispatchers.IO) { // ✅ String
         try {
             supabase.from("expense_tag_cross_ref")
                 .delete {
@@ -164,7 +163,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    suspend fun removeAllTagsFromExpense(expenseId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun removeAllTagsFromExpense(expenseId: String): Result<Unit> = withContext(Dispatchers.IO) { // ✅ String
         try {
             supabase.from("expense_tag_cross_ref")
                 .delete { filter { eq("expense_id", expenseId) } }
@@ -174,7 +173,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
-    suspend fun setTagsForExpense(expenseId: Long, tagIds: List<Long>): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun setTagsForExpense(expenseId: String, tagIds: List<String>): Result<Unit> = withContext(Dispatchers.IO) { // ✅ String
         try {
             removeAllTagsFromExpense(expenseId)
 
@@ -193,7 +192,7 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
 }
 
 private fun ExpenseTag.toDto(userId: String) = ExpenseTagDto(
-    id = if (id == 0L) null else id,
+    id = id, // ✅ String UUID
     name = name,
     color = color,
     userId = userId,
@@ -201,7 +200,7 @@ private fun ExpenseTag.toDto(userId: String) = ExpenseTagDto(
 )
 
 private fun ExpenseTagDto.toExpenseTag() = ExpenseTag(
-    id = id ?: 0L,
+    id = id, // ✅ String UUID
     name = name,
     color = color,
     userId = userId,
