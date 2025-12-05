@@ -23,7 +23,10 @@ import com.aggin.carcost.presentation.screens.map.MapScreen
 import com.aggin.carcost.presentation.screens.profile.ProfileScreen
 import com.aggin.carcost.presentation.screens.receipt_scan.ReceiptScanScreen
 import com.aggin.carcost.presentation.screens.categories.CategoryManagementScreen
-import com.aggin.carcost.presentation.screens.bug_report.BugReportScreen  // ✅ ДОБАВЛЕНО
+import com.aggin.carcost.presentation.screens.bug_report.BugReportScreen
+import com.aggin.carcost.presentation.screens.planned_expenses.PlannedExpensesScreen
+import com.aggin.carcost.presentation.screens.planned_expenses.AddPlannedExpenseScreen
+import com.aggin.carcost.presentation.screens.planned_expenses.EditPlannedExpenseScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -66,8 +69,20 @@ sealed class Screen(val route: String) {
 
     object CategoryManagement : Screen("category_management")
 
-    // ✅ ДОБАВЛЕНО
     object BugReport : Screen("bug_report")
+
+    // ✅ НОВЫЕ МАРШРУТЫ ДЛЯ ПЛАНОВ ПОКУПОК
+    object PlannedExpenses : Screen("planned_expenses/{carId}") {
+        fun createRoute(carId: String) = "planned_expenses/$carId"
+    }
+
+    object AddPlannedExpense : Screen("add_planned_expense/{carId}") {
+        fun createRoute(carId: String) = "add_planned_expense/$carId"
+    }
+
+    object EditPlannedExpense : Screen("edit_planned_expense/{carId}/{plannedId}") {
+        fun createRoute(carId: String, plannedId: String) = "edit_planned_expense/$carId/$plannedId"
+    }
 }
 
 @Composable
@@ -192,9 +207,46 @@ fun AppNavigation(
             CategoryManagementScreen(navController = navController)
         }
 
-        // ✅ ДОБАВЛЕНО: Отчет об ошибках
+        // Отчет об ошибках
         composable(Screen.BugReport.route) {
             BugReportScreen(navController = navController)
+        }
+
+        // ✅ НОВЫЕ МАРШРУТЫ ДЛЯ ПЛАНОВ ПОКУПОК
+
+        // Список запланированных покупок
+        composable(
+            route = Screen.PlannedExpenses.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            PlannedExpensesScreen(carId = carId, navController = navController)
+        }
+
+        // Добавление запланированной покупки
+        composable(
+            route = Screen.AddPlannedExpense.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            AddPlannedExpenseScreen(carId = carId, navController = navController)
+        }
+
+        // Редактирование запланированной покупки
+        composable(
+            route = Screen.EditPlannedExpense.route,
+            arguments = listOf(
+                navArgument("carId") { type = NavType.StringType },
+                navArgument("plannedId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            val plannedId = backStackEntry.arguments?.getString("plannedId") ?: ""
+            EditPlannedExpenseScreen(
+                carId = carId,
+                plannedId = plannedId,
+                navController = navController
+            )
         }
     }
 }

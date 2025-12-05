@@ -66,6 +66,8 @@ class Converters {
             }
         }
     }
+
+    // MaintenanceType converters
     @TypeConverter
     fun fromMaintenanceType(value: MaintenanceType?): String? {
         return value?.name
@@ -79,6 +81,36 @@ class Converters {
             } catch (e: IllegalArgumentException) {
                 null
             }
+        }
+    }
+
+    // PlannedExpensePriority converters
+    @TypeConverter
+    fun fromPlannedExpensePriority(value: PlannedExpensePriority): String {
+        return value.name
+    }
+
+    @TypeConverter
+    fun toPlannedExpensePriority(value: String): PlannedExpensePriority {
+        return try {
+            PlannedExpensePriority.valueOf(value)
+        } catch (e: IllegalArgumentException) {
+            PlannedExpensePriority.MEDIUM
+        }
+    }
+
+    // PlannedExpenseStatus converters
+    @TypeConverter
+    fun fromPlannedExpenseStatus(value: PlannedExpenseStatus): String {
+        return value.name
+    }
+
+    @TypeConverter
+    fun toPlannedExpenseStatus(value: String): PlannedExpenseStatus {
+        return try {
+            PlannedExpenseStatus.valueOf(value)
+        } catch (e: IllegalArgumentException) {
+            PlannedExpenseStatus.PLANNED
         }
     }
 }

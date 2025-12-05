@@ -31,22 +31,12 @@ data class ExpenseFilter(
     fun isActive(): Boolean {
         return categories.isNotEmpty() || tags.isNotEmpty() || startDate != null || endDate != null || minAmount != null || maxAmount != null
     }
-
-    fun getActiveFilterCount(): Int {
-        var count = 0
-        if (categories.isNotEmpty()) count++
-        if (tags.isNotEmpty()) count++
-        if (startDate != null) count++
-        if (endDate != null) count++
-        if (minAmount != null) count++
-        if (maxAmount != null) count++
-        return count
-    }
 }
 
 data class CarDetailUiState(
     val car: Car? = null,
     val expenses: List<Expense> = emptyList(),
+    val expensesWithTags: Map<String, List<ExpenseTag>> = emptyMap(),
     val totalExpenses: Double = 0.0,
     val monthlyExpenses: Double = 0.0,
     val expenseCount: Int = 0,
@@ -60,7 +50,7 @@ class CarDetailViewModel(
     savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
-    private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String
+    private val carId: String = savedStateHandle.get<String>("carId") ?: ""
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
@@ -72,139 +62,172 @@ class CarDetailViewModel(
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
     private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
 
-    private val _filter = MutableStateFlow(ExpenseFilter())
+    private val _currentFilter = MutableStateFlow(ExpenseFilter())
 
-    val uiState: StateFlow<CarDetailUiState> = flow {
-        val car = carRepository.getCarById(carId)
+    private val _expensesWithTags = MutableStateFlow<Map<String, List<ExpenseTag>>>(emptyMap())
+    private val _availableTags = MutableStateFlow<List<ExpenseTag>>(emptyList())
 
-        val userId = supabaseAuth.getUserId()
-        val availableTags = if (userId != null) {
-            tagRepository.getTagsByUser(userId).first()
-        } else {
-            emptyList()
-        }
+    val uiState: StateFlow<CarDetailUiState> = combine(
+        carRepository.getCarByIdFlow(carId),
+        expenseRepository.getExpensesByCarId(carId),
+        _currentFilter,
+        _expensesWithTags,
+        _availableTags
+    ) { car: Car?, expenses: List<Expense>, filter: ExpenseFilter, expensesWithTagsMap: Map<String, List<ExpenseTag>>, availableTags: List<ExpenseTag> ->
 
-        combine(
-            expenseRepository.getExpensesByCarId(carId),
-            _filter
-        ) { allExpenses, filter ->
+        val filteredExpenses = applyFilters(expenses, filter, expensesWithTagsMap)
 
-            val filteredExpenses = applyFilterLogic(allExpenses, filter)
-
-            val total = filteredExpenses.sumOf { it.amount }
-            val monthly = expenseRepository.calculateMonthlyExpenses(filteredExpenses)
-            val count = filteredExpenses.size
-
-            CarDetailUiState(
-                car = car,
-                expenses = filteredExpenses,
-                totalExpenses = total,
-                monthlyExpenses = monthly,
-                expenseCount = count,
-                currentFilter = filter,
-                availableTags = availableTags,
-                isLoading = false
-            )
-        }.collect { state ->
-            emit(state)
-        }
+        CarDetailUiState(
+            car = car,
+            expenses = filteredExpenses,
+            expensesWithTags = expensesWithTagsMap,
+            totalExpenses = filteredExpenses.sumOf { it.amount },
+            monthlyExpenses = calculateMonthlyExpenses(filteredExpenses),
+            expenseCount = filteredExpenses.size,
+            currentFilter = filter,
+            availableTags = availableTags,
+            isLoading = false
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = CarDetailUiState()
+        initialValue = CarDetailUiState(isLoading = true)
     )
 
-    private fun applyFilterLogic(expenses: List<Expense>, filter: ExpenseFilter): List<Expense> {
-        return expenses.filter { expense ->
-            val categoryMatch = filter.categories.isEmpty() || expense.category in filter.categories
-            val startDateMatch = filter.startDate == null || expense.date >= filter.startDate
-            val endDateMatch = filter.endDate == null || expense.date <= filter.endDate
-            val minAmountMatch = filter.minAmount == null || expense.amount >= filter.minAmount
-            val maxAmountMatch = filter.maxAmount == null || expense.amount <= filter.maxAmount
+    init {
+        syncData()
+        loadTags()
+        loadAvailableTags()
+    }
 
-            categoryMatch && startDateMatch && endDateMatch && minAmountMatch && maxAmountMatch
+    private fun loadAvailableTags() {
+        viewModelScope.launch {
+            val userId = supabaseAuth.getUserId()
+            if (userId != null) {
+                tagRepository.getTagsByUser(userId).collect { tags ->
+                    _availableTags.value = tags
+                }
+            }
         }
     }
 
-    fun applyFilter(newFilter: ExpenseFilter) {
-        _filter.value = newFilter
+    private fun loadTags() {
+        viewModelScope.launch {
+            // Загружаем теги для всех расходов
+            expenseRepository.getExpensesByCarId(carId).collect { expenses ->
+                val tagsMap = mutableMapOf<String, List<ExpenseTag>>()
+                expenses.forEach { expense ->
+                    try {
+                        tagRepository.getTagsForExpense(expense.id).firstOrNull()?.let { tags ->
+                            tagsMap[expense.id] = tags
+                        }
+                    } catch (e: Exception) {
+                        Log.e("CarDetail", "Error loading tags for expense ${expense.id}", e)
+                    }
+                }
+                _expensesWithTags.value = tagsMap
+            }
+        }
     }
 
-    fun clearFilter() {
-        _filter.value = ExpenseFilter()
+    private fun syncData() {
+        viewModelScope.launch {
+            try {
+                // Синхронизация расходов
+                val result = supabaseExpenseRepo.getExpensesByCarId(carId)
+                result.fold(
+                    onSuccess = { expenses ->
+                        expenses.forEach { expense ->
+                            expenseRepository.insertExpense(expense)
+                        }
+                        Log.d("CarDetail", "Synced ${expenses.size} expenses")
+                    },
+                    onFailure = { error ->
+                        Log.e("CarDetail", "Sync failed", error)
+                    }
+                )
+
+                // Синхронизация напоминаний
+                val reminderResult = supabaseReminderRepo.getRemindersByCarId(carId)
+                reminderResult.fold(
+                    onSuccess = { reminders ->
+                        reminders.forEach { reminder ->
+                            reminderRepository.insertReminder(reminder)
+                        }
+                    },
+                    onFailure = { }
+                )
+            } catch (e: Exception) {
+                Log.e("CarDetail", "Sync exception", e)
+            }
+        }
     }
 
     fun deleteExpense(expense: Expense) {
-        Log.d("CarDetailVM", "🔴 deleteExpense called for expense ID: ${expense.id}")
-        Log.d("CarDetailVM", "Category: ${expense.category}, ServiceType: ${expense.serviceType}")
-
         viewModelScope.launch {
-            // 1. Если это расход ТО - удаляем связанное напоминание
-            if (expense.category == ExpenseCategory.MAINTENANCE) {
-                Log.d("CarDetailVM", "✅ Expense is MAINTENANCE category")
-
-                if (expense.serviceType != null) {
-                    Log.d("CarDetailVM", "✅ ServiceType is NOT null: ${expense.serviceType}")
-
-                    try {
-                        val maintenanceType = reminderRepository.serviceTypeToMaintenanceType(expense.serviceType)
-                        Log.d("CarDetailVM", "Converted to MaintenanceType: $maintenanceType")
-
-                        if (maintenanceType != null) {
-                            Log.d("CarDetailVM", "Attempting to delete reminder: carId=${expense.carId}, type=$maintenanceType")
-
-                            // Удаляем локально
-                            reminderRepository.deleteReminderByType(expense.carId, maintenanceType)
-                            Log.d("CarDetailVM", "✅ Deleted reminder locally")
-
-                            // Удаляем с Supabase
-                            try {
-                                val reminderResult = supabaseReminderRepo.getReminderByType(expense.carId, maintenanceType)
-                                reminderResult.getOrNull()?.let { reminder ->
-                                    supabaseReminderRepo.deleteReminder(reminder.id)
-                                    Log.d("CarDetailVM", "✅ Deleted reminder from Supabase: ${reminder.id}")
-                                }
-                            } catch (e: Exception) {
-                                Log.e("CarDetailVM", "❌ Failed to delete reminder from Supabase", e)
-                            }
-
-                            Log.d("CarDetailVM", "✅ Successfully deleted maintenance reminder for type: $maintenanceType")
-                        } else {
-                            Log.w("CarDetailVM", "⚠️ MaintenanceType is NULL - cannot delete reminder")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("CarDetailVM", "❌ Error deleting maintenance reminder", e)
-                        e.printStackTrace()
-                    }
-                } else {
-                    Log.w("CarDetailVM", "⚠️ ServiceType is NULL - skipping reminder deletion")
-                }
-            } else {
-                Log.d("CarDetailVM", "ℹ️ Expense is NOT maintenance (${expense.category}) - skipping reminder deletion")
-            }
-
-            // 2. Удаляем расход локально
             try {
                 expenseRepository.deleteExpense(expense)
-                Log.d("CarDetailVM", "✅ Expense deleted locally: ${expense.id}")
-            } catch (e: Exception) {
-                Log.e("CarDetailVM", "❌ Error deleting expense locally", e)
-            }
 
-            // 3. Синхронизируем удаление с Supabase
-            try {
-                val result = supabaseExpenseRepo.deleteExpense(expense.id) // ✅ String
-                result.fold(
-                    onSuccess = {
-                        Log.d("CarDetailVM", "✅ Expense deleted from Supabase: ${expense.id}")
-                    },
-                    onFailure = { error ->
-                        Log.e("CarDetailVM", "❌ Failed to delete expense from Supabase: ${error.message}", error)
-                    }
-                )
+                // Удаляем из Supabase
+                supabaseExpenseRepo.deleteExpense(expense.id)
+
+                Log.d("CarDetail", "Expense deleted: ${expense.id}")
             } catch (e: Exception) {
-                Log.e("CarDetailVM", "❌ Exception deleting expense from Supabase", e)
+                Log.e("CarDetail", "Delete failed", e)
             }
         }
+    }
+
+    fun applyFilter(filter: ExpenseFilter) {
+        _currentFilter.value = filter
+    }
+
+    fun clearFilter() {
+        _currentFilter.value = ExpenseFilter()
+    }
+
+    private fun applyFilters(
+        expenses: List<Expense>,
+        filter: ExpenseFilter,
+        tagsMap: Map<String, List<ExpenseTag>>
+    ): List<Expense> {
+        var filtered = expenses
+
+        if (filter.categories.isNotEmpty()) {
+            filtered = filtered.filter { it.category in filter.categories }
+        }
+
+        if (filter.tags.isNotEmpty()) {
+            filtered = filtered.filter { expense ->
+                // Проверяем есть ли хоть один из выбранных тегов у расхода
+                val expenseTags = tagsMap[expense.id] ?: emptyList()
+                expenseTags.any { it.id in filter.tags }
+            }
+        }
+
+        filter.startDate?.let { start ->
+            filtered = filtered.filter { it.date >= start }
+        }
+
+        filter.endDate?.let { end ->
+            filtered = filtered.filter { it.date <= end }
+        }
+
+        filter.minAmount?.let { min ->
+            filtered = filtered.filter { it.amount >= min }
+        }
+
+        filter.maxAmount?.let { max ->
+            filtered = filtered.filter { it.amount <= max }
+        }
+
+        return filtered.sortedByDescending { it.date }
+    }
+
+    private fun calculateMonthlyExpenses(expenses: List<Expense>): Double {
+        val thirtyDaysAgo = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000L)
+        return expenses
+            .filter { it.date >= thirtyDaysAgo }
+            .sumOf { it.amount }
     }
 }
