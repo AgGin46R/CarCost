@@ -30,7 +30,8 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseScreen(
-    carId: String, // ✅ String UUID
+    carId: String,
+    plannedId: String? = null, // ✅ String UUID
     navController: NavController,
     viewModel: AddExpenseViewModel = viewModel()
 ) {
@@ -64,7 +65,7 @@ fun AddExpenseScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Добавить расход") },
+                title = { Text(if (uiState.isFromPlannedExpense) "Выполнить план" else "Добавить расход") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
@@ -85,6 +86,28 @@ fun AddExpenseScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Индикатор если из плана
+            if (uiState.isFromPlannedExpense) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            "📋 Данные из запланированной покупки",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
             // Ошибка
             if (uiState.showError) {
                 Card(
@@ -315,7 +338,7 @@ fun AddExpenseScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text("Сохранить", style = MaterialTheme.typography.titleMedium)
+                    Text(if (uiState.isFromPlannedExpense) "Выполнить и сохранить" else "Сохранить", style = MaterialTheme.typography.titleMedium)
                 }
             }
 

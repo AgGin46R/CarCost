@@ -13,6 +13,7 @@ import com.aggin.carcost.data.local.database.entities.*
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
+import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
@@ -47,6 +48,10 @@ data class AddExpenseUiState(
     val availableTags: List<ExpenseTag> = emptyList(),
     val selectedTags: List<ExpenseTag> = emptyList(),
 
+    // Связь с планом
+    val plannedExpenseId: String? = null,
+    val isFromPlannedExpense: Boolean = false,
+
     val isSaving: Boolean = false,
     val showError: Boolean = false,
     val errorMessage: String = ""
@@ -60,11 +65,13 @@ class AddExpenseViewModel(
     private val fusedLocationClient: FusedLocationProviderClient =
         LocationServices.getFusedLocationProviderClient(application)
     private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String UUID
+    private val plannedId: String? = savedStateHandle.get<String>("plannedId")
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
     private val expenseRepository = ExpenseRepository(database.expenseDao())
     private val tagDao = database.expenseTagDao()
+    private val plannedExpenseRepository = PlannedExpenseRepository(database.plannedExpenseDao())
 
     // Supabase репозитории
     private val supabaseAuth = SupabaseAuthRepository()
@@ -75,6 +82,10 @@ class AddExpenseViewModel(
     val uiState: StateFlow<AddExpenseUiState> = _uiState.asStateFlow()
 
     init {
+        android.util.Log.d("AddExpense", "=== AddExpenseViewModel init ===")
+        android.util.Log.d("AddExpense", "carId: $carId")
+        android.util.Log.d("AddExpense", "plannedId: $plannedId")
+
         viewModelScope.launch {
             // Загружаем текущий пробег автомобиля
             val car = carRepository.getCarById(carId)
@@ -102,6 +113,28 @@ class AddExpenseViewModel(
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("AddExpense", "Failed to sync tags from Supabase", e)
+                }
+
+
+                // ✅ ВАЖНО: Загружаем данные из плана ПЕРЕД collect (иначе код не выполнится)
+                if (plannedId != null) {
+                    try {
+                        val plannedExpense = plannedExpenseRepository.getPlannedExpenseById(plannedId)
+                        if (plannedExpense != null) {
+                            android.util.Log.d("AddExpense", "✅ Loaded planned expense: ${plannedExpense.title}")
+                            _uiState.value = _uiState.value.copy(
+                                category = plannedExpense.category,
+                                amount = plannedExpense.estimatedAmount?.toString() ?: "",
+                                date = plannedExpense.targetDate ?: System.currentTimeMillis(),
+                                description = plannedExpense.description ?: plannedExpense.title,
+                                odometer = plannedExpense.targetOdometer?.toString() ?: _uiState.value.odometer,
+                                plannedExpenseId = plannedId,
+                                isFromPlannedExpense = true
+                            )
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("AddExpense", "Error loading planned expense", e)
+                    }
                 }
 
                 // ПОТОМ загружаем из локальной БД
@@ -451,6 +484,51 @@ class AddExpenseViewModel(
                 }
             }
 
+
+            // ✅ НОВОЕ: Если расход создан из плана - обновить статус на COMPLETED
+            if (state.plannedExpenseId != null) {
+                try {
+                    val plannedExpense = plannedExpenseRepository.getPlannedExpenseById(state.plannedExpenseId)
+                    if (plannedExpense != null) {
+                        val updatedPlanned = plannedExpense.copy(
+                            status = PlannedExpenseStatus.COMPLETED,
+                            completedDate = System.currentTimeMillis(),
+                            linkedExpenseId = expenseId,
+                            actualAmount = expense.amount,
+                            updatedAt = System.currentTimeMillis(),
+                            isSynced = false  // ✅ Помечаем что нужно синхронизировать
+                        )
+                        plannedExpenseRepository.updatePlannedExpense(updatedPlanned)
+                        android.util.Log.d("AddExpense", "✅ Planned expense marked as COMPLETED locally")
+
+                        // ✅ СИНХРОНИЗИРУЕМ С SUPABASE
+                        try {
+                            val userId = supabaseAuth.getUserId()
+                            if (userId != null) {
+                                val supabasePlannedRepo = com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository(supabaseAuth)
+                                val result = supabasePlannedRepo.updatePlannedExpense(updatedPlanned)
+
+                                result.fold(
+                                    onSuccess = {
+                                        android.util.Log.d("AddExpense", "✅ Planned expense synced to Supabase")
+                                        // Помечаем как синхронизированный
+                                        plannedExpenseRepository.updatePlannedExpense(
+                                            updatedPlanned.copy(isSynced = true)
+                                        )
+                                    },
+                                    onFailure = { error ->
+                                        android.util.Log.e("AddExpense", "❌ Failed to sync planned expense", error)
+                                    }
+                                )
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("AddExpense", "Exception syncing planned expense", e)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AddExpense", "Error updating planned expense status", e)
+                }
+            }
             // 8. Сбрасываем состояние
             _uiState.value = state.copy(isSaving = false)
 

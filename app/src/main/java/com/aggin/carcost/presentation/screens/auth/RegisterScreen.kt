@@ -170,7 +170,7 @@ fun RegisterScreen(
 
             // Кнопка регистрации
             Button(
-                onClick = { viewModel.signUp() },
+                onClick = { viewModel.register() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),

@@ -43,8 +43,14 @@ sealed class Screen(val route: String) {
         fun createRoute(carId: String) = "edit_car/$carId"
     }
 
-    object AddExpense : Screen("add_expense/{carId}") {
-        fun createRoute(carId: String) = "add_expense/$carId"
+    object AddExpense : Screen("add_expense/{carId}?plannedId={plannedId}") {
+        fun createRoute(carId: String, plannedId: String? = null): String {
+            return if (plannedId != null) {
+                "add_expense/$carId?plannedId=$plannedId"
+            } else {
+                "add_expense/$carId"
+            }
+        }
     }
 
     object EditExpense : Screen("edit_expense/{carId}/{expenseId}") {
@@ -149,10 +155,22 @@ fun AppNavigation(
         // Добавление расхода
         composable(
             route = Screen.AddExpense.route,
-            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("carId") { type = NavType.StringType },
+                navArgument("plannedId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
-            AddExpenseScreen(carId = carId, navController = navController)
+            val plannedId = backStackEntry.arguments?.getString("plannedId")
+            AddExpenseScreen(
+                carId = carId,
+                plannedId = plannedId,
+                navController = navController
+            )
         }
 
         // Редактирование расхода

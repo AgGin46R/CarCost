@@ -3,12 +3,15 @@ package com.aggin.carcost.presentation.screens.planned_expenses
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.*
 import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,7 +47,10 @@ class EditPlannedExpenseViewModel(
 ) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
-    private val repository = PlannedExpenseRepository(database.plannedExpenseDao())
+    private val localRepo = PlannedExpenseRepository(database.plannedExpenseDao())
+
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseRepo = SupabasePlannedExpenseRepository(supabaseAuth)
 
     private val _uiState = MutableStateFlow(EditPlannedExpenseUiState())
     val uiState: StateFlow<EditPlannedExpenseUiState> = _uiState.asStateFlow()
@@ -56,7 +62,7 @@ class EditPlannedExpenseViewModel(
     private fun loadPlannedExpense() {
         viewModelScope.launch {
             try {
-                repository.getPlannedExpenseByIdFlow(plannedId).collect { plannedExpense ->
+                localRepo.getPlannedExpenseByIdFlow(plannedId).collect { plannedExpense ->
                     if (plannedExpense != null) {
                         _uiState.value = EditPlannedExpenseUiState(
                             plannedExpense = plannedExpense,
@@ -81,7 +87,7 @@ class EditPlannedExpenseViewModel(
                     }
                 }
             } catch (e: Exception) {
-                Log.e("EditPlannedExpense", "Error loading planned expense", e)
+                Log.e("EditPlannedExpense", "Error loading", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     errorMessage = "Ошибка загрузки: ${e.message}"
@@ -171,13 +177,27 @@ class EditPlannedExpenseViewModel(
                         System.currentTimeMillis()
                     } else {
                         plannedExpense.completedDate
-                    }
+                    },
+                    isSynced = false // Сбрасываем флаг синхронизации
                 )
 
-                repository.updatePlannedExpense(updatedPlannedExpense)
+                // 1. Сохраняем локально
+                localRepo.updatePlannedExpense(updatedPlannedExpense)
+                Log.d("EditPlannedExpense", "✅ Updated locally")
 
-                // TODO: Синхронизация с Supabase
-                // supabasePlannedExpenseRepo.updatePlannedExpense(updatedPlannedExpense)
+                // 2. Синхронизируем с Supabase
+                val result = supabaseRepo.updatePlannedExpense(updatedPlannedExpense)
+                result.fold(
+                    onSuccess = {
+                        Log.d("EditPlannedExpense", "✅ Synced to Supabase")
+                        // Обновляем флаг синхронизации
+                        localRepo.updateSyncStatus(updatedPlannedExpense.id, true)
+                    },
+                    onFailure = { error ->
+                        Log.e("EditPlannedExpense", "❌ Supabase sync failed", error)
+                        // Оставляем локально как несинхронизированный
+                    }
+                )
 
                 _uiState.value = state.copy(
                     isSaving = false,
@@ -198,10 +218,21 @@ class EditPlannedExpenseViewModel(
 
         viewModelScope.launch {
             try {
-                repository.deletePlannedExpense(plannedExpense)
+                // 1. Удаляем локально
+                localRepo.deletePlannedExpense(plannedExpense)
+                Log.d("EditPlannedExpense", "✅ Deleted locally")
 
-                // TODO: Синхронизация с Supabase
-                // supabasePlannedExpenseRepo.deletePlannedExpense(plannedExpense.id)
+                // 2. Удаляем из Supabase
+                val result = supabaseRepo.deletePlannedExpense(plannedExpense.id)
+                result.fold(
+                    onSuccess = {
+                        Log.d("EditPlannedExpense", "✅ Deleted from Supabase")
+                    },
+                    onFailure = { error ->
+                        Log.e("EditPlannedExpense", "❌ Supabase delete failed", error)
+                        // Локально уже удалено, ничего не делаем
+                    }
+                )
 
                 _uiState.value = _uiState.value.copy(isDeleted = true)
             } catch (e: Exception) {
@@ -214,10 +245,11 @@ class EditPlannedExpenseViewModel(
     }
 }
 
+// ✅ ViewModelFactory
 class EditPlannedExpenseViewModelFactory(
+    private val application: Application,
     private val carId: String,
-    private val plannedId: String,
-    private val application: Application
+    private val plannedId: String
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

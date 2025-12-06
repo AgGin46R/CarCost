@@ -9,11 +9,13 @@ import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
+import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
+import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,12 +41,14 @@ class SyncRepository(
     private val localExpenseRepo: ExpenseRepository,
     private val localReminderRepo: MaintenanceReminderRepository,
     private val localTagRepo: ExpenseTagRepository,
-    private val localTagDao: com.aggin.carcost.data.local.database.dao.ExpenseTagDao, // ✅ ДОБАВЛЕНО
+    private val localTagDao: com.aggin.carcost.data.local.database.dao.ExpenseTagDao,
+    private val localPlannedExpenseRepo: PlannedExpenseRepository, // ✅ ДОБАВЛЕНО
     private val supabaseAuthRepo: SupabaseAuthRepository,
     private val supabaseCarRepo: SupabaseCarRepository,
     private val supabaseExpenseRepo: SupabaseExpenseRepository,
     private val supabaseReminderRepo: SupabaseMaintenanceReminderRepository,
-    private val supabaseTagRepo: SupabaseExpenseTagRepository
+    private val supabaseTagRepo: SupabaseExpenseTagRepository,
+    private val supabasePlannedExpenseRepo: SupabasePlannedExpenseRepository // ✅ ДОБАВЛЕНО
 ) {
 
     companion object {
@@ -72,7 +76,8 @@ class SyncRepository(
             syncExpenses()
             syncReminders()
             syncTags()
-            syncTagLinks() // ✅ Синхронизируем связи тегов ПОСЛЕ тегов и расходов
+            syncTagLinks() // Синхронизируем связи тегов ПОСЛЕ тегов и расходов
+            syncPlannedExpenses() // ✅ ДОБАВЛЕНО: Синхронизация запланированных покупок
 
             _syncState.value = SyncState.Success()
             Log.d(TAG, "Full sync completed successfully")
@@ -249,10 +254,10 @@ class SyncRepository(
         val userId = supabaseAuthRepo.getUserId() ?: return
 
         // 1. Pull - получаем теги с сервера
-        val remoteTagsResult = supabaseTagRepo.getAllTags()
+        val remoteTagsResult = supabaseTagRepo.getAllTags() // ✅ ИСПРАВЛЕНО
         val remoteTags = remoteTagsResult.getOrNull() ?: emptyList()
 
-        // 2. Push - отправляем локальные изменения
+        // 2. Push - отправляем локальные теги
         val localTags = localTagRepo.getTagsByUser(userId).first()
 
         for (localTag in localTags) {
@@ -282,7 +287,6 @@ class SyncRepository(
         for (remoteTag in remoteTags) {
             if (localTags.none { it.id == remoteTag.id }) {
                 Log.d(TAG, "Pulling new tag from server: ${remoteTag.id}")
-                // ✅ ИСПРАВЛЕНО: Сохраняем тег в локальную БД
                 try {
                     localTagRepo.insertTag(remoteTag)
                     Log.d(TAG, "✅ Tag saved locally: ${remoteTag.id}")
@@ -296,7 +300,7 @@ class SyncRepository(
     }
 
     /**
-     * ✅ Синхронизация связей тегов с расходами
+     * Синхронизация связей тегов с расходами
      */
     private suspend fun syncTagLinks() {
         Log.d(TAG, "Syncing tag links...")
@@ -342,6 +346,81 @@ class SyncRepository(
     }
 
     /**
+     * ✅ НОВОЕ: Синхронизация запланированных покупок
+     */
+    private suspend fun syncPlannedExpenses() {
+        Log.d(TAG, "Syncing planned expenses...")
+
+        val localCars = localCarRepo.getAllCars().first()
+
+        for (car in localCars) {
+            try {
+                // 1. Pull - получаем планы с сервера
+                val remotePlansResult = supabasePlannedExpenseRepo.getPlannedExpensesByCarId(car.id)
+                val remotePlans = remotePlansResult.getOrNull() ?: emptyList()
+
+                // 2. Push - отправляем локальные изменения
+                val localPlans = localPlannedExpenseRepo.getPlannedExpensesByCarId(car.id).first()
+
+                for (localPlan in localPlans) {
+                    val remotePlan = remotePlans.find { it.id == localPlan.id }
+
+                    when {
+                        // Новый план (только локально)
+                        remotePlan == null -> {
+                            Log.d(TAG, "Pushing new planned expense: ${localPlan.id}")
+                            val result = supabasePlannedExpenseRepo.insertPlannedExpense(localPlan)
+                            result.fold(
+                                onSuccess = {
+                                    // Помечаем как синхронизированный
+                                    localPlannedExpenseRepo.updateSyncStatus(localPlan.id, true)
+                                    Log.d(TAG, "✅ Planned expense synced: ${localPlan.id}")
+                                },
+                                onFailure = { error ->
+                                    Log.e(TAG, "❌ Failed to push planned expense: ${localPlan.id}", error)
+                                }
+                            )
+                        }
+                        // План изменен локально позже
+                        localPlan.updatedAt > remotePlan.updatedAt -> {
+                            Log.d(TAG, "Updating planned expense on server: ${localPlan.id}")
+                            val result = supabasePlannedExpenseRepo.updatePlannedExpense(localPlan)
+                            result.fold(
+                                onSuccess = {
+                                    localPlannedExpenseRepo.updateSyncStatus(localPlan.id, true)
+                                    Log.d(TAG, "✅ Planned expense updated: ${localPlan.id}")
+                                },
+                                onFailure = { error ->
+                                    Log.e(TAG, "❌ Failed to update planned expense: ${localPlan.id}", error)
+                                }
+                            )
+                        }
+                        // План изменен на сервере позже
+                        remotePlan.updatedAt > localPlan.updatedAt -> {
+                            Log.d(TAG, "Updating planned expense locally: ${localPlan.id}")
+                            localPlannedExpenseRepo.updatePlannedExpense(remotePlan)
+                        }
+                    }
+                }
+
+                // 3. Pull новых планов с сервера
+                for (remotePlan in remotePlans) {
+                    if (localPlans.none { it.id == remotePlan.id }) {
+                        Log.d(TAG, "Pulling new planned expense from server: ${remotePlan.id}")
+                        localPlannedExpenseRepo.insertPlannedExpense(remotePlan)
+                    }
+                }
+
+                Log.d(TAG, "✅ Planned expenses sync completed for car: ${car.id}")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Planned expenses sync failed for car: ${car.id}", e)
+            }
+        }
+
+        Log.d(TAG, "✅ All planned expenses synced")
+    }
+
+    /**
      * Синхронизация только автомобилей
      */
     suspend fun syncCarsOnly(): Result<Unit> = withContext(Dispatchers.IO) {
@@ -363,7 +442,7 @@ class SyncRepository(
     /**
      * Синхронизация только расходов для конкретного автомобиля
      */
-    suspend fun syncExpensesForCar(carId: String): Result<Unit> = withContext(Dispatchers.IO) { // ✅ String UUID
+    suspend fun syncExpensesForCar(carId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!supabaseAuthRepo.isUserLoggedIn()) {
                 return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
@@ -407,6 +486,55 @@ class SyncRepository(
     }
 
     /**
+     * ✅ НОВОЕ: Синхронизация только запланированных покупок для конкретного автомобиля
+     */
+    suspend fun syncPlannedExpensesForCar(carId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (!supabaseAuthRepo.isUserLoggedIn()) {
+                return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
+            }
+
+            _syncState.value = SyncState.Syncing
+
+            val remotePlansResult = supabasePlannedExpenseRepo.getPlannedExpensesByCarId(carId)
+            val remotePlans = remotePlansResult.getOrNull() ?: emptyList()
+            val localPlans = localPlannedExpenseRepo.getPlannedExpensesByCarId(carId).first()
+
+            // Push локальных изменений
+            for (localPlan in localPlans) {
+                val remotePlan = remotePlans.find { it.id == localPlan.id }
+
+                when {
+                    remotePlan == null -> {
+                        supabasePlannedExpenseRepo.insertPlannedExpense(localPlan)
+                            .onSuccess { localPlannedExpenseRepo.updateSyncStatus(localPlan.id, true) }
+                    }
+                    localPlan.updatedAt > remotePlan.updatedAt -> {
+                        supabasePlannedExpenseRepo.updatePlannedExpense(localPlan)
+                            .onSuccess { localPlannedExpenseRepo.updateSyncStatus(localPlan.id, true) }
+                    }
+                    remotePlan.updatedAt > localPlan.updatedAt -> {
+                        localPlannedExpenseRepo.updatePlannedExpense(remotePlan)
+                    }
+                }
+            }
+
+            // Pull новых планов
+            for (remotePlan in remotePlans) {
+                if (localPlans.none { it.id == remotePlan.id }) {
+                    localPlannedExpenseRepo.insertPlannedExpense(remotePlan)
+                }
+            }
+
+            _syncState.value = SyncState.Success("Планы синхронизированы")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            _syncState.value = SyncState.Error(e.message ?: "Ошибка синхронизации планов")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Очистка локальных данных при выходе
      */
     suspend fun clearLocalData() = withContext(Dispatchers.IO) {
@@ -421,7 +549,7 @@ class SyncRepository(
     }
 
     /**
-     * ✅ Безопасная начальная синхронизация (не бросает исключения)
+     * Безопасная начальная синхронизация (не бросает исключения)
      */
     suspend fun safeInitialSync() = withContext(Dispatchers.IO) {
         try {
@@ -437,6 +565,7 @@ class SyncRepository(
             try { syncExpenses(); Log.d(TAG, "✅ Expenses synced") } catch (e: Exception) { Log.e(TAG, "❌ Expenses failed", e) }
             try { syncReminders(); Log.d(TAG, "✅ Reminders synced") } catch (e: Exception) { Log.e(TAG, "❌ Reminders failed", e) }
             try { syncTags(); Log.d(TAG, "✅ Tags synced") } catch (e: Exception) { Log.e(TAG, "❌ Tags failed", e) }
+            try { syncPlannedExpenses(); Log.d(TAG, "✅ Planned expenses synced") } catch (e: Exception) { Log.e(TAG, "❌ Planned expenses failed", e) } // ✅ ДОБАВЛЕНО
 
             _syncState.value = SyncState.Success()
             Log.d(TAG, "✅ Safe initial sync completed")

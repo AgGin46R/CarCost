@@ -1,7 +1,9 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,6 +11,7 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.*
 import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,8 +40,10 @@ class AddPlannedExpenseViewModel(
 ) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
-    private val repository = PlannedExpenseRepository(database.plannedExpenseDao())
+    private val localRepo = PlannedExpenseRepository(database.plannedExpenseDao())
+
     private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseRepo = SupabasePlannedExpenseRepository(supabaseAuth)
 
     private val _uiState = MutableStateFlow(AddPlannedExpenseUiState())
     val uiState: StateFlow<AddPlannedExpenseUiState> = _uiState.asStateFlow()
@@ -59,7 +64,6 @@ class AddPlannedExpenseViewModel(
     }
 
     fun updateEstimatedAmount(amount: String) {
-        // Разрешаем только цифры и точку
         val filtered = amount.filter { it.isDigit() || it == '.' }
         _uiState.value = _uiState.value.copy(estimatedAmount = filtered)
     }
@@ -73,7 +77,6 @@ class AddPlannedExpenseViewModel(
     }
 
     fun updateTargetOdometer(odometer: String) {
-        // Разрешаем только цифры
         val filtered = odometer.filter { it.isDigit() }
         _uiState.value = _uiState.value.copy(targetOdometer = filtered)
     }
@@ -117,16 +120,30 @@ class AddPlannedExpenseViewModel(
                     status = PlannedExpenseStatus.PLANNED
                 )
 
-                repository.insertPlannedExpense(plannedExpense)
+                // 1. Сохраняем локально
+                localRepo.insertPlannedExpense(plannedExpense)
+                Log.d("AddPlannedExpense", "✅ Saved locally: ${plannedExpense.id}")
 
-                // TODO: Синхронизация с Supabase
-                // supabasePlannedExpenseRepo.insertPlannedExpense(plannedExpense)
+                // 2. Синхронизируем с Supabase
+                val result = supabaseRepo.insertPlannedExpense(plannedExpense)
+                result.fold(
+                    onSuccess = {
+                        Log.d("AddPlannedExpense", "✅ Synced to Supabase")
+                        // Обновляем флаг синхронизации
+                        localRepo.updateSyncStatus(plannedExpense.id, true)
+                    },
+                    onFailure = { error ->
+                        Log.e("AddPlannedExpense", "❌ Supabase sync failed", error)
+                        // Оставляем локально как несинхронизированный
+                    }
+                )
 
                 _uiState.value = state.copy(
                     isSaving = false,
                     isSaved = true
                 )
             } catch (e: Exception) {
+                Log.e("AddPlannedExpense", "Error saving", e)
                 _uiState.value = state.copy(
                     isSaving = false,
                     errorMessage = "Ошибка сохранения: ${e.message}"
@@ -136,9 +153,10 @@ class AddPlannedExpenseViewModel(
     }
 }
 
+// ✅ ViewModelFactory
 class AddPlannedExpenseViewModelFactory(
-    private val carId: String,
-    private val application: Application
+    private val application: Application,
+    private val carId: String
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

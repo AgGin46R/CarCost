@@ -10,10 +10,12 @@ import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
+import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
+import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
 import com.aggin.carcost.data.sync.SyncRepository
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
@@ -43,23 +45,27 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
     private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
     private val supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth)
+    private val supabasePlannedExpenseRepo = SupabasePlannedExpenseRepository(supabaseAuth) // ✅ ДОБАВЛЕНО
 
     private val localCarRepo = CarRepository(database.carDao())
     private val localExpenseRepo = ExpenseRepository(database.expenseDao())
     private val localReminderRepo = MaintenanceReminderRepository(database.maintenanceReminderDao())
     private val localTagRepo = ExpenseTagRepository(database.expenseTagDao())
+    private val localPlannedExpenseRepo = PlannedExpenseRepository(database.plannedExpenseDao()) // ✅ ДОБАВЛЕНО
 
     private val syncRepo = SyncRepository(
         localCarRepo = localCarRepo,
         localExpenseRepo = localExpenseRepo,
         localReminderRepo = localReminderRepo,
         localTagRepo = localTagRepo,
-        localTagDao = AppDatabase.getDatabase(getApplication()).expenseTagDao(), // ✅ ДОБАВЛЕНО
+        localTagDao = database.expenseTagDao(),
+        localPlannedExpenseRepo = localPlannedExpenseRepo, // ✅ ДОБАВЛЕНО
         supabaseAuthRepo = supabaseAuth,
         supabaseCarRepo = supabaseCarRepo,
         supabaseExpenseRepo = supabaseExpenseRepo,
         supabaseReminderRepo = supabaseReminderRepo,
-        supabaseTagRepo = supabaseTagRepo
+        supabaseTagRepo = supabaseTagRepo,
+        supabasePlannedExpenseRepo = supabasePlannedExpenseRepo // ✅ ДОБАВЛЕНО
     )
 
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -100,27 +106,28 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                         Log.d("Login", "UserInfo: id=${userInfo.id}, email=${userInfo.email}")
                         Log.d("Login", "UserMetadata: ${userInfo.userMetadata}")
 
-                        // Загружаем displayName из Supabase таблицы users
+                        // Загружаем профиль из Supabase таблицы users
                         viewModelScope.launch {
-                            val displayName = try {
-                                fetchDisplayNameFromSupabase(userInfo.id)
+                            val userProfile = try {
+                                fetchUserProfileFromSupabase(userInfo.id)
                             } catch (e: Exception) {
-                                Log.e("Login", "❌ Error fetching displayName", e)
+                                Log.e("Login", "❌ Error fetching user profile", e)
                                 null
                             }
 
-                            Log.d("Login", "Fetched displayName: $displayName")
+                            Log.d("Login", "Fetched profile: displayName=${userProfile?.displayName}, photoUrl=${userProfile?.photoUrl}")
 
-                            // Сохраняем пользователя локально с правильным displayName
+                            // Сохраняем пользователя локально с данными из Supabase
                             val user = com.aggin.carcost.data.local.database.entities.User(
                                 uid = userInfo.id,
                                 email = userInfo.email ?: state.email,
-                                displayName = displayName ?: "Пользователь",
+                                displayName = userProfile?.displayName ?: "Пользователь",
+                                photoUrl = userProfile?.photoUrl,  // ✅ ДОБАВЛЕНО
                                 lastLoginAt = System.currentTimeMillis()
                             )
 
                             database.userDao().insertUser(user)
-                            Log.d("Login", "✅ User saved locally with displayName: ${user.displayName}")
+                            Log.d("Login", "✅ User saved locally with displayName: ${user.displayName}, photoUrl: ${user.photoUrl}")
                         }
 
                         // Сразу переходим на главный экран
@@ -158,8 +165,8 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ✅ Получение displayName из таблицы users в Supabase
-    private suspend fun fetchDisplayNameFromSupabase(userId: String): String? {
+    // ✅ Получение профиля пользователя из таблицы users в Supabase
+    private suspend fun fetchUserProfileFromSupabase(userId: String): UserResponse? {
         return try {
             val supabase = com.aggin.carcost.supabase
 
@@ -171,9 +178,9 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 .decodeSingle<UserResponse>()
 
-            response.displayName // ✅ Исправлено: displayName вместо display_name
+            response
         } catch (e: Exception) {
-            Log.e("Login", "❌ Failed to fetch displayName from Supabase", e)
+            Log.e("Login", "❌ Failed to fetch user profile from Supabase", e)
             null
         }
     }
@@ -184,6 +191,8 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 data class UserResponse(
     val id: String,
     val email: String? = null,
-    @SerialName("display_name") // ✅ Указываем mapping для Supabase
-    val displayName: String? = null // ✅ Kotlin property без подчеркивания
+    @SerialName("display_name")
+    val displayName: String? = null,
+    @SerialName("photo_url")
+    val photoUrl: String? = null  // ✅ ДОБАВЛЕНО
 )
