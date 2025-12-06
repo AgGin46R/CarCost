@@ -16,6 +16,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ServiceType
+import com.aggin.carcost.presentation.components.TagSelector  // ✅ ДОБАВЛЕНО
+import com.aggin.carcost.presentation.screens.add_expense.CategoryChip
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -184,6 +186,16 @@ fun EditExpenseScreen(
                 )
 
                 Divider()
+
+                // Теги
+                TagSelector(
+                    availableTags = uiState.availableTags,
+                    selectedTags = uiState.selectedTags,
+                    onTagSelected = { viewModel.addTag(it) },
+                    onTagRemoved = { viewModel.removeTag(it) },
+                    enabled = !uiState.isSaving,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 // Специфичные поля для категорий
                 when (uiState.category) {
@@ -371,6 +383,13 @@ fun CategorySelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CategoryChip(
+                label = "🛣️ Дорога",
+                selected = selectedCategory == ExpenseCategory.TOLL,
+                onClick = { onCategorySelected(ExpenseCategory.TOLL) },
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
+            )
+            CategoryChip(
                 label = "💧 Мойка",
                 selected = selectedCategory == ExpenseCategory.WASH,
                 onClick = { onCategorySelected(ExpenseCategory.WASH) },
@@ -384,6 +403,20 @@ fun CategorySelector(
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
+        }
+
+        // Ряд 4
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CategoryChip(
+                label = "🛒 Аксессуары",
+                selected = selectedCategory == ExpenseCategory.ACCESSORIES,
+                onClick = { onCategorySelected(ExpenseCategory.ACCESSORIES) },
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
+            )
             CategoryChip(
                 label = "➕ Другое",
                 selected = selectedCategory == ExpenseCategory.OTHER,
@@ -391,6 +424,8 @@ fun CategorySelector(
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
+            // Пустой слот для симметрии
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }

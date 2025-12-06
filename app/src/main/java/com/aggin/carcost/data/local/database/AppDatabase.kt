@@ -21,10 +21,10 @@ import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef
 import com.aggin.carcost.data.local.database.entities.PlannedExpense
 
-// Миграция с версии 7 на версию 8
+// Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
     override fun migrate(database: SupportSQLiteDatabase) {
-        // Создаём таблицу expense_tags
+        // Создаём таблицу expense_tags (СТАРАЯ - с INTEGER)
         database.execSQL("""
             CREATE TABLE IF NOT EXISTS expense_tags (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -35,7 +35,7 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
             )
         """)
 
-        // Создаём таблицу expense_tag_cross_ref
+        // Создаём таблицу expense_tag_cross_ref (СТАРАЯ - с INTEGER)
         database.execSQL("""
             CREATE TABLE IF NOT EXISTS expense_tag_cross_ref (
                 expenseId INTEGER NOT NULL,
@@ -46,7 +46,6 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
             )
         """)
 
-        // Создаём индексы для оптимизации запросов
         database.execSQL("""
             CREATE INDEX IF NOT EXISTS index_expense_tag_cross_ref_expenseId 
             ON expense_tag_cross_ref(expenseId)
@@ -59,7 +58,7 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
-// Миграция с версии 10 на версию 11 - добавление таблицы planned_expenses
+// Миграция с версии 10 на версию 11
 val MIGRATION_10_11 = object : Migration(10, 11) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("""
@@ -86,19 +85,14 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
             )
         """)
 
-        // Создаём индекс для carId для быстрого поиска
         database.execSQL("""
             CREATE INDEX IF NOT EXISTS index_planned_expenses_carId 
             ON planned_expenses(carId)
         """)
-
-        // Создаём индекс для userId
         database.execSQL("""
             CREATE INDEX IF NOT EXISTS index_planned_expenses_userId 
             ON planned_expenses(userId)
         """)
-
-        // Создаём индекс для status
         database.execSQL("""
             CREATE INDEX IF NOT EXISTS index_planned_expenses_status 
             ON planned_expenses(status)
@@ -106,10 +100,9 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
-// Миграция с версии 11 на версию 12 - исправление схемы planned_expenses
+// Миграция с версии 11 на версию 12
 val MIGRATION_11_12 = object : Migration(11, 12) {
     override fun migrate(database: SupportSQLiteDatabase) {
-        // Создаём временную таблицу с правильной схемой (без DEFAULT)
         database.execSQL("""
             CREATE TABLE IF NOT EXISTS planned_expenses_new (
                 id TEXT PRIMARY KEY NOT NULL,
@@ -134,32 +127,69 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
             )
         """)
 
-        // Копируем данные из старой таблицы в новую
         database.execSQL("""
             INSERT INTO planned_expenses_new 
             SELECT * FROM planned_expenses
         """)
-
-        // Удаляем старую таблицу
         database.execSQL("DROP TABLE planned_expenses")
-
-        // Переименовываем новую таблицу
         database.execSQL("ALTER TABLE planned_expenses_new RENAME TO planned_expenses")
 
-        // Создаём индексы заново
         database.execSQL("""
             CREATE INDEX IF NOT EXISTS index_planned_expenses_carId 
             ON planned_expenses(carId)
         """)
-
         database.execSQL("""
             CREATE INDEX IF NOT EXISTS index_planned_expenses_userId 
             ON planned_expenses(userId)
         """)
-
         database.execSQL("""
             CREATE INDEX IF NOT EXISTS index_planned_expenses_status 
             ON planned_expenses(status)
+        """)
+    }
+}
+
+// ✅ ИСПРАВЛЕННАЯ МИГРАЦИЯ: Исправление типов для тегов (12 → 13)
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Стратегия: полностью пересоздаём таблицы тегов
+        // Данные восстановятся при синхронизации с Supabase
+
+        // 1. Удаляем старые таблицы (если существуют)
+        database.execSQL("DROP TABLE IF EXISTS expense_tag_cross_ref")
+        database.execSQL("DROP TABLE IF EXISTS expense_tags")
+
+        // 2. Создаём таблицу expense_tags с правильным типом TEXT
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS expense_tags (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                color TEXT NOT NULL,
+                userId TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """)
+
+        // 3. Создаём таблицу expense_tag_cross_ref с правильным типом TEXT
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS expense_tag_cross_ref (
+                expenseId TEXT NOT NULL,
+                tagId TEXT NOT NULL,
+                PRIMARY KEY(expenseId, tagId),
+                FOREIGN KEY(expenseId) REFERENCES expenses(id) ON DELETE CASCADE,
+                FOREIGN KEY(tagId) REFERENCES expense_tags(id) ON DELETE CASCADE
+            )
+        """)
+
+        // 4. Создаём индексы
+        database.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_expense_tag_cross_ref_expenseId 
+            ON expense_tag_cross_ref(expenseId)
+        """)
+
+        database.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_expense_tag_cross_ref_tagId 
+            ON expense_tag_cross_ref(tagId)
         """)
     }
 }
@@ -174,7 +204,7 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
         ExpenseTagCrossRef::class,
         PlannedExpense::class
     ],
-    version = 12,  // Увеличиваем версию
+    version = 13,  // ✅ Увеличена версия до 13
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -198,8 +228,13 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "carcost_database"
                 )
-                    .addMigrations(MIGRATION_7_8, MIGRATION_10_11, MIGRATION_11_12)  // Добавляем новую миграцию
-                    .fallbackToDestructiveMigration()  // На случай других изменений
+                    .addMigrations(
+                        MIGRATION_7_8,
+                        MIGRATION_10_11,
+                        MIGRATION_11_12,
+                        MIGRATION_12_13  // ✅ Добавлена новая миграция
+                    )
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

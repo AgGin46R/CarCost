@@ -8,17 +8,21 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ServiceType
+import com.aggin.carcost.data.local.database.entities.ExpenseTag
+import com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
+import com.aggin.carcost.data.local.repository.ExpenseTagRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class EditExpenseUiState(
-    val expenseId: String = "", // ✅ String UUID
-    val carId: String = "", // ✅ String UUID
+    val expenseId: String = "",
+    val carId: String = "",
     val category: ExpenseCategory = ExpenseCategory.FUEL,
     val amount: String = "",
     val odometer: String = "",
@@ -41,6 +45,10 @@ data class EditExpenseUiState(
     val latitude: Double? = null,
     val longitude: Double? = null,
 
+    // ✅ ДОБАВЛЕНО: Теги
+    val availableTags: List<ExpenseTag> = emptyList(),
+    val selectedTags: List<ExpenseTag> = emptyList(),
+
     val amountError: String? = null,
     val odometerError: String? = null,
     val errorMessage: String? = null,
@@ -53,11 +61,14 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
     private val database = AppDatabase.getDatabase(application)
     private val expenseRepository = ExpenseRepository(database.expenseDao())
     private val reminderRepository = MaintenanceReminderRepository(database.maintenanceReminderDao())
+    private val tagRepository = ExpenseTagRepository(database.expenseTagDao())
+    private val tagDao = database.expenseTagDao()  // ✅ ДОБАВЛЕНО
 
     // ✅ ДОБАВЛЕНО: Supabase репозитории
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
     private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
+    private val supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth)  // ✅ ДОБАВЛЕНО
 
     private val _uiState = MutableStateFlow(EditExpenseUiState())
     val uiState: StateFlow<EditExpenseUiState> = _uiState.asStateFlow()
@@ -91,11 +102,32 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                         isLoading = false
                     )
                 }
+
+                // ✅ ДОБАВЛЕНО: Загружаем доступные теги
+                val userId = supabaseAuth.getUserId()
+                if (userId != null) {
+                    tagRepository.getTagsByUser(userId).collect { tags ->
+                        _uiState.value = _uiState.value.copy(availableTags = tags)
+                    }
+                }
+
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "Ошибка загрузки: ${e.message}",
                     isLoading = false
                 )
+            }
+        }
+
+        // ✅ ДОБАВЛЕНО: Загружаем теги этого расхода
+        viewModelScope.launch {
+            try {
+                tagDao.getTagsForExpense(expenseId).collect { tags ->
+                    _uiState.value = _uiState.value.copy(selectedTags = tags)
+                    Log.d("EditExpense", "✅ Loaded ${tags.size} tags for expense")
+                }
+            } catch (e: Exception) {
+                Log.e("EditExpense", "Error loading tags", e)
             }
         }
     }
@@ -152,6 +184,22 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
 
     fun updateWorkshopName(workshopName: String) {
         _uiState.value = _uiState.value.copy(workshopName = workshopName)
+    }
+
+    // ✅ ДОБАВЛЕНО: Методы для работы с тегами
+    fun addTag(tag: ExpenseTag) {
+        val currentTags = _uiState.value.selectedTags
+        if (!currentTags.contains(tag)) {
+            _uiState.value = _uiState.value.copy(selectedTags = currentTags + tag)
+            Log.d("EditExpense", "✅ Added tag: ${tag.name}")
+        }
+    }
+
+    fun removeTag(tag: ExpenseTag) {
+        _uiState.value = _uiState.value.copy(
+            selectedTags = _uiState.value.selectedTags.filter { it.id != tag.id }
+        )
+        Log.d("EditExpense", "✅ Removed tag: ${tag.name}")
     }
 
     fun saveExpense(onSuccess: () -> Unit) {
@@ -214,7 +262,62 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                 expenseRepository.updateExpense(updatedExpense)
                 Log.d("EditExpense", "✅ Expense updated locally")
 
-                // ✅ 2. НОВЫЙ КОД: Обновляем напоминание при изменении типа ТО
+                // ✅ 2. ДОБАВЛЕНО: Обновляем теги
+                try {
+                    // Удаляем старые связи
+                    tagDao.deleteExpenseTagsByExpenseId(state.expenseId)
+                    Log.d("EditExpense", "✅ Deleted old tag links")
+
+                    // Сохраняем новые связи локально
+                    state.selectedTags.forEach { tag ->
+                        tagDao.insertExpenseTagCrossRef(
+                            ExpenseTagCrossRef(
+                                expenseId = state.expenseId,
+                                tagId = tag.id
+                            )
+                        )
+                    }
+                    Log.d("EditExpense", "✅ Tags updated locally: ${state.selectedTags.size} tags")
+
+                    // Синхронизируем с Supabase
+                    if (state.selectedTags.isNotEmpty()) {
+                        // Сначала убедимся что теги существуют в Supabase
+                        for (tag in state.selectedTags) {
+                            val tagResult = supabaseTagRepo.insertTag(tag)
+                            tagResult.fold(
+                                onSuccess = {
+                                    Log.d("EditExpense", "✅ Tag ensured in Supabase: ${tag.name}")
+                                },
+                                onFailure = { error ->
+                                    // Тег уже существует - это нормально
+                                    Log.d("EditExpense", "Tag already exists: ${error.message}")
+                                }
+                            )
+                        }
+
+                        // Синхронизируем связи
+                        val tagIds = state.selectedTags.map { it.id }
+                        val result = supabaseTagRepo.setTagsForExpense(state.expenseId, tagIds)
+
+                        result.fold(
+                            onSuccess = {
+                                Log.d("EditExpense", "✅ Tag links synced to Supabase: ${tagIds.size} tags")
+                            },
+                            onFailure = { error ->
+                                Log.e("EditExpense", "❌ Failed to sync tag links: ${error.message}")
+                            }
+                        )
+                    } else {
+                        // Если тегов нет - удаляем все связи из Supabase
+                        supabaseTagRepo.removeAllTagsFromExpense(state.expenseId)
+                        Log.d("EditExpense", "✅ Removed all tag links from Supabase")
+                    }
+                } catch (e: Exception) {
+                    Log.e("EditExpense", "❌ Exception updating tags", e)
+                    // Не критично - продолжаем
+                }
+
+                // 3. НОВЫЙ КОД: Обновляем напоминание при изменении типа ТО
                 if (state.category == ExpenseCategory.MAINTENANCE) {
                     Log.d("EditExpense", "Checking if reminder needs update...")
                     Log.d("EditExpense", "Original: ${state.originalServiceType}, New: ${state.serviceType}")
@@ -283,7 +386,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                     }
                 }
 
-                // ✅ 3. Синхронизируем расход с Supabase
+                // 4. Синхронизируем расход с Supabase
                 try {
                     val result = supabaseExpenseRepo.updateExpense(updatedExpense)
                     result.fold(

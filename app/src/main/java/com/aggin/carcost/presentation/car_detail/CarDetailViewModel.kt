@@ -116,8 +116,11 @@ class CarDetailViewModel(
             // Загружаем теги для всех расходов
             expenseRepository.getExpensesByCarId(carId).collect { expenses ->
                 val tagsMap = mutableMapOf<String, List<ExpenseTag>>()
+
+                // Для каждого расхода получаем теги синхронно
                 expenses.forEach { expense ->
                     try {
+                        // Получаем текущее значение из Flow
                         tagRepository.getTagsForExpense(expense.id).firstOrNull()?.let { tags ->
                             tagsMap[expense.id] = tags
                         }
@@ -125,6 +128,8 @@ class CarDetailViewModel(
                         Log.e("CarDetail", "Error loading tags for expense ${expense.id}", e)
                     }
                 }
+
+                // Обновляем состояние один раз для всех расходов
                 _expensesWithTags.value = tagsMap
             }
         }
@@ -133,7 +138,7 @@ class CarDetailViewModel(
     private fun syncData() {
         viewModelScope.launch {
             try {
-                // Синхронизация расходов
+                // 1. Синхронизация расходов
                 val result = supabaseExpenseRepo.getExpensesByCarId(carId)
                 result.fold(
                     onSuccess = { expenses ->
@@ -141,13 +146,52 @@ class CarDetailViewModel(
                             expenseRepository.insertExpense(expense)
                         }
                         Log.d("CarDetail", "Synced ${expenses.size} expenses")
+
+                        // ✅ 2. Синхронизируем теги для каждого расхода
+                        val supabaseTagRepo = com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository(supabaseAuth)
+                        expenses.forEach { expense ->
+                            viewModelScope.launch {
+                                try {
+                                    val tagsResult = supabaseTagRepo.getTagsForExpense(expense.id)
+                                    tagsResult.fold(
+                                        onSuccess = { remoteTags ->
+                                            if (remoteTags.isNotEmpty()) {
+                                                // Сохраняем теги локально
+                                                remoteTags.forEach { tag ->
+                                                    database.expenseTagDao().insertTag(tag)
+                                                }
+
+                                                // Удаляем старые связи
+                                                database.expenseTagDao().deleteExpenseTagsByExpenseId(expense.id)
+
+                                                // Создаём новые связи
+                                                remoteTags.forEach { tag ->
+                                                    database.expenseTagDao().insertExpenseTagCrossRef(
+                                                        com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef(
+                                                            expenseId = expense.id,
+                                                            tagId = tag.id
+                                                        )
+                                                    )
+                                                }
+                                                Log.d("CarDetail", "✅ Synced ${remoteTags.size} tags for expense ${expense.id}")
+                                            }
+                                        },
+                                        onFailure = { error ->
+                                            Log.e("CarDetail", "Failed to sync tags for expense ${expense.id}", error)
+                                        }
+                                    )
+                                } catch (e: Exception) {
+                                    Log.e("CarDetail", "Exception syncing tags for expense ${expense.id}", e)
+                                }
+                            }
+                        }
                     },
                     onFailure = { error ->
                         Log.e("CarDetail", "Sync failed", error)
                     }
                 )
 
-                // Синхронизация напоминаний
+                // 3. Синхронизация напоминаний
                 val reminderResult = supabaseReminderRepo.getRemindersByCarId(carId)
                 reminderResult.fold(
                     onSuccess = { reminders ->
