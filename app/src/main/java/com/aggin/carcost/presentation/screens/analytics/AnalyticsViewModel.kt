@@ -36,7 +36,8 @@ data class FuelStatistics(
     val totalLiters: Double,
     val totalCost: Double,
     val averagePricePerLiter: Double,
-    val kmDriven: Int
+    val kmDriven: Int,
+    val consumptionHistory: List<Pair<String, Double>> = emptyList() // дата → л/100км
 )
 
 // Прогноз расходов
@@ -178,22 +179,49 @@ class EnhancedAnalyticsViewModel(
     }
 
     private fun calculateFuelStatistics(expenses: List<Expense>, kmDriven: Int): FuelStatistics? {
-        val fuelExpenses = expenses.filter { it.category == ExpenseCategory.FUEL }
-        if (fuelExpenses.isEmpty() || kmDriven <= 0) return null
+        val fuelExpenses = expenses
+            .filter { it.category == ExpenseCategory.FUEL && (it.fuelLiters ?: 0.0) > 0 }
+            .sortedBy { it.odometer }
+        if (fuelExpenses.isEmpty()) return null
+
+        // Если purchaseOdometer не задан, считаем пробег между первой и последней заправкой
+        val effectiveKmDriven = if (kmDriven > 0) kmDriven else {
+            val minOdom = fuelExpenses.minOfOrNull { it.odometer } ?: 0
+            val maxOdom = fuelExpenses.maxOfOrNull { it.odometer } ?: 0
+            maxOdom - minOdom
+        }
+        if (effectiveKmDriven <= 0) return null
 
         val totalLiters = fuelExpenses.sumOf { it.fuelLiters ?: 0.0 }
         val totalCost = fuelExpenses.sumOf { it.amount }
         if (totalLiters <= 0) return null
 
-        val averageConsumption = (totalLiters / kmDriven) * 100
+        val averageConsumption = (totalLiters / effectiveKmDriven) * 100
         val averagePricePerLiter = totalCost / totalLiters
+
+        // Динамика расхода: по каждой заправке относительно предыдущей
+        val dateFormat = SimpleDateFormat("dd.MM", Locale.getDefault())
+        val consumptionHistory = mutableListOf<Pair<String, Double>>()
+        for (i in 1 until fuelExpenses.size) {
+            val prev = fuelExpenses[i - 1]
+            val curr = fuelExpenses[i]
+            val km = curr.odometer - prev.odometer
+            val liters = curr.fuelLiters ?: 0.0
+            if (km > 0 && liters > 0) {
+                val consumption = (liters / km) * 100
+                if (consumption in 1.0..35.0) { // фильтр аномальных значений
+                    consumptionHistory.add(dateFormat.format(Date(curr.date)) to consumption)
+                }
+            }
+        }
 
         return FuelStatistics(
             averageConsumption = averageConsumption,
             totalLiters = totalLiters,
             totalCost = totalCost,
             averagePricePerLiter = averagePricePerLiter,
-            kmDriven = kmDriven
+            kmDriven = effectiveKmDriven,
+            consumptionHistory = consumptionHistory
         )
     }
 

@@ -2,6 +2,11 @@ package com.aggin.carcost
 
 import android.app.Application
 import android.util.Log
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
+import com.aggin.carcost.data.notifications.NotificationHelper
 import com.yandex.mapkit.MapKitFactory
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
@@ -9,6 +14,7 @@ import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.realtime.Realtime
+import java.util.concurrent.TimeUnit
 
 class App : Application() {
 
@@ -37,6 +43,19 @@ class App : Application() {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize Supabase", e)
         }
+
+        NotificationHelper.createChannel(this)
+        scheduleMaintenanceCheck()
+    }
+
+    private fun scheduleMaintenanceCheck() {
+        val workRequest = PeriodicWorkRequestBuilder<MaintenanceNotificationWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            MaintenanceNotificationWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
     }
 
     private fun initializeSupabase() {

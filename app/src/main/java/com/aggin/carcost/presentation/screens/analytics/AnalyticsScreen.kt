@@ -390,6 +390,32 @@ fun FuelStatisticsCard(fuelStats: FuelStatistics) {
             FuelStatRow("Средняя цена за литр", String.format("%.2f ₽", fuelStats.averagePricePerLiter))
             Divider(modifier = Modifier.padding(vertical = 8.dp))
             FuelStatRow("Пройдено км", "${fuelStats.kmDriven} км")
+
+            if (fuelStats.consumptionHistory.size >= 2) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Динамика расхода (л/100км)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val chartModel = entryModelOf(
+                    *fuelStats.consumptionHistory.mapIndexed { index, (_, consumption) ->
+                        index to consumption
+                    }.toTypedArray()
+                )
+                Chart(
+                    chart = columnChart(),
+                    model = chartModel,
+                    startAxis = rememberStartAxis(),
+                    bottomAxis = rememberBottomAxis(
+                        valueFormatter = { value, _ ->
+                            fuelStats.consumptionHistory.getOrNull(value.toInt())?.first ?: ""
+                        }
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(150.dp)
+                )
+            }
         }
     }
 }

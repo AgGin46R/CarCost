@@ -32,6 +32,12 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("CarCost") },
                 actions = {
+                    // Кнопка сравнения (только если авто >= 2)
+                    if (uiState.cars.size >= 2) {
+                        IconButton(onClick = { navController.navigate(Screen.Compare.route) }) {
+                            Icon(Icons.Default.CompareArrows, contentDescription = "Сравнить авто")
+                        }
+                    }
                     // Кнопка профиля
                     IconButton(
                         onClick = { navController.navigate(Screen.Profile.route) }

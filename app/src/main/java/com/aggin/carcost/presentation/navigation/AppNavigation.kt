@@ -27,6 +27,8 @@ import com.aggin.carcost.presentation.screens.bug_report.BugReportScreen
 import com.aggin.carcost.presentation.screens.planned_expenses.PlannedExpensesScreen
 import com.aggin.carcost.presentation.screens.planned_expenses.AddPlannedExpenseScreen
 import com.aggin.carcost.presentation.screens.planned_expenses.EditPlannedExpenseScreen
+import com.aggin.carcost.presentation.screens.documents.DocumentsScreen
+import com.aggin.carcost.presentation.screens.compare.CompareScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -89,6 +91,12 @@ sealed class Screen(val route: String) {
     object EditPlannedExpense : Screen("edit_planned_expense/{carId}/{plannedId}") {
         fun createRoute(carId: String, plannedId: String) = "edit_planned_expense/$carId/$plannedId"
     }
+
+    object Documents : Screen("documents/{carId}") {
+        fun createRoute(carId: String) = "documents/$carId"
+    }
+
+    object Compare : Screen("compare")
 }
 
 @Composable
@@ -248,6 +256,20 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             AddPlannedExpenseScreen(carId = carId, navController = navController)
+        }
+
+        // Сравнение авто
+        composable(Screen.Compare.route) {
+            CompareScreen(navController = navController)
+        }
+
+        // Хранилище документов
+        composable(
+            route = Screen.Documents.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            DocumentsScreen(carId = carId, navController = navController)
         }
 
         // Редактирование запланированной покупки

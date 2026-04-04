@@ -81,6 +81,14 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Edit, null) }
                             )
                             DropdownMenuItem(
+                                text = { Text("Документы") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.Documents.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Folder, null) }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Экспорт данных") },
                                 onClick = {
                                     showMenu = false

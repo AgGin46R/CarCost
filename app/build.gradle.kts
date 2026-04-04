@@ -100,7 +100,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 
     // Yandex MapKit
-    implementation("com.yandex.android:maps.mobile:4.4.0-full")
+    implementation("com.yandex.android:maps.mobile:4.33.1-full")
 
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
