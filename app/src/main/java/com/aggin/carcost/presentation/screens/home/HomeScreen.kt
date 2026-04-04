@@ -32,6 +32,10 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("CarCost") },
                 actions = {
+                    // Кнопка поиска
+                    IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
+                        Icon(Icons.Default.Search, contentDescription = "Поиск")
+                    }
                     // Кнопка сравнения (только если авто >= 2)
                     if (uiState.cars.size >= 2) {
                         IconButton(onClick = { navController.navigate(Screen.Compare.route) }) {

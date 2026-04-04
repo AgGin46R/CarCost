@@ -29,6 +29,7 @@ import com.aggin.carcost.presentation.screens.planned_expenses.AddPlannedExpense
 import com.aggin.carcost.presentation.screens.planned_expenses.EditPlannedExpenseScreen
 import com.aggin.carcost.presentation.screens.documents.DocumentsScreen
 import com.aggin.carcost.presentation.screens.compare.CompareScreen
+import com.aggin.carcost.presentation.screens.search.SearchScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -97,6 +98,8 @@ sealed class Screen(val route: String) {
     }
 
     object Compare : Screen("compare")
+
+    object Search : Screen("search")
 }
 
 @Composable
@@ -261,6 +264,11 @@ fun AppNavigation(
         // Сравнение авто
         composable(Screen.Compare.route) {
             CompareScreen(navController = navController)
+        }
+
+        // Глобальный поиск
+        composable(Screen.Search.route) {
+            SearchScreen(navController = navController)
         }
 
         // Хранилище документов

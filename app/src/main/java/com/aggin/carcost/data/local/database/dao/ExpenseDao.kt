@@ -54,6 +54,19 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE carId = :carId AND category = 'FUEL' AND isFullTank = 1 ORDER BY date DESC LIMIT :limit")
     fun getFullTankRefuels(carId: String, limit: Int = 10): Flow<List<Expense>>
 
+    // SEARCH
+    @Query("""
+        SELECT * FROM expenses
+        WHERE title LIKE '%' || :query || '%'
+           OR description LIKE '%' || :query || '%'
+           OR location LIKE '%' || :query || '%'
+           OR workshopName LIKE '%' || :query || '%'
+           OR CAST(amount AS TEXT) LIKE '%' || :query || '%'
+        ORDER BY date DESC
+        LIMIT 100
+    """)
+    suspend fun searchExpenses(query: String): List<Expense>
+
     // UPDATE
     @Update
     suspend fun updateExpense(expense: Expense)
