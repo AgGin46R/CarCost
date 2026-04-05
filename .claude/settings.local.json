@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "mcp__mcp-registry__search_mcp_registry",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__list_projects",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__list_tables",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__execute_sql",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__apply_migration"
     ]
   }
 }

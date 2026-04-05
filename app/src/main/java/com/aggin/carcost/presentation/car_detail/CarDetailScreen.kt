@@ -113,6 +113,54 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Timeline, null) }
                             )
                             DropdownMenuItem(
+                                text = { Text("AI-советы") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.AiInsights.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.AutoAwesome, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("GPS Поездка") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.GpsTrip.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Map, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Участники") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.CarMembers.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Group, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Цели накопления") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.Goals.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Savings, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("VIN-декодер") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.VinDecoder.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.DirectionsCar, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Отзывы NHTSA") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.Recalls.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Report, null) }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Экспорт данных") },
                                 onClick = {
                                     showMenu = false

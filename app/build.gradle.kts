@@ -146,6 +146,14 @@ dependencies {
     // ML Kit Text Recognition (OCR)
     implementation("com.google.mlkit:text-recognition:16.0.0")
 
+    // Retrofit + OkHttp (for NHTSA VIN/Recall API)
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Lifecycle Service (for GPS ForegroundService)
+    implementation("androidx.lifecycle:lifecycle-service:2.7.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

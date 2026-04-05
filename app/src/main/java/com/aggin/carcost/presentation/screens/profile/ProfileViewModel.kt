@@ -13,6 +13,8 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.User
 import com.aggin.carcost.data.local.settings.SettingsManager
+import com.aggin.carcost.domain.gamification.DriverScore
+import com.aggin.carcost.domain.gamification.DriverScoreCalculator
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.storage.storage
@@ -33,6 +35,7 @@ data class UserStatistics(
 data class ProfileUiState(
     val user: User? = null,
     val statistics: UserStatistics = UserStatistics(),
+    val driverScore: DriverScore? = null,
     val isLoading: Boolean = true,
     val isUploadingPhoto: Boolean = false,
     val errorMessage: String? = null
@@ -45,6 +48,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     private val userDao = database.userDao()
     private val carDao = database.carDao()
     private val expenseDao = database.expenseDao()
+    private val reminderDao = database.maintenanceReminderDao()
+    private val budgetDao = database.categoryBudgetDao()
     private val settingsManager = SettingsManager(application)
     private val context = application.applicationContext
 
@@ -75,6 +80,22 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                             allExpenses.addAll(carExpenses)
                         }
 
+                        // Compute driver score from first car's data (or aggregate)
+                        val driverScore = try {
+                            val cal = java.util.Calendar.getInstance()
+                            val month = cal.get(java.util.Calendar.MONTH) + 1
+                            val year = cal.get(java.util.Calendar.YEAR)
+                            val firstCar = cars.firstOrNull()
+                            val reminders = if (firstCar != null)
+                                reminderDao.getAllRemindersByCarId(firstCar.id).first()
+                            else emptyList()
+                            val budgets = if (firstCar != null)
+                                budgetDao.getBudgetsByCarIdAndPeriod(firstCar.id, month, year).first()
+                            else emptyList()
+                            val odometer = cars.maxOfOrNull { it.currentOdometer } ?: 0
+                            DriverScoreCalculator.calculate(allExpenses, reminders, budgets, odometer)
+                        } catch (e: Exception) { null }
+
                         _uiState.value = ProfileUiState(
                             user = user,
                             statistics = UserStatistics(
@@ -82,6 +103,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                                 totalExpenses = allExpenses.sumOf { it.amount },
                                 totalOdometer = cars.sumOf { it.currentOdometer }
                             ),
+                            driverScore = driverScore,
                             isLoading = false
                         )
                     } else {

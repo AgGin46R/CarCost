@@ -19,7 +19,12 @@ data class ReceiptData(
     val amount: Double? = null,
     val date: Long? = null,
     val text: String = "",
-    val photoUri: String? = null
+    val photoUri: String? = null,
+    // Fuel-specific fields
+    val fuelLiters: Double? = null,
+    val odometer: Int? = null,
+    val stationName: String? = null,
+    val fuelType: String? = null
 )
 
 class ReceiptScannerService(private val context: Context) {
@@ -36,15 +41,16 @@ class ReceiptScannerService(private val context: Context) {
             recognizer.process(image)
                 .addOnSuccessListener { visionText ->
                     val fullText = visionText.text
-                    val amount = extractAmount(fullText)
-                    val date = extractDate(fullText)
-
                     continuation.resume(
                         ReceiptData(
-                            amount = amount,
-                            date = date,
+                            amount = extractAmount(fullText),
+                            date = extractDate(fullText),
                             text = fullText,
-                            photoUri = imageUri.toString()
+                            photoUri = imageUri.toString(),
+                            fuelLiters = extractFuelLiters(fullText),
+                            odometer = extractOdometer(fullText),
+                            stationName = extractStationName(fullText),
+                            fuelType = extractFuelType(fullText)
                         )
                     )
                 }
@@ -75,14 +81,15 @@ class ReceiptScannerService(private val context: Context) {
             recognizer.process(image)
                 .addOnSuccessListener { visionText ->
                     val fullText = visionText.text
-                    val amount = extractAmount(fullText)
-                    val date = extractDate(fullText)
-
                     continuation.resume(
                         ReceiptData(
-                            amount = amount,
-                            date = date,
-                            text = fullText
+                            amount = extractAmount(fullText),
+                            date = extractDate(fullText),
+                            text = fullText,
+                            fuelLiters = extractFuelLiters(fullText),
+                            odometer = extractOdometer(fullText),
+                            stationName = extractStationName(fullText),
+                            fuelType = extractFuelType(fullText)
                         )
                     )
                 }
@@ -151,6 +158,65 @@ class ReceiptScannerService(private val context: Context) {
         }
 
         return null
+    }
+
+    /**
+     * Извлечение количества литров топлива из текста чека АЗС
+     */
+    private fun extractFuelLiters(text: String): Double? {
+        val patterns = listOf(
+            Regex("""(\d+[.,]\d{1,3})\s*(?:л|L|лит|ltr|litr)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:объём|объем|кол-во|количество|литры?|Litres?)\s*:?\s*(\d+[.,]\d{1,3})""", RegexOption.IGNORE_CASE),
+            Regex("""(\d+[.,]\d{3})\s*(?:л|L)""")  // e.g. 42,350 л
+        )
+        for (pattern in patterns) {
+            val match = pattern.find(text) ?: continue
+            val value = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: continue
+            if (value in 1.0..200.0) return value  // sanity check
+        }
+        return null
+    }
+
+    /**
+     * Извлечение показаний одометра
+     */
+    private fun extractOdometer(text: String): Int? {
+        val patterns = listOf(
+            Regex("""(?:пробег|одометр|км пути|odometer)\s*:?\s*(\d{4,6})""", RegexOption.IGNORE_CASE),
+            Regex("""(\d{5,6})\s*(?:км|km)""", RegexOption.IGNORE_CASE)
+        )
+        for (pattern in patterns) {
+            val match = pattern.find(text) ?: continue
+            val value = match.groupValues[1].toIntOrNull() ?: continue
+            if (value in 100..999999) return value
+        }
+        return null
+    }
+
+    /**
+     * Извлечение названия АЗС
+     */
+    private fun extractStationName(text: String): String? {
+        val knownStations = listOf("Лукойл", "Газпром", "Роснефть", "BP", "Shell",
+            "Татнефть", "Башнефть", "Сургутнефтегаз", "ЕКА", "Neste",
+            "Трасса", "Магна", "Rusнефть", "Опти", "Лавр", "G-Drive")
+        val upperText = text.uppercase()
+        return knownStations.firstOrNull { upperText.contains(it.uppercase()) }
+    }
+
+    /**
+     * Определение типа топлива из текста чека
+     */
+    private fun extractFuelType(text: String): String? {
+        val upperText = text.uppercase()
+        return when {
+            upperText.contains("АИ-98") || upperText.contains("AI-98") || upperText.contains("98") -> "АИ-98"
+            upperText.contains("АИ-95") || upperText.contains("AI-95") || upperText.contains("95") -> "АИ-95"
+            upperText.contains("АИ-92") || upperText.contains("AI-92") || upperText.contains("92") -> "АИ-92"
+            upperText.contains("ДИЗЕЛ") || upperText.contains("ДТ") || upperText.contains("DIESEL") -> "Дизель"
+            upperText.contains("ГАЗ") || upperText.contains("LPG") || upperText.contains("CNG") -> "Газ"
+            else -> null
+        }
     }
 
     /**

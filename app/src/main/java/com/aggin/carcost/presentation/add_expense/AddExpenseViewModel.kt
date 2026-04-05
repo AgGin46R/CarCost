@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.*
 import com.aggin.carcost.data.local.repository.CarRepository
+import com.aggin.carcost.domain.gamification.AchievementChecker
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
@@ -349,7 +350,20 @@ class AddExpenseViewModel(
             val expenseId = expenseRepository.insertExpense(expense)
             android.util.Log.d("AddExpense", "Expense saved locally with ID: $expenseId")
 
-            // 2. Сохраняем связи с тегами
+            // 2. Проверяем достижения (non-blocking, best-effort)
+            viewModelScope.launch {
+                try {
+                    val userId = supabaseAuth.getUserId()
+                    if (userId != null) {
+                        AchievementChecker(database.achievementDao(), database.expenseDao())
+                            .checkAfterExpenseAdded(userId, carId)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AddExpense", "Achievement check failed", e)
+                }
+            }
+
+            // 3. Сохраняем связи с тегами
             state.selectedTags.forEach { tag ->
                 tagDao.insertExpenseTagCrossRef(
                     ExpenseTagCrossRef(expenseId = expenseId, tagId = tag.id)

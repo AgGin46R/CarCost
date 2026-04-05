@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.aggin.carcost.data.local.settings.SettingsManager
+import com.aggin.carcost.domain.gamification.DriverScore
 import com.aggin.carcost.presentation.navigation.Screen
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberPermissionState
@@ -108,6 +109,11 @@ fun ProfileScreen(
                 totalExpenses = uiState.statistics.totalExpenses,
                 totalOdometer = uiState.statistics.totalOdometer
             )
+
+            uiState.driverScore?.let { score ->
+                Spacer(modifier = Modifier.height(16.dp))
+                DriverScoreCard(score = score)
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -376,6 +382,90 @@ fun PhotoOptionItem(
 }
 
 @Composable
+fun DriverScoreCard(score: DriverScore) {
+    val scoreColor = when {
+        score.total >= 80 -> MaterialTheme.colorScheme.primary
+        score.total >= 50 -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.error
+    }
+    val levelLabel = when {
+        score.total >= 80 -> "Отличный водитель"
+        score.total >= 60 -> "Хороший водитель"
+        score.total >= 40 -> "Средний уровень"
+        else -> "Требует внимания"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    androidx.compose.material3.Text(
+                        text = "Рейтинг водителя",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    androidx.compose.material3.Text(
+                        text = levelLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scoreColor
+                    )
+                }
+                Box(contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = { score.total / 100f },
+                        modifier = Modifier.size(64.dp),
+                        color = scoreColor,
+                        trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        strokeWidth = 6.dp
+                    )
+                    androidx.compose.material3.Text(
+                        text = "${score.total}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = scoreColor
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                ScorePillar("ТО", score.maintenanceScore)
+                ScorePillar("Бюджет", score.budgetScore)
+                ScorePillar("Топливо", score.fuelScore)
+                ScorePillar("Регуляр.", score.regularityScore)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScorePillar(label: String, value: Int) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        androidx.compose.material3.Text(
+            text = "$value",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold
+        )
+        androidx.compose.material3.Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@Composable
 fun StatisticsSection(
     carsCount: Int,
     totalExpenses: Double,
@@ -468,6 +558,11 @@ fun ActionsSection(
             icon = Icons.Default.Category,
             title = "Категории и теги",
             onClick = { navController.navigate(Screen.CategoryManagement.route) }
+        )
+        ActionItem(
+            icon = Icons.Default.EmojiEvents,
+            title = "Достижения",
+            onClick = { navController.navigate(Screen.Achievements.route) }
         )
         // ✅ ДОБАВЛЕНО: Кнопка отчета об ошибках
         ActionItem(

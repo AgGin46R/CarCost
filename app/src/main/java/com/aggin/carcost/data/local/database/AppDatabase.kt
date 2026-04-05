@@ -13,6 +13,15 @@ import com.aggin.carcost.data.local.database.dao.ExpenseDao
 import com.aggin.carcost.data.local.database.dao.MaintenanceReminderDao
 import com.aggin.carcost.data.local.database.dao.ExpenseTagDao
 import com.aggin.carcost.data.local.database.dao.PlannedExpenseDao
+import com.aggin.carcost.data.local.database.dao.CarDocumentDao
+import com.aggin.carcost.data.local.database.dao.CategoryBudgetDao
+import com.aggin.carcost.data.local.database.dao.AiInsightDao
+import com.aggin.carcost.data.local.database.dao.FuelPriceDao
+import com.aggin.carcost.data.local.database.dao.AchievementDao
+import com.aggin.carcost.data.local.database.dao.SavingsGoalDao
+import com.aggin.carcost.data.local.database.dao.CarMemberDao
+import com.aggin.carcost.data.local.database.dao.GpsTripDao
+import com.aggin.carcost.data.local.database.dao.VinCacheDao
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
@@ -21,9 +30,14 @@ import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef
 import com.aggin.carcost.data.local.database.entities.PlannedExpense
 import com.aggin.carcost.data.local.database.entities.CarDocument
-import com.aggin.carcost.data.local.database.dao.CarDocumentDao
 import com.aggin.carcost.data.local.database.entities.CategoryBudget
-import com.aggin.carcost.data.local.database.dao.CategoryBudgetDao
+import com.aggin.carcost.data.local.database.entities.AiInsight
+import com.aggin.carcost.data.local.database.entities.FuelPrice
+import com.aggin.carcost.data.local.database.entities.Achievement
+import com.aggin.carcost.data.local.database.entities.SavingsGoal
+import com.aggin.carcost.data.local.database.entities.CarMember
+import com.aggin.carcost.data.local.database.entities.GpsTrip
+import com.aggin.carcost.data.local.database.entities.VinCache
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -198,6 +212,134 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
     }
 }
 
+// Миграция 15 → 16: AI-инсайты
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS ai_insights (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'INFO',
+                createdAt INTEGER NOT NULL,
+                isRead INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """)
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_ai_insights_carId ON ai_insights(carId)")
+    }
+}
+
+// Миграция 16 → 17: цены топлива
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS fuel_prices (
+                id TEXT PRIMARY KEY NOT NULL,
+                stationName TEXT NOT NULL,
+                fuelType TEXT NOT NULL,
+                pricePerLiter REAL NOT NULL,
+                latitude REAL,
+                longitude REAL,
+                recordedAt INTEGER NOT NULL
+            )
+        """)
+    }
+}
+
+// Миграция 17 → 18: достижения
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS achievements (
+                id TEXT PRIMARY KEY NOT NULL,
+                userId TEXT NOT NULL,
+                type TEXT NOT NULL,
+                unlockedAt INTEGER NOT NULL,
+                metadata TEXT
+            )
+        """)
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_achievements_userId ON achievements(userId)")
+    }
+}
+
+// Миграция 18 → 19: цели накопления
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS savings_goals (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                title TEXT NOT NULL,
+                targetAmount REAL NOT NULL,
+                currentAmount REAL NOT NULL DEFAULT 0.0,
+                deadline INTEGER,
+                isCompleted INTEGER NOT NULL DEFAULT 0,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """)
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_savings_goals_carId ON savings_goals(carId)")
+    }
+}
+
+// Миграция 19 → 20: участники авто
+val MIGRATION_19_20 = object : Migration(19, 20) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS car_members (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                userId TEXT NOT NULL,
+                email TEXT NOT NULL,
+                role TEXT NOT NULL,
+                joinedAt INTEGER NOT NULL,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """)
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_car_members_carId ON car_members(carId)")
+    }
+}
+
+// Миграция 20 → 21: GPS-поездки
+val MIGRATION_20_21 = object : Migration(20, 21) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS gps_trips (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                startTime INTEGER NOT NULL,
+                endTime INTEGER,
+                distanceKm REAL NOT NULL DEFAULT 0.0,
+                routeJson TEXT,
+                avgSpeedKmh REAL,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """)
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_gps_trips_carId ON gps_trips(carId)")
+    }
+}
+
+// Миграция 21 → 22: VIN-кэш
+val MIGRATION_21_22 = object : Migration(21, 22) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS vin_cache (
+                vin TEXT PRIMARY KEY NOT NULL,
+                make TEXT,
+                model TEXT,
+                year TEXT,
+                engine TEXT,
+                country TEXT,
+                cachedAt INTEGER NOT NULL
+            )
+        """)
+    }
+}
+
 // ✅ ИСПРАВЛЕННАЯ МИГРАЦИЯ: Исправление типов для тегов (12 → 13)
 val MIGRATION_12_13 = object : Migration(12, 13) {
     override fun migrate(database: SupportSQLiteDatabase) {
@@ -253,9 +395,16 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
         ExpenseTagCrossRef::class,
         PlannedExpense::class,
         CarDocument::class,
-        CategoryBudget::class
+        CategoryBudget::class,
+        AiInsight::class,
+        FuelPrice::class,
+        Achievement::class,
+        SavingsGoal::class,
+        CarMember::class,
+        GpsTrip::class,
+        VinCache::class
     ],
-    version = 15,
+    version = 22,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -269,6 +418,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun plannedExpenseDao(): PlannedExpenseDao
     abstract fun carDocumentDao(): CarDocumentDao
     abstract fun categoryBudgetDao(): CategoryBudgetDao
+    abstract fun aiInsightDao(): AiInsightDao
+    abstract fun fuelPriceDao(): FuelPriceDao
+    abstract fun achievementDao(): AchievementDao
+    abstract fun savingsGoalDao(): SavingsGoalDao
+    abstract fun carMemberDao(): CarMemberDao
+    abstract fun gpsTripDao(): GpsTripDao
+    abstract fun vinCacheDao(): VinCacheDao
 
     companion object {
         @Volatile
@@ -287,7 +443,14 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_11_12,
                         MIGRATION_12_13,
                         MIGRATION_13_14,
-                        MIGRATION_14_15
+                        MIGRATION_14_15,
+                        MIGRATION_15_16,
+                        MIGRATION_16_17,
+                        MIGRATION_17_18,
+                        MIGRATION_18_19,
+                        MIGRATION_19_20,
+                        MIGRATION_20_21,
+                        MIGRATION_21_22
                     )
                     .fallbackToDestructiveMigration()
                     .build()

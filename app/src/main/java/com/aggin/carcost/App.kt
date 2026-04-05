@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.aggin.carcost.data.notifications.AiInsightsRefreshWorker
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
@@ -48,6 +49,7 @@ class App : Application() {
         NotificationHelper.createChannel(this)
         scheduleMaintenanceCheck()
         scheduleFuelReminder()
+        scheduleAiInsightsRefresh()
     }
 
     private fun scheduleFuelReminder() {
@@ -55,6 +57,16 @@ class App : Application() {
             .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             FuelReminderWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    private fun scheduleAiInsightsRefresh() {
+        val workRequest = PeriodicWorkRequestBuilder<AiInsightsRefreshWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            AiInsightsRefreshWorker.WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
         )

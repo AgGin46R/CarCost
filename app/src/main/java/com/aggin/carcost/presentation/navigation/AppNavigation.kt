@@ -40,6 +40,14 @@ import com.aggin.carcost.presentation.screens.budget.BudgetScreen
 import com.aggin.carcost.presentation.screens.maintenance_dashboard.MaintenanceDashboardScreen
 import com.aggin.carcost.presentation.screens.tco.TcoScreen
 import com.aggin.carcost.presentation.screens.service_timeline.ServiceTimelineScreen
+import com.aggin.carcost.presentation.screens.ai_insights.AiInsightsScreen
+import com.aggin.carcost.presentation.screens.fuel_prices.FuelPricesScreen
+import com.aggin.carcost.presentation.screens.vin_decoder.VinDecoderScreen
+import com.aggin.carcost.presentation.screens.recalls.RecallsScreen
+import com.aggin.carcost.presentation.screens.achievements.AchievementsScreen
+import com.aggin.carcost.presentation.screens.goals.GoalsScreen
+import com.aggin.carcost.presentation.screens.car_members.CarMembersScreen
+import com.aggin.carcost.presentation.screens.gps_trip.GpsTripScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -125,6 +133,34 @@ sealed class Screen(val route: String) {
 
     object ServiceTimeline : Screen("service_timeline/{carId}") {
         fun createRoute(carId: String) = "service_timeline/$carId"
+    }
+
+    object AiInsights : Screen("ai_insights/{carId}") {
+        fun createRoute(carId: String) = "ai_insights/$carId"
+    }
+
+    object FuelPrices : Screen("fuel_prices")
+
+    object VinDecoder : Screen("vin_decoder/{carId}") {
+        fun createRoute(carId: String) = "vin_decoder/$carId"
+    }
+
+    object Recalls : Screen("recalls/{carId}") {
+        fun createRoute(carId: String) = "recalls/$carId"
+    }
+
+    object Achievements : Screen("achievements")
+
+    object Goals : Screen("goals/{carId}") {
+        fun createRoute(carId: String) = "goals/$carId"
+    }
+
+    object CarMembers : Screen("car_members/{carId}") {
+        fun createRoute(carId: String) = "car_members/$carId"
+    }
+
+    object GpsTrip : Screen("gps_trip/{carId}") {
+        fun createRoute(carId: String) = "gps_trip/$carId"
     }
 }
 
@@ -354,6 +390,70 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             DocumentsScreen(carId = carId, navController = navController)
+        }
+
+        // Цены топлива
+        composable(Screen.FuelPrices.route) {
+            FuelPricesScreen(navController = navController)
+        }
+
+        // GPS Поездки
+        composable(
+            route = Screen.GpsTrip.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            GpsTripScreen(carId = carId, navController = navController)
+        }
+
+        // Участники авто
+        composable(
+            route = Screen.CarMembers.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            CarMembersScreen(carId = carId, navController = navController)
+        }
+
+        // Достижения
+        composable(Screen.Achievements.route) {
+            AchievementsScreen(navController = navController)
+        }
+
+        // Цели накопления
+        composable(
+            route = Screen.Goals.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            GoalsScreen(carId = carId, navController = navController)
+        }
+
+        // VIN-декодер
+        composable(
+            route = Screen.VinDecoder.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            VinDecoderScreen(carId = carId, navController = navController)
+        }
+
+        // Отзывы NHTSA
+        composable(
+            route = Screen.Recalls.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            RecallsScreen(carId = carId, navController = navController)
+        }
+
+        // AI-советы
+        composable(
+            route = Screen.AiInsights.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            AiInsightsScreen(carId = carId, navController = navController)
         }
 
         // Редактирование запланированной покупки
