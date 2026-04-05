@@ -42,6 +42,8 @@ data class CarDetailUiState(
     val expenseCount: Int = 0,
     val currentFilter: ExpenseFilter = ExpenseFilter(),
     val availableTags: List<ExpenseTag> = emptyList(),
+    val estimatedFuelLiters: Double? = null,
+    val fuelLevelPct: Float? = null,
     val isLoading: Boolean = true
 )
 
@@ -77,6 +79,7 @@ class CarDetailViewModel(
 
         val filteredExpenses = applyFilters(expenses, filter, expensesWithTagsMap)
 
+        val (estimatedFuel, fuelPct) = estimateFuelLevel(car, expenses)
         CarDetailUiState(
             car = car,
             expenses = filteredExpenses,
@@ -86,6 +89,8 @@ class CarDetailViewModel(
             expenseCount = filteredExpenses.size,
             currentFilter = filter,
             availableTags = availableTags,
+            estimatedFuelLiters = estimatedFuel,
+            fuelLevelPct = fuelPct,
             isLoading = false
         )
     }.stateIn(
@@ -273,5 +278,41 @@ class CarDetailViewModel(
         return expenses
             .filter { it.date >= thirtyDaysAgo }
             .sumOf { it.amount }
+    }
+
+    private fun estimateFuelLevel(car: Car?, expenses: List<Expense>): Pair<Double?, Float?> {
+        val tankCapacity = car?.tankCapacity ?: return null to null
+        val fuelExpenses = expenses
+            .filter { it.category == ExpenseCategory.FUEL }
+            .sortedByDescending { it.date }
+        if (fuelExpenses.isEmpty()) return null to null
+
+        val lastFull = fuelExpenses.firstOrNull { it.isFullTank } ?: return null to null
+        val litersAtLastFull = lastFull.fuelLiters ?: return null to null
+
+        val partialAfter = fuelExpenses
+            .filter { it.date > lastFull.date && !it.isFullTank }
+            .sumOf { it.fuelLiters ?: 0.0 }
+
+        val kmSinceFull = (car.currentOdometer - lastFull.odometer).coerceAtLeast(0)
+        val avgConsumption = calcAvgConsumption(fuelExpenses) ?: 10.0
+
+        val consumed = kmSinceFull * avgConsumption / 100.0
+        val remaining = (tankCapacity + partialAfter - consumed).coerceIn(0.0, tankCapacity)
+        val pct = (remaining / tankCapacity).toFloat()
+
+        return remaining to pct
+    }
+
+    private fun calcAvgConsumption(fuelExpenses: List<Expense>): Double? {
+        val fullTanks = fuelExpenses.filter { it.isFullTank && it.fuelLiters != null }.sortedBy { it.date }
+        if (fullTanks.size < 2) return null
+        var totalL = 0.0; var totalKm = 0
+        for (i in 1 until fullTanks.size) {
+            val km = fullTanks[i].odometer - fullTanks[i - 1].odometer
+            val l = fullTanks[i].fuelLiters!!
+            if (km > 0 && l / km * 100 in 2.0..30.0) { totalL += l; totalKm += km }
+        }
+        return if (totalKm > 0) totalL * 100.0 / totalKm else null
     }
 }

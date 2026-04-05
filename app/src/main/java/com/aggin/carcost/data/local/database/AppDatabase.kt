@@ -22,6 +22,8 @@ import com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef
 import com.aggin.carcost.data.local.database.entities.PlannedExpense
 import com.aggin.carcost.data.local.database.entities.CarDocument
 import com.aggin.carcost.data.local.database.dao.CarDocumentDao
+import com.aggin.carcost.data.local.database.entities.CategoryBudget
+import com.aggin.carcost.data.local.database.dao.CategoryBudgetDao
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -174,6 +176,28 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
     }
 }
 
+// Миграция 14 → 15: добавление бюджетов по категориям
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS category_budgets (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                category TEXT NOT NULL,
+                monthlyLimit REAL NOT NULL,
+                month INTEGER NOT NULL,
+                year INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """)
+        database.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_category_budgets_carId ON category_budgets(carId)
+        """)
+    }
+}
+
 // ✅ ИСПРАВЛЕННАЯ МИГРАЦИЯ: Исправление типов для тегов (12 → 13)
 val MIGRATION_12_13 = object : Migration(12, 13) {
     override fun migrate(database: SupportSQLiteDatabase) {
@@ -228,9 +252,10 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
         ExpenseTag::class,
         ExpenseTagCrossRef::class,
         PlannedExpense::class,
-        CarDocument::class
+        CarDocument::class,
+        CategoryBudget::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -243,6 +268,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseTagDao(): ExpenseTagDao
     abstract fun plannedExpenseDao(): PlannedExpenseDao
     abstract fun carDocumentDao(): CarDocumentDao
+    abstract fun categoryBudgetDao(): CategoryBudgetDao
 
     companion object {
         @Volatile
@@ -260,7 +286,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_10_11,
                         MIGRATION_11_12,
                         MIGRATION_12_13,
-                        MIGRATION_13_14
+                        MIGRATION_13_14,
+                        MIGRATION_14_15
                     )
                     .fallbackToDestructiveMigration()
                     .build()

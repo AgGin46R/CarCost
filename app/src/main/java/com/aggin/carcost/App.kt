@@ -6,6 +6,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
+import com.aggin.carcost.data.notifications.FuelReminderWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
 import com.yandex.mapkit.MapKitFactory
 import io.github.jan.supabase.SupabaseClient
@@ -46,6 +47,17 @@ class App : Application() {
 
         NotificationHelper.createChannel(this)
         scheduleMaintenanceCheck()
+        scheduleFuelReminder()
+    }
+
+    private fun scheduleFuelReminder() {
+        val workRequest = PeriodicWorkRequestBuilder<FuelReminderWorker>(12, TimeUnit.HOURS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            FuelReminderWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
     }
 
     private fun scheduleMaintenanceCheck() {

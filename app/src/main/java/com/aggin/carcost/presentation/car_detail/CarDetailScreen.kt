@@ -89,6 +89,30 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Folder, null) }
                             )
                             DropdownMenuItem(
+                                text = { Text("Бюджет") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.Budget.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.AccountBalanceWallet, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Стоимость владения") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.Tco.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.MonetizationOn, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Таймлайн ТО") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.ServiceTimeline.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Timeline, null) }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Экспорт данных") },
                                 onClick = {
                                     showMenu = false
@@ -204,7 +228,62 @@ fun CarInfoCard(uiState: CarDetailUiState) {
                     icon = Icons.Default.Receipt
                 )
             }
+
+            // Индикатор топлива (только если есть данные)
+            if (uiState.fuelLevelPct != null && uiState.estimatedFuelLiters != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(12.dp))
+                FuelLevelIndicator(
+                    pct = uiState.fuelLevelPct,
+                    liters = uiState.estimatedFuelLiters,
+                    tankCapacity = car.tankCapacity
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun FuelLevelIndicator(pct: Float, liters: Double, tankCapacity: Double?) {
+    val color = when {
+        pct < 0.15f -> MaterialTheme.colorScheme.error
+        pct < 0.30f -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("⛽", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Расчётный остаток топлива",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                buildString {
+                    append("~${liters.toInt()} л")
+                    if (tankCapacity != null) append(" / ${tankCapacity.toInt()} л")
+                    append("  (${(pct * 100).toInt()}%)")
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = color,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { pct },
+            modifier = Modifier.fillMaxWidth().height(6.dp),
+            color = color,
+            trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+        )
     }
 }
 

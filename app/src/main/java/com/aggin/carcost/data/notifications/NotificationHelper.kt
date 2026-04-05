@@ -24,6 +24,34 @@ object NotificationHelper {
         manager.createNotificationChannel(channel)
     }
 
+    fun sendFuelNotification(
+        context: Context,
+        notificationId: Int,
+        carName: String,
+        estimatedLiters: Double,
+        tankCapacity: Double?
+    ) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val contentText = if (tankCapacity != null) {
+            val pct = (estimatedLiters / tankCapacity * 100).toInt()
+            "Топливо на исходе — около $pct% бака (~${estimatedLiters.toInt()} л)"
+        } else {
+            "Топливо на исходе — около ${estimatedLiters.toInt()} л"
+        }
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_wrench)
+            .setContentTitle("Заправьте автомобиль: $carName")
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+
+        manager.notify(notificationId, notification)
+    }
+
     fun sendMaintenanceNotification(
         context: Context,
         notificationId: Int,

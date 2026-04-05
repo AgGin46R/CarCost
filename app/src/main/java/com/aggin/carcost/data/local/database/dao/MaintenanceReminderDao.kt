@@ -20,6 +20,9 @@ interface MaintenanceReminderDao {
     @Query("SELECT * FROM maintenance_reminders WHERE isActive = 1")
     suspend fun getAllActiveReminders(): List<MaintenanceReminder>
 
+    @Query("SELECT * FROM maintenance_reminders WHERE isActive = 1 ORDER BY nextChangeOdometer ASC")
+    fun getAllActiveRemindersFlow(): Flow<List<MaintenanceReminder>>
+
     @Query("SELECT * FROM maintenance_reminders WHERE carId = :carId ORDER BY nextChangeOdometer ASC")
     fun getAllRemindersByCarId(carId: String): Flow<List<MaintenanceReminder>>
 

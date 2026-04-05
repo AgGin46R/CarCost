@@ -36,6 +36,10 @@ fun HomeScreen(
                     IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
                         Icon(Icons.Default.Search, contentDescription = "Поиск")
                     }
+                    // Дашборд ТО
+                    IconButton(onClick = { navController.navigate(Screen.MaintenanceDashboard.route) }) {
+                        Icon(Icons.Default.Build, contentDescription = "Дашборд ТО")
+                    }
                     // Кнопка сравнения (только если авто >= 2)
                     if (uiState.cars.size >= 2) {
                         IconButton(onClick = { navController.navigate(Screen.Compare.route) }) {

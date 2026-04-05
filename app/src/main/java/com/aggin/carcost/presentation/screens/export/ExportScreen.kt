@@ -1,22 +1,23 @@
 package com.aggin.carcost.presentation.screens.export
 
-import android.app.Application // <-- Добавьте этот импорт
+import android.app.Application
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.TableRows
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext // <-- Добавьте этот импорт
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-// Удалите импорт com.aggin.carcost.presentation.viewmodel_factory.viewModelFactory, если он есть
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,11 +90,22 @@ fun ExportScreen(
                             style = MaterialTheme.typography.titleLarge
                         )
                         Text(
-                            text = "Выберите формат для экспорта отчета. Файл будет содержать полную информацию об автомобиле, всех расходах и напоминаниях.",
+                            text = "Выберите формат и период для экспорта отчёта.",
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(32.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Фильтр периода
+                        PeriodFilterCard(
+                            startDate = uiState.filterStartDate,
+                            endDate = uiState.filterEndDate,
+                            onStartDateSelected = { viewModel.setDateFilter(it, uiState.filterEndDate) },
+                            onEndDateSelected = { viewModel.setDateFilter(uiState.filterStartDate, it) },
+                            onClear = { viewModel.setDateFilter(null, null) }
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         ExportButton(
                             text = "Экспорт в PDF",
@@ -109,11 +121,22 @@ fun ExportScreen(
                             enabled = !uiState.isExporting
                         )
 
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                        ExportButton(
+                            text = "Резервная копия (все авто)",
+                            icon = Icons.Default.BackupTable,
+                            onClick = { viewModel.exportBackup() },
+                            enabled = !uiState.isExporting,
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+
                         if (uiState.isExporting) {
                             Spacer(modifier = Modifier.height(16.dp))
                             CircularProgressIndicator()
                             Text(
-                                text = "Создание отчета...",
+                                text = "Создание файла...",
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(top = 8.dp)
                             )
@@ -128,19 +151,99 @@ fun ExportScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PeriodFilterCard(
+    startDate: Long?,
+    endDate: Long?,
+    onStartDateSelected: (Long?) -> Unit,
+    onEndDateSelected: (Long?) -> Unit,
+    onClear: () -> Unit
+) {
+    val fmt = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Фильтр по периоду", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                if (startDate != null || endDate != null) {
+                    TextButton(onClick = onClear, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                        Text("Сбросить", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { showStartPicker = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(startDate?.let { "С: ${fmt.format(Date(it))}" } ?: "Начало", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = { showEndPicker = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(endDate?.let { "По: ${fmt.format(Date(it))}" } ?: "Конец", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+
+    if (showStartPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = startDate)
+        DatePickerDialog(
+            onDismissRequest = { showStartPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onStartDateSelected(state.selectedDateMillis)
+                    showStartPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showStartPicker = false }) { Text("Отмена") } }
+        ) { DatePicker(state = state) }
+    }
+
+    if (showEndPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = endDate)
+        DatePickerDialog(
+            onDismissRequest = { showEndPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    // Устанавливаем конец дня
+                    val endMs = state.selectedDateMillis?.let { it + 86399999L }
+                    onEndDateSelected(endMs)
+                    showEndPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showEndPicker = false }) { Text("Отмена") } }
+        ) { DatePicker(state = state) }
+    }
+}
+
 @Composable
 private fun ExportButton(
     text: String,
     icon: ImageVector,
     onClick: () -> Unit,
-    enabled: Boolean
+    enabled: Boolean,
+    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onPrimary
 ) {
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
+        colors = ButtonDefaults.buttonColors(containerColor = containerColor, contentColor = contentColor),
+        modifier = Modifier.fillMaxWidth().height(56.dp)
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
         Spacer(Modifier.size(ButtonDefaults.IconSpacing))

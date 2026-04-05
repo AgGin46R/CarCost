@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -8,7 +9,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.presentation.screens.onboarding.OnboardingScreen
 import com.aggin.carcost.presentation.screens.add_car.AddCarScreen
 import com.aggin.carcost.presentation.screens.add_expense.AddExpenseScreen
 import com.aggin.carcost.presentation.screens.analytics.EnhancedAnalyticsScreen
@@ -30,6 +36,10 @@ import com.aggin.carcost.presentation.screens.planned_expenses.EditPlannedExpens
 import com.aggin.carcost.presentation.screens.documents.DocumentsScreen
 import com.aggin.carcost.presentation.screens.compare.CompareScreen
 import com.aggin.carcost.presentation.screens.search.SearchScreen
+import com.aggin.carcost.presentation.screens.budget.BudgetScreen
+import com.aggin.carcost.presentation.screens.maintenance_dashboard.MaintenanceDashboardScreen
+import com.aggin.carcost.presentation.screens.tco.TcoScreen
+import com.aggin.carcost.presentation.screens.service_timeline.ServiceTimelineScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -100,20 +110,54 @@ sealed class Screen(val route: String) {
     object Compare : Screen("compare")
 
     object Search : Screen("search")
+
+    object Onboarding : Screen("onboarding")
+
+    object Budget : Screen("budget/{carId}") {
+        fun createRoute(carId: String) = "budget/$carId"
+    }
+
+    object MaintenanceDashboard : Screen("maintenance_dashboard")
+
+    object Tco : Screen("tco/{carId}") {
+        fun createRoute(carId: String) = "tco/$carId"
+    }
+
+    object ServiceTimeline : Screen("service_timeline/{carId}") {
+        fun createRoute(carId: String) = "service_timeline/$carId"
+    }
 }
 
 @Composable
 fun AppNavigation(
     navController: NavHostController = rememberNavController()
 ) {
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager(context) }
+    // null = ещё не прочитано, true/false = прочитано
+    val onboardingDone by settingsManager.onboardingDoneFlow.collectAsState(initial = null)
+
     val supabaseAuth = SupabaseAuthRepository()
     val isLoggedIn = supabaseAuth.isUserLoggedIn()
-    val startDestination = if (isLoggedIn) Screen.Home.route else Screen.Login.route
+
+    // Ждём пока DataStore вернёт значение
+    val done = onboardingDone ?: return
+
+    val startDestination = when {
+        !done -> Screen.Onboarding.route
+        isLoggedIn -> Screen.Home.route
+        else -> Screen.Login.route
+    }
 
     NavHost(
         navController = navController,
         startDestination = startDestination
     ) {
+        // Онбординг
+        composable(Screen.Onboarding.route) {
+            OnboardingScreen(navController = navController)
+        }
+
         // Аутентификация
         composable(Screen.Login.route) {
             LoginScreen(navController = navController)
@@ -269,6 +313,38 @@ fun AppNavigation(
         // Глобальный поиск
         composable(Screen.Search.route) {
             SearchScreen(navController = navController)
+        }
+
+        // Дашборд ТО
+        composable(Screen.MaintenanceDashboard.route) {
+            MaintenanceDashboardScreen(navController = navController)
+        }
+
+        // Таймлайн обслуживания
+        composable(
+            route = Screen.ServiceTimeline.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            ServiceTimelineScreen(carId = carId, navController = navController)
+        }
+
+        // TCO — стоимость владения
+        composable(
+            route = Screen.Tco.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            TcoScreen(carId = carId, navController = navController)
+        }
+
+        // Бюджет по категориям
+        composable(
+            route = Screen.Budget.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            BudgetScreen(carId = carId, navController = navController)
         }
 
         // Хранилище документов

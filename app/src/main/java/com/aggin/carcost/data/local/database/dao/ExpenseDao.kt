@@ -67,6 +67,9 @@ interface ExpenseDao {
     """)
     suspend fun searchExpenses(query: String): List<Expense>
 
+    @Query("SELECT SUM(amount) FROM expenses WHERE carId = :carId AND category = :category AND date BETWEEN :startDate AND :endDate")
+    suspend fun getTotalByCategoryAndPeriod(carId: String, category: ExpenseCategory, startDate: Long, endDate: Long): Double?
+
     // UPDATE
     @Update
     suspend fun updateExpense(expense: Expense)
