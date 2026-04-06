@@ -8,6 +8,7 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.data.local.database.entities.GpsTrip
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -48,6 +49,39 @@ data class ExpenseForecast(
     val trend: String // "increasing", "decreasing", "stable"
 )
 
+// Топ месяцев по расходам
+data class TopMonth(
+    val label: String,   // "Янв 2025"
+    val amount: Double,
+    val rank: Int
+)
+
+// Сравнение текущего и прошлого года
+data class YearComparison(
+    val currentYear: Int,
+    val currentYearTotal: Double,
+    val previousYear: Int,
+    val previousYearTotal: Double,
+    val changePercent: Float
+)
+
+// Тренд по категории: изменение за последние 3 месяца
+data class CategoryTrend(
+    val category: ExpenseCategory,
+    val recentAmount: Double,    // последние 3 месяца
+    val previousAmount: Double,  // 3 месяца до этого
+    val changePercent: Float     // положительный = рост, отрицательный = снижение
+)
+
+// GPS-статистика поездок
+data class GpsTripStats(
+    val totalTrips: Int,
+    val totalDistanceKm: Double,
+    val avgTripDistanceKm: Double,
+    val avgSpeedKmh: Double?,
+    val longestTripKm: Double
+)
+
 data class AnalyticsUiState(
     val car: Car? = null,
     val expenses: List<Expense> = emptyList(),
@@ -62,6 +96,10 @@ data class AnalyticsUiState(
     val currentMonthExpenses: Double = 0.0,
     val previousMonthExpenses: Double = 0.0,
     val monthComparison: Float = 0f,
+    val topMonths: List<TopMonth> = emptyList(),
+    val yearComparison: YearComparison? = null,
+    val categoryTrends: List<CategoryTrend> = emptyList(),
+    val gpsTripStats: GpsTripStats? = null,
     val isLoading: Boolean = true
 )
 
@@ -70,11 +108,12 @@ class EnhancedAnalyticsViewModel(
     savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
-    private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String UUID
+    private val carId: String = savedStateHandle.get<String>("carId") ?: ""
 
     private val database = AppDatabase.getDatabase(application)
     private val carDao = database.carDao()
     private val expenseDao = database.expenseDao()
+    private val gpsTripDao = database.gpsTripDao()
 
     private val _uiState = MutableStateFlow(AnalyticsUiState())
     val uiState: StateFlow<AnalyticsUiState> = _uiState.asStateFlow()
@@ -93,25 +132,45 @@ class EnhancedAnalyticsViewModel(
                 return@launch
             }
 
-            expenseDao.getExpensesByCarId(carId).collect { expenses ->
-                _uiState.value = calculateAnalytics(car, expenses)
+            combine(
+                expenseDao.getExpensesByCarId(carId),
+                gpsTripDao.getTripsByCarId(carId)
+            ) { expenses, trips ->
+                calculateAnalytics(car, expenses, trips)
+            }.collect { state ->
+                _uiState.value = state
             }
         }
     }
 
-    private fun calculateAnalytics(car: Car, expenses: List<Expense>): AnalyticsUiState {
+    private fun calculateAnalytics(
+        car: Car,
+        expenses: List<Expense>,
+        trips: List<GpsTrip>
+    ): AnalyticsUiState {
+        // GPS stats (always available even without expenses)
+        val gpsTripStats = if (trips.isNotEmpty()) calculateGpsTripStats(trips) else null
+
         if (expenses.isEmpty()) {
-            return AnalyticsUiState(car = car, expenses = expenses, isLoading = false)
+            return AnalyticsUiState(car = car, expenses = expenses, gpsTripStats = gpsTripStats, isLoading = false)
         }
 
         val totalExpenses = expenses.sumOf { it.amount }
         val firstExpenseDate = expenses.minOfOrNull { it.date } ?: car.purchaseDate
-        val daysSinceFirstExpense = ((System.currentTimeMillis() - firstExpenseDate) / (1000 * 60 * 60 * 24)).coerceAtLeast(1).toInt()
-        val monthsSinceFirstExpense = daysSinceFirstExpense / 30.0
+        val daysSinceFirst = ((System.currentTimeMillis() - firstExpenseDate) / (1000 * 60 * 60 * 24)).coerceAtLeast(1).toInt()
+        val monthsSinceFirst = daysSinceFirst / 30.0
 
-        val averagePerDay = totalExpenses / daysSinceFirstExpense
-        val averagePerMonth = if (monthsSinceFirstExpense > 0) totalExpenses / monthsSinceFirstExpense else 0.0
-        val kmDriven = car.currentOdometer - (car.purchaseOdometer ?: car.currentOdometer)
+        val averagePerDay = totalExpenses / daysSinceFirst
+        val averagePerMonth = if (monthsSinceFirst > 0) totalExpenses / monthsSinceFirst else 0.0
+
+        // км: приоритет одометру; если нет — GPS-суммарный пробег
+        val odometerKm = car.currentOdometer - (car.purchaseOdometer ?: car.currentOdometer)
+        val gpsKm = gpsTripStats?.totalDistanceKm?.toInt() ?: 0
+        val kmDriven = when {
+            odometerKm > 0 -> odometerKm
+            gpsKm > 0 -> gpsKm
+            else -> 0
+        }
         val averagePerKm = if (kmDriven > 0) totalExpenses / kmDriven else 0.0
 
         val categoryExpenses = calculateCategoryExpenses(expenses, totalExpenses)
@@ -119,6 +178,9 @@ class EnhancedAnalyticsViewModel(
         val fuelStatistics = calculateFuelStatistics(expenses, kmDriven)
         val forecast = calculateForecast(expenses, averagePerMonth)
         val (currentMonth, previousMonth, comparison) = compareMonths(expenses)
+        val topMonths = calculateTopMonths(monthlyExpenses)
+        val yearComparison = calculateYearComparison(expenses)
+        val categoryTrends = calculateCategoryTrends(expenses)
 
         return AnalyticsUiState(
             car = car,
@@ -134,6 +196,10 @@ class EnhancedAnalyticsViewModel(
             currentMonthExpenses = currentMonth,
             previousMonthExpenses = previousMonth,
             monthComparison = comparison,
+            topMonths = topMonths,
+            yearComparison = yearComparison,
+            categoryTrends = categoryTrends,
+            gpsTripStats = gpsTripStats,
             isLoading = false
         )
     }
@@ -166,10 +232,8 @@ class EnhancedAnalyticsViewModel(
             .map { (yearMonthPair, list) ->
                 val (year, monthNum) = yearMonthPair
                 calendar.set(year, monthNum, 1)
-                val monthName = monthFormat.format(calendar.time)
-
                 MonthlyExpense(
-                    month = monthName,
+                    month = monthFormat.format(calendar.time),
                     year = year,
                     amount = list.sumOf { it.amount },
                     timestamp = calendar.timeInMillis
@@ -184,7 +248,6 @@ class EnhancedAnalyticsViewModel(
             .sortedBy { it.odometer }
         if (fuelExpenses.isEmpty()) return null
 
-        // Если purchaseOdometer не задан, считаем пробег между первой и последней заправкой
         val effectiveKmDriven = if (kmDriven > 0) kmDriven else {
             val minOdom = fuelExpenses.minOfOrNull { it.odometer } ?: 0
             val maxOdom = fuelExpenses.maxOfOrNull { it.odometer } ?: 0
@@ -199,7 +262,6 @@ class EnhancedAnalyticsViewModel(
         val averageConsumption = (totalLiters / effectiveKmDriven) * 100
         val averagePricePerLiter = totalCost / totalLiters
 
-        // Динамика расхода: по каждой заправке относительно предыдущей
         val dateFormat = SimpleDateFormat("dd.MM", Locale.getDefault())
         val consumptionHistory = mutableListOf<Pair<String, Double>>()
         for (i in 1 until fuelExpenses.size) {
@@ -209,7 +271,7 @@ class EnhancedAnalyticsViewModel(
             val liters = curr.fuelLiters ?: 0.0
             if (km > 0 && liters > 0) {
                 val consumption = (liters / km) * 100
-                if (consumption in 1.0..35.0) { // фильтр аномальных значений
+                if (consumption in 1.0..35.0) {
                     consumptionHistory.add(dateFormat.format(Date(curr.date)) to consumption)
                 }
             }
@@ -226,7 +288,17 @@ class EnhancedAnalyticsViewModel(
     }
 
     private fun calculateForecast(expenses: List<Expense>, averagePerMonth: Double): ExpenseForecast {
-        if (expenses.size < 3) {
+        val calendar = Calendar.getInstance()
+        val monthlyTotals = expenses
+            .groupBy { expense ->
+                calendar.timeInMillis = expense.date
+                "${calendar.get(Calendar.YEAR)}-${"%02d".format(calendar.get(Calendar.MONTH))}"
+            }
+            .mapValues { it.value.sumOf { exp -> exp.amount } }
+            .toSortedMap()
+            .values.toList()
+
+        if (monthlyTotals.size < 2) {
             return ExpenseForecast(
                 nextMonthEstimate = averagePerMonth,
                 nextYearEstimate = averagePerMonth * 12,
@@ -235,42 +307,24 @@ class EnhancedAnalyticsViewModel(
             )
         }
 
-        val calendar = Calendar.getInstance()
-        val monthlyTotals = expenses
-            .groupBy { expense ->
-                calendar.timeInMillis = expense.date
-                "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.MONTH)}"
-            }
-            .mapValues { it.value.sumOf { exp -> exp.amount } }
-            .toList()
-            .sortedBy {
-                val parts = it.first.split("-")
-                parts[0].toInt() * 12 + parts[1].toInt()
-            }
-            .map { it.second }
+        val recentMonths = monthlyTotals.takeLast(3)
+        val olderMonths = monthlyTotals.dropLast(3)
 
-        val trend = if (monthlyTotals.size >= 2) {
-            val recentAverage = monthlyTotals.takeLast(3).average()
-            val olderAverage = monthlyTotals.dropLast(3).average().takeIf { !it.isNaN() } ?: recentAverage
+        val recentAvg = recentMonths.average()
+        val olderAvg = if (olderMonths.isNotEmpty()) olderMonths.average() else recentAvg
 
-            when {
-                recentAverage > olderAverage * 1.1 -> "increasing"
-                recentAverage < olderAverage * 0.9 -> "decreasing"
-                else -> "stable"
-            }
-        } else "stable"
-
-        val trendMultiplier = when (trend) {
-            "increasing" -> 1.1
-            "decreasing" -> 0.9
-            else -> 1.0
+        val trend = when {
+            recentAvg > olderAvg * 1.1 -> "increasing"
+            recentAvg < olderAvg * 0.9 -> "decreasing"
+            else -> "stable"
         }
 
-        val nextMonthEstimate = averagePerMonth * trendMultiplier
+        // Взвешенный прогноз: 70% от последних 3 месяцев + 30% общий средний
+        val weightedEstimate = recentAvg * 0.7 + averagePerMonth * 0.3
 
         return ExpenseForecast(
-            nextMonthEstimate = nextMonthEstimate,
-            nextYearEstimate = nextMonthEstimate * 12,
+            nextMonthEstimate = weightedEstimate,
+            nextYearEstimate = weightedEstimate * 12,
             averageMonthly = averagePerMonth,
             trend = trend
         )
@@ -286,6 +340,7 @@ class EnhancedAnalyticsViewModel(
             calendar.get(Calendar.YEAR) == currentYear && calendar.get(Calendar.MONTH) == currentMonth
         }.sumOf { it.amount }
 
+        calendar.set(currentYear, currentMonth, 1)
         calendar.add(Calendar.MONTH, -1)
         val previousYear = calendar.get(Calendar.YEAR)
         val previousMonth = calendar.get(Calendar.MONTH)
@@ -300,5 +355,100 @@ class EnhancedAnalyticsViewModel(
         } else if (currentMonthExpenses > 0) 100f else 0f
 
         return Triple(currentMonthExpenses, previousMonthExpenses, comparison)
+    }
+
+    private fun calculateTopMonths(monthlyExpenses: List<MonthlyExpense>): List<TopMonth> {
+        val monthYearFmt = SimpleDateFormat("MMM yyyy", Locale.getDefault())
+        return monthlyExpenses
+            .sortedByDescending { it.amount }
+            .take(3)
+            .mapIndexed { index, me ->
+                val cal = Calendar.getInstance().apply { timeInMillis = me.timestamp }
+                TopMonth(
+                    label = monthYearFmt.format(cal.time),
+                    amount = me.amount,
+                    rank = index + 1
+                )
+            }
+    }
+
+    private fun calculateYearComparison(expenses: List<Expense>): YearComparison? {
+        val calendar = Calendar.getInstance()
+        val thisYear = calendar.get(Calendar.YEAR)
+        val lastYear = thisYear - 1
+
+        val thisYearTotal = expenses.filter {
+            calendar.timeInMillis = it.date
+            calendar.get(Calendar.YEAR) == thisYear
+        }.sumOf { it.amount }
+
+        val lastYearTotal = expenses.filter {
+            calendar.timeInMillis = it.date
+            calendar.get(Calendar.YEAR) == lastYear
+        }.sumOf { it.amount }
+
+        if (thisYearTotal == 0.0 && lastYearTotal == 0.0) return null
+
+        val change = if (lastYearTotal > 0) {
+            ((thisYearTotal - lastYearTotal) / lastYearTotal * 100).toFloat()
+        } else if (thisYearTotal > 0) 100f else 0f
+
+        return YearComparison(
+            currentYear = thisYear,
+            currentYearTotal = thisYearTotal,
+            previousYear = lastYear,
+            previousYearTotal = lastYearTotal,
+            changePercent = change
+        )
+    }
+
+    private fun calculateCategoryTrends(expenses: List<Expense>): List<CategoryTrend> {
+        val now = System.currentTimeMillis()
+        val threeMonthsAgo = now - 90L * 24 * 60 * 60 * 1000
+        val sixMonthsAgo = now - 180L * 24 * 60 * 60 * 1000
+
+        val recent = expenses.filter { it.date in threeMonthsAgo..now }
+        val previous = expenses.filter { it.date in sixMonthsAgo until threeMonthsAgo }
+
+        if (recent.isEmpty()) return emptyList()
+
+        val recentByCategory = recent.groupBy { it.category }
+            .mapValues { it.value.sumOf { e -> e.amount } }
+        val prevByCategory = previous.groupBy { it.category }
+            .mapValues { it.value.sumOf { e -> e.amount } }
+
+        return recentByCategory.entries
+            .map { (cat, recentAmt) ->
+                val prevAmt = prevByCategory[cat] ?: 0.0
+                val change = if (prevAmt > 0) {
+                    ((recentAmt - prevAmt) / prevAmt * 100).toFloat()
+                } else if (recentAmt > 0) 100f else 0f
+                CategoryTrend(
+                    category = cat,
+                    recentAmount = recentAmt,
+                    previousAmount = prevAmt,
+                    changePercent = change
+                )
+            }
+            .filter { abs(it.changePercent) >= 5f || it.previousAmount == 0.0 }
+            .sortedByDescending { abs(it.changePercent) }
+            .take(5)
+    }
+
+    private fun calculateGpsTripStats(trips: List<GpsTrip>): GpsTripStats {
+        val completed = trips.filter { it.endTime != null }
+        val totalDist = trips.sumOf { it.distanceKm }
+        val avgDist = if (trips.isNotEmpty()) totalDist / trips.size else 0.0
+        val speeds = completed.mapNotNull { it.avgSpeedKmh }
+        val avgSpeed = if (speeds.isNotEmpty()) speeds.average() else null
+        val longest = trips.maxOfOrNull { it.distanceKm } ?: 0.0
+
+        return GpsTripStats(
+            totalTrips = trips.size,
+            totalDistanceKm = totalDist,
+            avgTripDistanceKm = avgDist,
+            avgSpeedKmh = avgSpeed,
+            longestTripKm = longest
+        )
     }
 }

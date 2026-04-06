@@ -1,6 +1,8 @@
 package com.aggin.carcost.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
@@ -9,9 +11,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.presentation.screens.onboarding.OnboardingScreen
@@ -48,7 +47,9 @@ import com.aggin.carcost.presentation.screens.achievements.AchievementsScreen
 import com.aggin.carcost.presentation.screens.goals.GoalsScreen
 import com.aggin.carcost.presentation.screens.car_members.CarMembersScreen
 import com.aggin.carcost.presentation.screens.car_members.AcceptInviteScreen
+import com.aggin.carcost.presentation.screens.chat.ChatScreen
 import com.aggin.carcost.presentation.screens.gps_trip.GpsTripScreen
+import com.aggin.carcost.presentation.screens.gps_trip.TripMapScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -166,6 +167,14 @@ sealed class Screen(val route: String) {
 
     object AcceptInvite : Screen("accept_invite/{token}") {
         fun createRoute(token: String) = "accept_invite/$token"
+    }
+
+    object TripMap : Screen("trip_map/{tripId}") {
+        fun createRoute(tripId: String) = "trip_map/$tripId"
+    }
+
+    object Chat : Screen("chat/{carId}") {
+        fun createRoute(carId: String) = "chat/$carId"
     }
 }
 
@@ -488,6 +497,24 @@ fun AppNavigation(
         ) { backStackEntry ->
             val token = backStackEntry.arguments?.getString("token") ?: ""
             AcceptInviteScreen(token = token, navController = navController)
+        }
+
+        // Карта маршрута GPS-поездки
+        composable(
+            route = Screen.TripMap.route,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString("tripId") ?: ""
+            TripMapScreen(tripId = tripId, navController = navController)
+        }
+
+        // Чат участников авто
+        composable(
+            route = Screen.Chat.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            ChatScreen(carId = carId, navController = navController)
         }
     }
 }

@@ -22,6 +22,7 @@ import com.aggin.carcost.data.local.database.dao.SavingsGoalDao
 import com.aggin.carcost.data.local.database.dao.CarMemberDao
 import com.aggin.carcost.data.local.database.dao.GpsTripDao
 import com.aggin.carcost.data.local.database.dao.VinCacheDao
+import com.aggin.carcost.data.local.database.dao.ChatMessageDao
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
@@ -38,6 +39,7 @@ import com.aggin.carcost.data.local.database.entities.SavingsGoal
 import com.aggin.carcost.data.local.database.entities.CarMember
 import com.aggin.carcost.data.local.database.entities.GpsTrip
 import com.aggin.carcost.data.local.database.entities.VinCache
+import com.aggin.carcost.data.local.database.entities.ChatMessage
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -385,6 +387,24 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
     }
 }
 
+val MIGRATION_22_23 = object : Migration(22, 23) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                userId TEXT NOT NULL,
+                userEmail TEXT NOT NULL,
+                message TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """)
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_carId ON chat_messages(carId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_createdAt ON chat_messages(createdAt)")
+    }
+}
+
 @Database(
     entities = [
         Car::class,
@@ -402,9 +422,10 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
         SavingsGoal::class,
         CarMember::class,
         GpsTrip::class,
-        VinCache::class
+        VinCache::class,
+        ChatMessage::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -425,6 +446,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun carMemberDao(): CarMemberDao
     abstract fun gpsTripDao(): GpsTripDao
     abstract fun vinCacheDao(): VinCacheDao
+    abstract fun chatMessageDao(): ChatMessageDao
 
     companion object {
         @Volatile
@@ -450,7 +472,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_18_19,
                         MIGRATION_19_20,
                         MIGRATION_20_21,
-                        MIGRATION_21_22
+                        MIGRATION_21_22,
+                        MIGRATION_22_23
                     )
                     .fallbackToDestructiveMigration()
                     .build()

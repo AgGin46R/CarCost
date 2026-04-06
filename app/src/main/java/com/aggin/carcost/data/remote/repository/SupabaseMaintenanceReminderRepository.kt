@@ -204,7 +204,7 @@ private fun MaintenanceReminder.toDto(userId: String) = MaintenanceReminderDto(
     updatedAt = updatedAt
 )
 
-private fun MaintenanceReminderDto.toMaintenanceReminder() = MaintenanceReminder(
+fun MaintenanceReminderDto.toMaintenanceReminder() = MaintenanceReminder(
     id = id, // ✅ Используем String UUID
     carId = carId,
     type = try {

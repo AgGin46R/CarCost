@@ -30,6 +30,7 @@ import com.aggin.carcost.data.local.database.entities.CarMember
 import com.aggin.carcost.data.local.database.entities.MemberRole
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
+import com.aggin.carcost.presentation.navigation.Screen
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -228,6 +229,11 @@ fun CarMembersScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { navController.navigate(Screen.Chat.createRoute(carId)) }) {
+                        Icon(Icons.Default.Chat, contentDescription = "Чат")
                     }
                 }
             )

@@ -44,6 +44,7 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.gps.GpsTripService
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.GpsTrip
+import com.aggin.carcost.presentation.navigation.Screen
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -243,7 +244,12 @@ fun GpsTripScreen(
                     )
                 }
                 items(uiState.trips, key = { it.id }) { trip ->
-                    TripCard(trip, dateFmt, onDelete = { viewModel.deleteTrip(trip) })
+                    TripCard(
+                        trip = trip,
+                        dateFmt = dateFmt,
+                        onDelete = { viewModel.deleteTrip(trip) },
+                        onShowMap = { navController.navigate(Screen.TripMap.createRoute(trip.id)) }
+                    )
                 }
             }
         }
@@ -331,7 +337,8 @@ private fun TripControlCard(
 private fun TripCard(
     trip: GpsTrip,
     dateFmt: SimpleDateFormat,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onShowMap: () -> Unit
 ) {
     val durationMin = if (trip.endTime != null)
         ((trip.endTime - trip.startTime) / 60_000).toInt() else null
@@ -378,6 +385,10 @@ private fun TripCard(
                 }
             }
 
+            IconButton(onClick = onShowMap) {
+                Icon(Icons.Default.Map, null,
+                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, null,
                     tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
