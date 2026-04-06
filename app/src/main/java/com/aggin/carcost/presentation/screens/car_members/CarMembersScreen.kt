@@ -111,7 +111,8 @@ class CarMembersViewModel(
             // Создаём приглашение в Supabase
             supabaseMembers.createInvitation(carId, email, role)
                 .onSuccess { token ->
-                    val link = "https://mkwwidzaovxosnhsjomy.supabase.co/storage/v1/object/public/releases/invite.html?token=$token"
+                    // Replace YOUR_GITHUB_USERNAME with your actual GitHub username
+                    val link = "https://YOUR_GITHUB_USERNAME.github.io/carcost-invite/?token=$token"
                     _uiState.value = _uiState.value.copy(pendingInviteLink = link)
                 }
                 .onFailure { e ->

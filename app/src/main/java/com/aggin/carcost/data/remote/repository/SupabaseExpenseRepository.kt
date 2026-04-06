@@ -160,7 +160,7 @@ private fun Expense.toDto(userId: String) = ExpenseDto(
     updatedAt = updatedAt
 )
 
-private fun ExpenseDto.toExpense() = Expense(
+internal fun ExpenseDto.toExpense() = Expense(
     id = id, // ✅ String UUID
     carId = carId,
     category = try { ExpenseCategory.valueOf(category) } catch (e: Exception) { ExpenseCategory.OTHER },

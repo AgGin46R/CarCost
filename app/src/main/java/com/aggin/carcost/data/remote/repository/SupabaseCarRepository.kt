@@ -246,7 +246,7 @@ private fun Car.toDto(userId: String) = CarDto(
     updatedAt = updatedAt
 )
 
-private fun CarDto.toCar() = Car(
+internal fun CarDto.toCar() = Car(
     id = id, // ✅ ИСПРАВЛЕНО
     brand = brand,
     model = model,

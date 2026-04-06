@@ -10,14 +10,17 @@ import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
+import com.aggin.carcost.data.remote.repository.CarInvitationDto
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val cars: List<Car> = emptyList(),
-    val remindersByCarId: Map<String, List<MaintenanceReminder>> = emptyMap(), // ✅ String UUID
-    val isLoading: Boolean = true
+    val remindersByCarId: Map<String, List<MaintenanceReminder>> = emptyMap(),
+    val isLoading: Boolean = true,
+    val pendingInvitations: List<CarInvitationDto> = emptyList()
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -26,12 +29,29 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val carRepository = CarRepository(database.carDao())
     private val reminderRepository = MaintenanceReminderRepository(database.maintenanceReminderDao())
 
-    // ✅ Добавлены Supabase репозитории для синхронизации удаления
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
+    private val supabaseMembers = SupabaseCarMembersRepository(supabaseAuth)
 
-    val uiState: StateFlow<HomeUiState> = carRepository.getAllActiveCars()
-        .flatMapLatest { cars ->
+    private val _pendingInvitations = MutableStateFlow<List<CarInvitationDto>>(emptyList())
+
+    init {
+        checkPendingInvitations()
+    }
+
+    fun checkPendingInvitations() {
+        viewModelScope.launch {
+            supabaseMembers.getPendingInvitationsForMe()
+                .onSuccess { _pendingInvitations.value = it }
+        }
+    }
+
+    fun dismissInvitation(token: String) {
+        _pendingInvitations.value = _pendingInvitations.value.filter { it.token != token }
+    }
+
+    val uiState: StateFlow<HomeUiState> = combine(
+        carRepository.getAllActiveCars().flatMapLatest { cars ->
             if (cars.isEmpty()) {
                 flowOf(HomeUiState(cars = emptyList(), isLoading = false))
             } else {
@@ -47,11 +67,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = HomeUiState()
-        )
+        },
+        _pendingInvitations
+    ) { baseState, invitations ->
+        baseState.copy(pendingInvitations = invitations)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = HomeUiState()
+    )
 
     fun deleteCar(car: Car) {
         viewModelScope.launch {

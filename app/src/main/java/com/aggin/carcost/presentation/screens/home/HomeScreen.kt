@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,11 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
+import com.aggin.carcost.data.remote.repository.CarInvitationDto
 import com.aggin.carcost.presentation.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,26 +78,89 @@ fun HomeScreen(
             }
         }
     ) { paddingValues ->
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else if (uiState.cars.isEmpty()) {
-            EmptyState(modifier = Modifier.padding(paddingValues))
-        } else {
-            CarsList(
-                cars = uiState.cars,
-                reminders = uiState.remindersByCarId,
-                modifier = Modifier.padding(paddingValues),
-                onCarClick = { car ->
-                    navController.navigate(Screen.CarDetail.createRoute(car.id))
+        Box(modifier = Modifier.padding(paddingValues)) {
+            if (uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
+            } else if (uiState.cars.isEmpty() && uiState.pendingInvitations.isEmpty()) {
+                EmptyState()
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    // Incoming invitations banner
+                    uiState.pendingInvitations.forEach { inv ->
+                        InvitationBanner(
+                            invitation = inv,
+                            onAccept = {
+                                navController.navigate(Screen.AcceptInvite.createRoute(inv.token))
+                                viewModel.dismissInvitation(inv.token)
+                            },
+                            onDismiss = { viewModel.dismissInvitation(inv.token) }
+                        )
+                    }
+                    if (uiState.cars.isNotEmpty()) {
+                        CarsList(
+                            cars = uiState.cars,
+                            reminders = uiState.remindersByCarId,
+                            modifier = Modifier.weight(1f),
+                            onCarClick = { car ->
+                                navController.navigate(Screen.CarDetail.createRoute(car.id))
+                            }
+                        )
+                    } else {
+                        EmptyState(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InvitationBanner(
+    invitation: CarInvitationDto,
+    onAccept: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                Icons.Default.PersonAdd, null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
             )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Вас пригласили в авто",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    "Роль: ${
+                        when (invitation.role) {
+                            "DRIVER" -> "Водитель"
+                            "MECHANIC" -> "Механик"
+                            else -> invitation.role
+                        }
+                    }",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                )
+            }
+            TextButton(onClick = onDismiss) { Text("Позже") }
+            Button(onClick = onAccept) { Text("Принять") }
         }
     }
 }

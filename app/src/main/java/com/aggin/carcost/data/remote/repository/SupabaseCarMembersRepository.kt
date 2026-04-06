@@ -36,11 +36,22 @@ class SupabaseCarMembersRepository(private val auth: SupabaseAuthRepository) {
 
     private val TAG = "SupabaseCarMembers"
 
-    /** Ensure current user is registered as OWNER for this car. */
+    /** Ensure current user is registered as OWNER for this car. Safe to call multiple times. */
     suspend fun ensureOwner(carId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val userId = auth.getUserId() ?: return@withContext Result.failure(Exception("Not authenticated"))
             val email = auth.getCurrentUserEmail() ?: ""
+
+            // Check if already registered to avoid any duplicate
+            val existing = supabase.from("car_members")
+                .select { filter { eq("car_id", carId); eq("user_id", userId) } }
+                .decodeList<CarMemberDto>()
+
+            if (existing.isNotEmpty()) {
+                Log.d(TAG, "Owner already registered for car $carId, skipping")
+                return@withContext Result.success(Unit)
+            }
+
             val dto = CarMemberDto(
                 id = UUID.randomUUID().toString(),
                 carId = carId,
@@ -48,8 +59,9 @@ class SupabaseCarMembersRepository(private val auth: SupabaseAuthRepository) {
                 email = email,
                 role = MemberRole.OWNER.name
             )
-            supabase.from("car_members").upsert(dto)
-            Log.d(TAG, "Owner ensured for car $carId")
+            // onConflict = "car_id,user_id" ensures DB-level duplicate protection too
+            supabase.from("car_members").upsert(dto, onConflict = "car_id,user_id")
+            Log.d(TAG, "Owner registered for car $carId")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "ensureOwner failed", e)
@@ -110,7 +122,7 @@ class SupabaseCarMembersRepository(private val auth: SupabaseAuthRepository) {
                 email = email,
                 role = inv.role
             )
-            supabase.from("car_members").upsert(member)
+            supabase.from("car_members").upsert(member, onConflict = "car_id,user_id")
 
             // Mark invitation as accepted
             supabase.from("car_invitations")
@@ -151,6 +163,27 @@ class SupabaseCarMembersRepository(private val auth: SupabaseAuthRepository) {
             })
         } catch (e: Exception) {
             Log.e(TAG, "getMembersByCarId failed", e)
+            Result.failure(e)
+        }
+    }
+
+    /** Get pending invitations addressed to the current user's email. */
+    suspend fun getPendingInvitationsForMe(): Result<List<CarInvitationDto>> = withContext(Dispatchers.IO) {
+        try {
+            val email = auth.getCurrentUserEmail() ?: return@withContext Result.success(emptyList())
+            val now = System.currentTimeMillis()
+            val invitations = supabase.from("car_invitations")
+                .select {
+                    filter {
+                        eq("invited_email", email)
+                        gt("expires_at", now)
+                    }
+                }
+                .decodeList<CarInvitationDto>()
+                .filter { it.acceptedAt == null }
+            Result.success(invitations)
+        } catch (e: Exception) {
+            Log.e(TAG, "getPendingInvitationsForMe failed", e)
             Result.failure(e)
         }
     }

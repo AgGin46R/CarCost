@@ -9,6 +9,7 @@ import com.aggin.carcost.data.notifications.AiInsightsRefreshWorker
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
+import com.aggin.carcost.data.sync.RealtimeSyncManager
 import com.yandex.mapkit.MapKitFactory
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
@@ -22,6 +23,9 @@ class App : Application() {
 
     companion object {
         lateinit var supabase: SupabaseClient
+            private set
+
+        lateinit var realtimeSync: RealtimeSyncManager
             private set
 
         private const val TAG = "CarCostApp"
@@ -50,6 +54,10 @@ class App : Application() {
         scheduleMaintenanceCheck()
         scheduleFuelReminder()
         scheduleAiInsightsRefresh()
+
+        // Start real-time sync after Supabase is ready
+        realtimeSync = RealtimeSyncManager(this)
+        realtimeSync.start()
     }
 
     private fun scheduleFuelReminder() {

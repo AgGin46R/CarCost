@@ -52,24 +52,50 @@ class AcceptInviteViewModel(
 
     init {
         viewModelScope.launch {
-            supabaseMembers.acceptInvitation(token)
-                .onSuccess { member ->
-                    // 1. Save membership locally
-                    db.carMemberDao().insert(member)
+            try {
+                // Step 1: Accept invitation in Supabase
+                val inviteResult = supabaseMembers.acceptInvitation(token)
+                if (inviteResult.isFailure) {
+                    _state.value = AcceptInviteState.Error(
+                        inviteResult.exceptionOrNull()?.message ?: "Не удалось принять приглашение"
+                    )
+                    return@launch
+                }
+                val member = inviteResult.getOrThrow()
 
-                    // 2. Sync the shared car to local Room so it appears in Home
+                // Step 2: Save membership to local Room
+                try {
+                    db.carMemberDao().insert(member)
+                } catch (e: Exception) {
+                    android.util.Log.w("AcceptInvite", "carMemberDao insert failed (may already exist): ${e.message}")
+                }
+
+                // Step 3: Sync the shared car locally
+                try {
                     supabaseCars.fetchSharedCar(member.carId)
                         .onSuccess { car -> db.carDao().insertCar(car) }
+                } catch (e: Exception) {
+                    android.util.Log.w("AcceptInvite", "fetchSharedCar failed: ${e.message}")
+                }
 
-                    // 3. Sync existing expenses for that car
+                // Step 4: Sync existing expenses for that car
+                try {
                     supabaseExpenses.getExpensesByCarId(member.carId)
-                        .onSuccess { expenses -> expenses.forEach { db.expenseDao().insertExpense(it) } }
+                        .onSuccess { expenses ->
+                            expenses.forEach {
+                                try { db.expenseDao().insertExpense(it) } catch (_: Exception) {}
+                            }
+                        }
+                } catch (e: Exception) {
+                    android.util.Log.w("AcceptInvite", "expenses sync failed: ${e.message}")
+                }
 
-                    _state.value = AcceptInviteState.Success(member.carId)
-                }
-                .onFailure { e ->
-                    _state.value = AcceptInviteState.Error(e.message ?: "Неизвестная ошибка")
-                }
+                _state.value = AcceptInviteState.Success(member.carId)
+
+            } catch (e: Exception) {
+                android.util.Log.e("AcceptInvite", "Unexpected crash", e)
+                _state.value = AcceptInviteState.Error(e.message ?: "Неизвестная ошибка")
+            }
         }
     }
 }
