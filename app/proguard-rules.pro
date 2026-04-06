@@ -19,3 +19,28 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# SLF4J — used internally by iText7, not needed at runtime on Android
+-dontwarn org.slf4j.**
+
+# iText7
+-dontwarn com.itextpdf.**
+-keep class com.itextpdf.** { *; }
+
+# Kotlin serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
+-keepclasseswithmembers class **$$serializer { *; }
+
+# Supabase / Ktor
+-dontwarn io.ktor.**
+-dontwarn io.github.jan.supabase.**
+
+# Yandex MapKit
+-keep class com.yandex.** { *; }
+-dontwarn com.yandex.**
+
+# ML Kit
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**

@@ -1,12 +1,17 @@
 package com.aggin.carcost.presentation.screens.gps_trip
 
+import android.Manifest
 import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -124,6 +129,20 @@ fun GpsTripScreen(
     val uiState by viewModel.uiState.collectAsState()
     val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
 
+    // Location permission
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        hasLocationPermission = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+    }
+
     // Listen for distance broadcasts from GpsTripService
     DisposableEffect(Unit) {
         val receiver = object : BroadcastReceiver() {
@@ -162,9 +181,56 @@ fun GpsTripScreen(
                 TripControlCard(
                     isRecording = uiState.isRecording,
                     currentDistance = uiState.currentDistance,
-                    onStart = { viewModel.startTrip(context) },
+                    onStart = {
+                        if (hasLocationPermission) {
+                            viewModel.startTrip(context)
+                        } else {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    },
                     onStop = { viewModel.stopTrip(context) }
                 )
+            }
+            if (!hasLocationPermission) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.LocationOff, null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "Нет доступа к геолокации",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Text(
+                                    "Нажмите Старт, чтобы разрешить доступ",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             if (uiState.trips.isNotEmpty()) {

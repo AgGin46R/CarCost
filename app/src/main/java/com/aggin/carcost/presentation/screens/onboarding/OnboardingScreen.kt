@@ -1,5 +1,10 @@
 package com.aggin.carcost.presentation.screens.onboarding
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -25,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.presentation.navigation.Screen
@@ -97,6 +103,24 @@ fun OnboardingScreen(navController: NavController) {
     val settingsManager = remember { SettingsManager(context) }
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { pages.size })
+
+    // Request POST_NOTIFICATIONS when the user reaches the last (Notifications) page
+    val notificationPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { /* granted or denied — proceed either way */ }
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage == pages.lastIndex &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        ) {
+            val already = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!already) {
+                notificationPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
