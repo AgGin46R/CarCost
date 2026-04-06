@@ -6,6 +6,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.aggin.carcost.data.notifications.AiInsightsRefreshWorker
+import com.aggin.carcost.data.notifications.BackgroundSyncWorker
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
@@ -54,6 +55,7 @@ class App : Application() {
         scheduleMaintenanceCheck()
         scheduleFuelReminder()
         scheduleAiInsightsRefresh()
+        BackgroundSyncWorker.schedule(this)
 
         // Start real-time sync after Supabase is ready
         realtimeSync = RealtimeSyncManager(this)

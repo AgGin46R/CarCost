@@ -17,7 +17,9 @@
       "Bash(grep -E \"^[a-z_]+$\")",
       "Bash(xargs ls:*)",
       "Bash(grep -A 2 \"fun.*toCar\\(\\)\\\\|fun.*toExpense\\(\\)\\\\|fun.*toMaintenanceReminder\\(\\)\" /e/CarCost/app/src/main/java/com/aggin/carcost/data/remote/repository/Supabase*.kt)",
-      "Bash(grep -n \"internal fun CarDto.toCar\\\\|internal fun ExpenseDto.toExpense\\\\|fun MaintenanceReminderDto.toMaintenanceReminder\" /e/CarCost/app/src/main/java/com/aggin/carcost/data/remote/repository/*.kt)"
+      "Bash(grep -n \"internal fun CarDto.toCar\\\\|internal fun ExpenseDto.toExpense\\\\|fun MaintenanceReminderDto.toMaintenanceReminder\" /e/CarCost/app/src/main/java/com/aggin/carcost/data/remote/repository/*.kt)",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__deploy_edge_function",
+      "Bash(npx supabase:*)"
     ]
   }
 }
