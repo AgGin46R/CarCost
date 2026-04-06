@@ -15,8 +15,18 @@ import com.aggin.carcost.presentation.navigation.AppNavigation
 import com.aggin.carcost.ui.theme.CarCostTheme
 
 class MainActivity : ComponentActivity() {
+
+    /** Token extracted from carcost://invite?token=... deep link, passed to AppNavigation */
+    var pendingInviteToken: String? = null
+        private set
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Extract invite token from deep link if launched via carcost://invite
+        pendingInviteToken = intent?.data
+            ?.takeIf { it.scheme == "carcost" && it.host == "invite" }
+            ?.getQueryParameter("token")
+
         setContent {
             val settingsManager = SettingsManager(LocalContext.current)
             val theme by settingsManager.themeFlow.collectAsState(initial = "System")
@@ -26,9 +36,17 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation()
+                    AppNavigation(pendingInviteToken = pendingInviteToken)
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        // Handle deep link when app is already open (singleTop/singleTask)
+        pendingInviteToken = intent.data
+            ?.takeIf { it.scheme == "carcost" && it.host == "invite" }
+            ?.getQueryParameter("token")
     }
 }

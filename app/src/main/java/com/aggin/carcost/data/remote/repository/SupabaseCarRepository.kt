@@ -187,6 +187,21 @@ class SupabaseCarRepository(private val authRepository: SupabaseAuthRepository) 
         }
     }
 
+    /** Fetch a car by ID without user_id filter — for shared cars accessed via membership. RLS handles auth. */
+    suspend fun fetchSharedCar(carId: String): Result<Car> = withContext(Dispatchers.IO) {
+        try {
+            val car = supabase.from("cars")
+                .select {
+                    filter { eq("id", carId) }
+                }
+                .decodeSingle<CarDto>()
+            Result.success(car.toCar())
+        } catch (e: Exception) {
+            Log.e("SupabaseCar", "fetchSharedCar failed for $carId", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun getCarsUpdatedAfter(timestamp: Long): Result<List<Car>> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()

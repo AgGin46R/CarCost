@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.screens.car_members
 
 import android.app.Application
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,6 +29,7 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.CarMember
 import com.aggin.carcost.data.local.database.entities.MemberRole
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -36,7 +38,8 @@ data class CarMembersUiState(
     val members: List<CarMember> = emptyList(),
     val currentUserRole: MemberRole? = null,
     val isLoading: Boolean = true,
-    val showInviteDialog: Boolean = false
+    val pendingInviteLink: String? = null,  // share this after creating invitation
+    val errorMessage: String? = null
 )
 
 class CarMembersViewModel(
@@ -45,38 +48,93 @@ class CarMembersViewModel(
 ) : AndroidViewModel(application) {
     private val dao = AppDatabase.getDatabase(application).carMemberDao()
     private val auth = SupabaseAuthRepository()
+    private val supabaseMembers = SupabaseCarMembersRepository(auth)
     private val currentUserId = auth.getUserId() ?: ""
 
-    val uiState: StateFlow<CarMembersUiState> = dao.getMembersByCarId(carId)
-        .map { members ->
-            CarMembersUiState(
-                members = members,
-                currentUserRole = members.find { it.userId == currentUserId }?.role ?: MemberRole.OWNER,
-                isLoading = false
-            )
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CarMembersUiState())
+    private val _uiState = MutableStateFlow(CarMembersUiState())
+    val uiState: StateFlow<CarMembersUiState> = _uiState.asStateFlow()
 
-    fun inviteMember(email: String, role: MemberRole) {
+    init {
+        // Collect from local DB
         viewModelScope.launch {
+            dao.getMembersByCarId(carId).collect { members ->
+                _uiState.value = _uiState.value.copy(
+                    members = members,
+                    currentUserRole = members.find { it.userId == currentUserId }?.role
+                        ?: MemberRole.OWNER,
+                    isLoading = false
+                )
+            }
+        }
+        // Ensure owner record exists in Supabase + sync members
+        viewModelScope.launch {
+            ensureOwnerRegistered()
+            syncMembersFromSupabase()
+        }
+    }
+
+    private suspend fun ensureOwnerRegistered() {
+        // Add owner to local DB if not already there
+        val existing = dao.getRoleForUser(carId, currentUserId)
+        if (existing == null) {
+            val email = auth.getCurrentUserEmail() ?: ""
             dao.insert(CarMember(
                 id = UUID.randomUUID().toString(),
                 carId = carId,
-                userId = "pending_${UUID.randomUUID()}",  // Will be resolved when user accepts
+                userId = currentUserId,
+                email = email,
+                role = MemberRole.OWNER
+            ))
+        }
+        // Sync to Supabase
+        supabaseMembers.ensureOwner(carId)
+    }
+
+    private suspend fun syncMembersFromSupabase() {
+        supabaseMembers.getMembersByCarId(carId).getOrNull()?.forEach { member ->
+            dao.insert(member)
+        }
+    }
+
+    /** Creates invitation in Supabase and returns share link via uiState.pendingInviteLink */
+    fun inviteMember(email: String, role: MemberRole) {
+        viewModelScope.launch {
+            // Сохраняем локально как pending
+            dao.insert(CarMember(
+                id = UUID.randomUUID().toString(),
+                carId = carId,
+                userId = "pending_${UUID.randomUUID()}",
                 email = email,
                 role = role
             ))
+
+            // Создаём приглашение в Supabase
+            supabaseMembers.createInvitation(carId, email, role)
+                .onSuccess { token ->
+                    val link = "carcost://invite?token=$token"
+                    _uiState.value = _uiState.value.copy(pendingInviteLink = link)
+                }
+                .onFailure { e ->
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "Не удалось создать приглашение: ${e.message}"
+                    )
+                }
         }
     }
 
     fun removeMember(member: CarMember) {
         viewModelScope.launch {
             dao.delete(member)
+            supabaseMembers.removeMember(carId, member.userId)
         }
     }
 
-    fun showInviteDialog() = viewModelScope.launch {
-        // Update state to show dialog — using a separate state field is cleaner
+    fun clearInviteLink() {
+        _uiState.value = _uiState.value.copy(pendingInviteLink = null)
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
     val isOwner: Boolean
@@ -105,6 +163,50 @@ fun CarMembersScreen(
     )
     val uiState by viewModel.uiState.collectAsState()
     var showInviteDialog by remember { mutableStateOf(false) }
+
+    // Share sheet — показывается когда готова invite-ссылка
+    uiState.pendingInviteLink?.let { link ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearInviteLink() },
+            title = { Text("Ссылка-приглашение готова") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Отправьте эту ссылку приглашённому пользователю. Ссылка действительна 7 дней.")
+                    Text(
+                        link,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, "Вас приглашают в CarCost для совместного учёта автомобиля.\n\nОткройте ссылку в приложении CarCost:\n$link")
+                        putExtra(Intent.EXTRA_SUBJECT, "Приглашение в CarCost")
+                    }
+                    context.startActivity(Intent.createChooser(sendIntent, "Поделиться приглашением"))
+                    viewModel.clearInviteLink()
+                }) { Text("Поделиться") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.clearInviteLink() }) { Text("Закрыть") }
+            }
+        )
+    }
+
+    // Ошибка
+    uiState.errorMessage?.let { error ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearError() },
+            title = { Text("Ошибка") },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearError() }) { Text("OK") }
+            }
+        )
+    }
 
     if (showInviteDialog) {
         InviteMemberDialog(

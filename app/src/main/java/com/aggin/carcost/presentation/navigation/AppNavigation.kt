@@ -47,6 +47,7 @@ import com.aggin.carcost.presentation.screens.recalls.RecallsScreen
 import com.aggin.carcost.presentation.screens.achievements.AchievementsScreen
 import com.aggin.carcost.presentation.screens.goals.GoalsScreen
 import com.aggin.carcost.presentation.screens.car_members.CarMembersScreen
+import com.aggin.carcost.presentation.screens.car_members.AcceptInviteScreen
 import com.aggin.carcost.presentation.screens.gps_trip.GpsTripScreen
 
 sealed class Screen(val route: String) {
@@ -162,11 +163,16 @@ sealed class Screen(val route: String) {
     object GpsTrip : Screen("gps_trip/{carId}") {
         fun createRoute(carId: String) = "gps_trip/$carId"
     }
+
+    object AcceptInvite : Screen("accept_invite/{token}") {
+        fun createRoute(token: String) = "accept_invite/$token"
+    }
 }
 
 @Composable
 fun AppNavigation(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    pendingInviteToken: String? = null
 ) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
@@ -179,8 +185,10 @@ fun AppNavigation(
     // Ждём пока DataStore вернёт значение
     val done = onboardingDone ?: return
 
+    // Если пришёл deep link с токеном и пользователь залогинен — сразу на экран принятия
     val startDestination = when {
         !done -> Screen.Onboarding.route
+        isLoggedIn && pendingInviteToken != null -> Screen.AcceptInvite.createRoute(pendingInviteToken)
         isLoggedIn -> Screen.Home.route
         else -> Screen.Login.route
     }
@@ -471,6 +479,15 @@ fun AppNavigation(
                 plannedId = plannedId,
                 navController = navController
             )
+        }
+
+        // Принятие приглашения по deep link
+        composable(
+            route = Screen.AcceptInvite.route,
+            arguments = listOf(navArgument("token") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val token = backStackEntry.arguments?.getString("token") ?: ""
+            AcceptInviteScreen(token = token, navController = navController)
         }
     }
 }
