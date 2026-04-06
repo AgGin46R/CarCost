@@ -21,4 +21,7 @@ interface CarMemberDao {
 
     @Query("DELETE FROM car_members WHERE carId = :carId AND userId = :userId")
     suspend fun removeMember(carId: String, userId: String)
+
+    @Query("DELETE FROM car_members WHERE carId = :carId AND userId LIKE 'pending_%'")
+    suspend fun deletePendingMembers(carId: String)
 }

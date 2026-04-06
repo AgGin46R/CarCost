@@ -15,8 +15,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.2.0"
+        versionCode = 6
+        versionName = "1.8.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -81,8 +81,8 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:realtime-kt")
     implementation("io.github.jan-tennert.supabase:gotrue-kt")
 
-    // Ktor client для Supabase
-    implementation("io.ktor:ktor-client-android:2.3.12")
+    // Ktor client для Supabase (OkHttp поддерживает WebSocket для Realtime)
+    implementation("io.ktor:ktor-client-okhttp:2.3.12")
     implementation("io.ktor:ktor-client-core:2.3.12")
     implementation("io.ktor:ktor-utils:2.3.12")
 

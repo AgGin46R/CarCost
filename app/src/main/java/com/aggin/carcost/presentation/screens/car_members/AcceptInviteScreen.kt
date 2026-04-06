@@ -25,6 +25,7 @@ import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.presentation.navigation.Screen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +46,7 @@ class AcceptInviteViewModel(
     private val supabaseMembers = SupabaseCarMembersRepository(auth)
     private val supabaseCars = SupabaseCarRepository(auth)
     private val supabaseExpenses = SupabaseExpenseRepository(auth)
+    private val supabaseReminders = SupabaseMaintenanceReminderRepository(auth)
     private val db = AppDatabase.getDatabase(application)
 
     private val _state = MutableStateFlow<AcceptInviteState>(AcceptInviteState.Loading)
@@ -88,6 +90,18 @@ class AcceptInviteViewModel(
                         }
                 } catch (e: Exception) {
                     android.util.Log.w("AcceptInvite", "expenses sync failed: ${e.message}")
+                }
+
+                // Step 5: Sync maintenance reminders for that car
+                try {
+                    supabaseReminders.getRemindersByCarId(member.carId)
+                        .onSuccess { reminders ->
+                            reminders.forEach {
+                                try { db.maintenanceReminderDao().insertReminder(it) } catch (_: Exception) {}
+                            }
+                        }
+                } catch (e: Exception) {
+                    android.util.Log.w("AcceptInvite", "reminders sync failed: ${e.message}")
                 }
 
                 _state.value = AcceptInviteState.Success(member.carId)

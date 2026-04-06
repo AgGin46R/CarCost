@@ -400,26 +400,28 @@ class AddExpenseViewModel(
                 if (userId == null) {
                     android.util.Log.e("AddExpense", "User not authenticated!")
                 } else {
-                    // ✅ СНАЧАЛА убеждаемся, что автомобиль есть на сервере
-                    val carSynced = ensureCarSyncedToSupabase(carId)
-
-                    if (carSynced) {
-                        // Теперь безопасно синхронизируем расход
-                        val expenseWithId = expense.copy(id = expenseId)
-                        val result = supabaseExpenseRepo.insertExpense(expenseWithId)
-
-                        result.fold(
-                            onSuccess = { syncedExpense ->
-                                android.util.Log.d("AddExpense", "✅ SUCCESS! Expense synced to Supabase: ${syncedExpense.id}")
-                            },
-                            onFailure = { error ->
-                                android.util.Log.e("AddExpense", "❌ FAILED to sync expense to Supabase!", error)
-                                android.util.Log.e("AddExpense", "Error message: ${error.message}")
+                    val expenseWithId = expense.copy(id = expenseId)
+                    // Try direct insert first — works for both owners and members (RLS allows any car member).
+                    // If it fails (e.g. car was never synced to Supabase by the owner), fall back to
+                    // syncing the car first, then retry.
+                    val result = supabaseExpenseRepo.insertExpense(expenseWithId)
+                    result.fold(
+                        onSuccess = {
+                            android.util.Log.d("AddExpense", "✅ Expense synced to Supabase: $expenseId")
+                        },
+                        onFailure = { error ->
+                            android.util.Log.w("AddExpense", "Direct expense sync failed (${error.message}), trying to ensure car exists first")
+                            val carSynced = ensureCarSyncedToSupabase(carId)
+                            if (carSynced) {
+                                supabaseExpenseRepo.insertExpense(expenseWithId).fold(
+                                    onSuccess = { android.util.Log.d("AddExpense", "✅ Expense synced after car sync") },
+                                    onFailure = { e -> android.util.Log.e("AddExpense", "❌ Expense sync failed after car sync: ${e.message}") }
+                                )
+                            } else {
+                                android.util.Log.e("AddExpense", "❌ Car not synced, expense not uploaded to Supabase")
                             }
-                        )
-                    } else {
-                        android.util.Log.w("AddExpense", "Car not synced, skipping expense sync")
-                    }
+                        }
+                    )
                 }
             } catch (e: Exception) {
                 android.util.Log.e("AddExpense", "Exception syncing expense", e)

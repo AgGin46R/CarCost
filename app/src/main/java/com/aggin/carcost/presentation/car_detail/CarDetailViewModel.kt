@@ -148,7 +148,14 @@ class CarDetailViewModel(
                 result.fold(
                     onSuccess = { expenses ->
                         expenses.forEach { expense ->
-                            expenseRepository.insertExpense(expense)
+                            // Only overwrite if the remote record is newer than the local one.
+                            // This prevents syncData() from reverting local edits when the
+                            // Supabase update failed (logged silently) and the remote still has
+                            // the old version.
+                            val local = expenseRepository.getExpenseById(expense.id)
+                            if (local == null || expense.updatedAt >= local.updatedAt) {
+                                expenseRepository.insertExpense(expense)
+                            }
                         }
                         Log.d("CarDetail", "Synced ${expenses.size} expenses")
 

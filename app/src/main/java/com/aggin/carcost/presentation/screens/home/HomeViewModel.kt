@@ -12,6 +12,7 @@ import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
+import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.CarInvitationDto
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -32,11 +33,38 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
     private val supabaseMembers = SupabaseCarMembersRepository(supabaseAuth)
+    private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
 
     private val _pendingInvitations = MutableStateFlow<List<CarInvitationDto>>(emptyList())
 
     init {
         checkPendingInvitations()
+        syncRemindersForAllCars()
+    }
+
+    /**
+     * Pulls maintenance reminders from Supabase for every car the user can see locally.
+     * This ensures the car card badge is correct for shared cars where reminders were
+     * created by the owner and never written to the driver's local Room DB.
+     */
+    private fun syncRemindersForAllCars() {
+        viewModelScope.launch {
+            try {
+                val cars = carRepository.getAllActiveCars().first()
+                cars.forEach { car ->
+                    supabaseReminderRepo.getRemindersByCarId(car.id)
+                        .onSuccess { reminders ->
+                            reminders.forEach { reminder ->
+                                try {
+                                    database.maintenanceReminderDao().insertReminder(reminder)
+                                } catch (_: Exception) {}
+                            }
+                        }
+                }
+            } catch (e: Exception) {
+                Log.d("HomeViewModel", "Reminder sync skipped: ${e.message}")
+            }
+        }
     }
 
     fun checkPendingInvitations() {

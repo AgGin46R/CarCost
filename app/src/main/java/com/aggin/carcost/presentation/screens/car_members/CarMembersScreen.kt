@@ -55,29 +55,33 @@ class CarMembersViewModel(
     val uiState: StateFlow<CarMembersUiState> = _uiState.asStateFlow()
 
     init {
-        // Collect from local DB
+        // Collect from local DB — role defaults to null until sync completes
         viewModelScope.launch {
             dao.getMembersByCarId(carId).collect { members ->
                 _uiState.value = _uiState.value.copy(
                     members = members,
-                    currentUserRole = members.find { it.userId == currentUserId }?.role
-                        ?: MemberRole.OWNER,
+                    currentUserRole = members.find { it.userId == currentUserId }?.role,
                     isLoading = false
                 )
             }
         }
-        // Ensure owner record exists in Supabase + sync members
+        // IMPORTANT: sync first so we know the real role, then register owner if needed
         viewModelScope.launch {
-            ensureOwnerRegistered()
             syncMembersFromSupabase()
+            ensureOwnerRegistered()
         }
     }
 
     private suspend fun ensureOwnerRegistered() {
-        // Add owner to local DB if not already there
+        // Check AFTER sync — only insert OWNER locally if Supabase has no record for this user.
+        // This handles the case where the user created the car before the members feature existed.
+        // Members (DRIVER / MECHANIC) already have a record from syncMembersFromSupabase(), so
+        // this branch is skipped for them and they keep their correct role.
         val existing = dao.getRoleForUser(carId, currentUserId)
         if (existing == null) {
             val email = auth.getCurrentUserEmail() ?: ""
+            // Remove any stale entry first to avoid duplicates, then insert as OWNER
+            dao.removeMember(carId, currentUserId)
             dao.insert(CarMember(
                 id = UUID.randomUUID().toString(),
                 carId = carId,
@@ -85,33 +89,31 @@ class CarMembersViewModel(
                 email = email,
                 role = MemberRole.OWNER
             ))
+            // Register in Supabase so other members can see this user
+            supabaseMembers.ensureOwner(carId)
         }
-        // Sync to Supabase
-        supabaseMembers.ensureOwner(carId)
     }
 
     private suspend fun syncMembersFromSupabase() {
-        supabaseMembers.getMembersByCarId(carId).getOrNull()?.forEach { member ->
+        val remoteMembers = supabaseMembers.getMembersByCarId(carId).getOrNull() ?: return
+        // For each remote member, delete the existing local record by (carId, userId) before
+        // inserting the Supabase record. This prevents duplicates caused by different `id` UUIDs
+        // (locally-generated vs Supabase-generated).
+        remoteMembers.forEach { member ->
+            dao.removeMember(member.carId, member.userId)
             dao.insert(member)
         }
+        // Remove all pending_ placeholders — real records are now in DB
+        dao.deletePendingMembers(carId)
     }
 
     /** Creates invitation in Supabase and returns share link via uiState.pendingInviteLink */
     fun inviteMember(email: String, role: MemberRole) {
         viewModelScope.launch {
-            // Сохраняем локально как pending
-            dao.insert(CarMember(
-                id = UUID.randomUUID().toString(),
-                carId = carId,
-                userId = "pending_${UUID.randomUUID()}",
-                email = email,
-                role = role
-            ))
-
-            // Создаём приглашение в Supabase
+            // Only create invitation in Supabase — NO local pending insert
+            // The real member record will appear after they accept
             supabaseMembers.createInvitation(carId, email, role)
                 .onSuccess { token ->
-                    // Replace YOUR_GITHUB_USERNAME with your actual GitHub username
                     val link = "https://YOUR_GITHUB_USERNAME.github.io/carcost-invite/?token=$token"
                     _uiState.value = _uiState.value.copy(pendingInviteLink = link)
                 }
