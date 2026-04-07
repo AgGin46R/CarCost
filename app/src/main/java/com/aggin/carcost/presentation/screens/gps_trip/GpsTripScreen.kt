@@ -158,7 +158,9 @@ fun GpsTripScreen(
         } else {
             context.registerReceiver(receiver, filter)
         }
-        onDispose { context.unregisterReceiver(receiver) }
+        onDispose {
+            try { context.unregisterReceiver(receiver) } catch (_: IllegalArgumentException) { }
+        }
     }
 
     Scaffold(

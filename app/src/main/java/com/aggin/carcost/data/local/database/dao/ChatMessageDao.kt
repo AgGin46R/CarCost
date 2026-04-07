@@ -18,4 +18,7 @@ interface ChatMessageDao {
 
     @Query("SELECT COUNT(*) FROM chat_messages WHERE carId = :carId")
     suspend fun getCount(carId: String): Int
+
+    @Query("SELECT * FROM chat_messages WHERE carId = :carId ORDER BY createdAt DESC LIMIT 1")
+    fun getLastMessageByCarId(carId: String): Flow<ChatMessage?>
 }

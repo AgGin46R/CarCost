@@ -48,6 +48,7 @@ import com.aggin.carcost.presentation.screens.goals.GoalsScreen
 import com.aggin.carcost.presentation.screens.car_members.CarMembersScreen
 import com.aggin.carcost.presentation.screens.car_members.AcceptInviteScreen
 import com.aggin.carcost.presentation.screens.chat.ChatScreen
+import com.aggin.carcost.presentation.screens.chat.ChatsListScreen
 import com.aggin.carcost.presentation.screens.gps_trip.GpsTripScreen
 import com.aggin.carcost.presentation.screens.gps_trip.TripMapScreen
 
@@ -176,6 +177,8 @@ sealed class Screen(val route: String) {
     object Chat : Screen("chat/{carId}") {
         fun createRoute(carId: String) = "chat/$carId"
     }
+
+    object ChatsList : Screen("chats_list")
 }
 
 @Composable
@@ -515,6 +518,11 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             ChatScreen(carId = carId, navController = navController)
+        }
+
+        // Список всех чатов (из профиля)
+        composable(Screen.ChatsList.route) {
+            ChatsListScreen(navController = navController)
         }
     }
 }

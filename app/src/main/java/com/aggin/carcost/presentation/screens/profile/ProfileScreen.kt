@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -552,6 +553,11 @@ fun ActionsSection(
             modifier = Modifier.padding(bottom = 8.dp)
         )
         ActionItem(icon = Icons.Default.Edit, title = "Редактировать профиль", onClick = onEditProfile)
+        ActionItem(
+            icon = Icons.AutoMirrored.Filled.Chat,
+            title = "Чаты",
+            onClick = { navController.navigate(Screen.ChatsList.route) }
+        )
         ActionItem(icon = Icons.Default.Palette, title = "Тема оформления", onClick = onChangeTheme)
         ActionItem(icon = Icons.Default.Lock, title = "Сменить пароль", onClick = onChangePassword)
         ActionItem(

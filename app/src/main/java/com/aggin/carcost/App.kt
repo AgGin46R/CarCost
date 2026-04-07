@@ -2,6 +2,9 @@ package com.aggin.carcost
 
 import android.app.Application
 import android.util.Log
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -70,6 +73,16 @@ class App : Application() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             FcmTokenManager.registerCurrentToken()
         }
+
+        // Reconnect Realtime and refresh FCM token every time app comes to foreground
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                realtimeSync.reconnectIfNeeded()
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    FcmTokenManager.registerCurrentToken()
+                }
+            }
+        })
     }
 
     private fun scheduleFuelReminder() {

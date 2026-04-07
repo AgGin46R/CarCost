@@ -9,6 +9,8 @@ import com.aggin.carcost.data.remote.repository.CarDto
 import com.aggin.carcost.data.remote.repository.ExpenseDto
 import com.aggin.carcost.data.remote.repository.ChatMessageDto
 import com.aggin.carcost.data.remote.repository.MaintenanceReminderDto
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.toChatMessage
 import com.aggin.carcost.data.remote.repository.toExpense
 import com.aggin.carcost.data.remote.repository.toCar
@@ -37,22 +39,40 @@ class RealtimeSyncManager(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json { ignoreUnknownKeys = true }
     private val TAG = "RealtimeSync"
+    private val carRepo = SupabaseCarRepository(SupabaseAuthRepository())
 
     private var activeChannel: RealtimeChannel? = null
 
     /**
-     * Observes the Supabase auth state. Starts the WebSocket channel only when
-     * the user is authenticated — this prevents the "connection refused / 401"
-     * errors that appear when the channel is subscribed with the anon key before
-     * a valid JWT is available.
+     * Ensures a car with the given [carId] exists in local Room DB.
+     * If not, fetches it from Supabase (via RLS — works for shared cars too) and inserts it.
+     * This prevents FOREIGN KEY constraint failures when Realtime delivers a record
+     * whose car hasn't been synced locally yet.
+     */
+    private suspend fun ensureCarExists(carId: String) {
+        if (db.carDao().getCarById(carId) != null) return
+        Log.d(TAG, "Car $carId not in local DB — fetching from Supabase")
+        carRepo.fetchSharedCar(carId).onSuccess { car ->
+            db.carDao().insertCar(car)
+            Log.d(TAG, "✅ Car $carId fetched and cached locally")
+        }.onFailure {
+            Log.w(TAG, "Could not fetch car $carId: ${it.message}")
+        }
+    }
+
+    /**
+     * Observes the Supabase auth state. (Re)starts the WebSocket channel whenever
+     * the user is authenticated and the channel is not already SUBSCRIBED.
      */
     fun start() {
         scope.launch {
             supabase.auth.sessionStatus.collect { status ->
                 when (status) {
                     is SessionStatus.Authenticated -> {
-                        if (activeChannel == null) {
-                            Log.d(TAG, "Auth confirmed — starting Realtime channel")
+                        val channelOk = activeChannel?.status?.value == RealtimeChannel.Status.SUBSCRIBED
+                        if (!channelOk) {
+                            Log.d(TAG, "Auth confirmed — (re)connecting Realtime (was: ${activeChannel?.status?.value})")
+                            disconnectChannel()
                             safeConnect()
                         }
                     }
@@ -62,6 +82,25 @@ class RealtimeSyncManager(private val context: Context) {
                     }
                     else -> Unit
                 }
+            }
+        }
+    }
+
+    /**
+     * Call this when the app comes to foreground to ensure the Realtime channel
+     * is active. Silently ignored if already SUBSCRIBED.
+     */
+    fun reconnectIfNeeded() {
+        scope.launch {
+            val session = supabase.auth.sessionStatus.value
+            if (session !is SessionStatus.Authenticated) return@launch
+            val channelOk = activeChannel?.status?.value == RealtimeChannel.Status.SUBSCRIBED
+            if (!channelOk) {
+                Log.d(TAG, "Foreground reconnect — channel was: ${activeChannel?.status?.value}")
+                disconnectChannel()
+                safeConnect()
+            } else {
+                Log.d(TAG, "Foreground check — channel already SUBSCRIBED")
             }
         }
     }
@@ -98,6 +137,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.record)
+                    ensureCarExists(dto.carId)
                     db.expenseDao().insertExpense(dto.toExpense())
                     Log.d(TAG, "📥 Expense inserted: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = false)
@@ -109,6 +149,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.record)
+                    ensureCarExists(dto.carId)
                     db.expenseDao().insertExpense(dto.toExpense())
                     Log.d(TAG, "✏️ Expense updated: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = true)
@@ -154,6 +195,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(MaintenanceReminderDto.serializer(), change.record)
+                    ensureCarExists(dto.carId)
                     db.maintenanceReminderDao().insertReminder(dto.toMaintenanceReminder())
                     Log.d(TAG, "🔧 Reminder inserted: ${dto.id}")
                     maybeNotifyReminder(dto, isUpdate = false)
@@ -165,6 +207,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(MaintenanceReminderDto.serializer(), change.record)
+                    ensureCarExists(dto.carId)
                     db.maintenanceReminderDao().insertReminder(dto.toMaintenanceReminder())
                     Log.d(TAG, "🔧 Reminder updated: ${dto.id}")
                     maybeNotifyReminder(dto, isUpdate = true)
@@ -178,6 +221,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(ChatMessageDto.serializer(), change.record)
+                    ensureCarExists(dto.carId)
                     db.chatMessageDao().insert(dto.toChatMessage())
                     Log.d(TAG, "💬 Chat message received: ${dto.id}")
                     maybeNotifyChat(dto)

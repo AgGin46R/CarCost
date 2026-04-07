@@ -100,26 +100,31 @@ class ChatViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSending = true) }
-            val message = ChatMessage(
-                carId = carId,
-                userId = userId,
-                userEmail = email,
-                message = trimmed
-            )
-            // Insert locally immediately for instant feedback
-            db.chatMessageDao().insert(message)
-            // Sync to Supabase
-            supabaseChat.sendMessage(message).onFailure {
-                // If Supabase fails, message stays local — will re-sync next open
+            try {
+                val message = ChatMessage(
+                    carId = carId,
+                    userId = userId,
+                    userEmail = email,
+                    message = trimmed
+                )
+                // Insert locally immediately for instant feedback
+                db.chatMessageDao().insert(message)
+                // Sync to Supabase (failure is non-fatal — BackgroundSync will retry)
+                supabaseChat.sendMessage(message)
+            } finally {
+                _uiState.update { it.copy(isSending = false) }
             }
-            _uiState.update { it.copy(isSending = false) }
         }
     }
 
     fun deleteMessage(message: ChatMessage) {
         viewModelScope.launch {
-            db.chatMessageDao().deleteById(message.id)
-            supabaseChat.deleteMessage(message.id)
+            // Delete remote first — if it succeeds, Realtime will remove it locally via RealtimeSyncManager.
+            // If remote fails, keep local copy so user doesn't lose data silently.
+            val result = supabaseChat.deleteMessage(message.id)
+            if (result.isSuccess) {
+                db.chatMessageDao().deleteById(message.id)
+            }
         }
     }
 }

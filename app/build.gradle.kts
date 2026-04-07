@@ -16,8 +16,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 34
-        versionCode = 14
-        versionName = "2.1.5"
+        versionCode = 16
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -39,12 +39,11 @@ android {
         }
     }
 
-    // Generates separate small APKs per CPU architecture instead of one fat APK
     splits {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            include("arm64-v8a")
             isUniversalApk = false
         }
     }

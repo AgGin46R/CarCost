@@ -44,6 +44,7 @@ class GpsTripService : LifecycleService() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationHandlerThread: HandlerThread
+    private lateinit var notificationManager: NotificationManager
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
@@ -63,8 +64,8 @@ class GpsTripService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        // Use a background HandlerThread so location callbacks don't run on main thread
         locationHandlerThread = HandlerThread("GpsLocationThread").also { it.start() }
+        notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
     }
 
@@ -165,8 +166,7 @@ class GpsTripService : LifecycleService() {
         val distanceKm = totalDistanceMeters / 1000.0
 
         // Update foreground notification
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIFICATION_ID, buildNotification("Поездка: %.1f км".format(distanceKm)))
+        notificationManager.notify(NOTIFICATION_ID, buildNotification("Поездка: %.1f км".format(distanceKm)))
 
         // Broadcast live distance to GpsTripScreen UI
         sendBroadcast(Intent(BROADCAST_DISTANCE).apply {
@@ -198,8 +198,7 @@ class GpsTripService : LifecycleService() {
             "GPS Поездки",
             NotificationManager.IMPORTANCE_LOW
         ).apply { description = "Отслеживание пробега по GPS" }
-        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
-            .createNotificationChannel(channel)
+        notificationManager.createNotificationChannel(channel)
     }
 
     private fun buildNotification(text: String): Notification {
