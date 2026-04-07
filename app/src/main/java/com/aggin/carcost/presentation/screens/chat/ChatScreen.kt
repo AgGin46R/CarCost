@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +41,7 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.ChatMessage
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseChatRepository
+import com.aggin.carcost.data.notifications.ActiveChatTracker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -145,6 +147,12 @@ fun ChatScreen(carId: String, navController: NavController) {
     val listState = rememberLazyListState()
     var inputText by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
+
+    // Сообщаем трекеру что пользователь сейчас в этом чате → уведомления подавляются
+    DisposableEffect(carId) {
+        ActiveChatTracker.activeCarId = carId
+        onDispose { ActiveChatTracker.activeCarId = null }
+    }
 
     // Auto-scroll to bottom when new messages arrive
     LaunchedEffect(uiState.messages.size) {

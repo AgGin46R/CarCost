@@ -15,6 +15,7 @@ import com.aggin.carcost.data.local.database.entities.User
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.domain.gamification.DriverScore
 import com.aggin.carcost.domain.gamification.DriverScoreCalculator
+import com.aggin.carcost.data.remote.fcm.FcmTokenManager
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.storage.storage
@@ -151,11 +152,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         val bitmap = BitmapFactory.decodeStream(inputStream)
         inputStream.close()
 
-        // Определяем размер для сжатия (макс 1024px по большей стороне)
+        // Определяем размер для сжатия (макс 1024px по большей стороне, не апскейлируем)
         val maxSize = 1024
         val ratio = minOf(
             maxSize.toFloat() / bitmap.width,
-            maxSize.toFloat() / bitmap.height
+            maxSize.toFloat() / bitmap.height,
+            1.0f  // не увеличивать маленькие изображения
         )
 
         val width = (bitmap.width * ratio).toInt()
@@ -193,15 +195,17 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
 
-                val userId = supabaseAuth.getUserId() ?: throw Exception("User ID not found")
-                val fileName = "$userId/avatar_${System.currentTimeMillis()}.jpg"
+                // Берём userId из уже загруженного currentUser — auth.currentUserOrNull()
+                // может вернуть null пока сессия грузится из storage
+                val userId = currentUser.uid
+                val fileName = "$userId/avatar.jpg"   // фиксированное имя → старый файл автоматически перезаписывается
 
                 // ✅ Сжимаем изображение перед загрузкой
                 val bytes = compressImage(uri)
 
                 android.util.Log.d("ProfileViewModel", "Размер сжатого файла: ${bytes.size / 1024} KB")
 
-                // Загружаем в Supabase Storage
+                // Загружаем в Supabase Storage (upsert перезапишет предыдущий файл)
                 val bucket = supabase.storage.from("avatars")
                 bucket.upload(
                     path = fileName,
@@ -213,7 +217,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 val photoUrl = bucket.publicUrl(fileName)
 
                 // Обновляем в Supabase таблице users
-                supabaseAuth.updateProfile(displayName = null, photoUrl = photoUrl)
+                supabaseAuth.updateProfile(photoUrl = photoUrl)
 
                 // Обновляем в локальной БД
                 val updatedUser = currentUser.copy(photoUrl = photoUrl)
@@ -259,23 +263,18 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
 
-                // Удаляем старое фото из Supabase Storage (если есть)
-                currentUser.photoUrl?.let { url ->
+                // Удаляем файл из Supabase Storage
+                val userId = supabaseAuth.getUserId()
+                if (userId != null) {
                     try {
-                        // Извлекаем путь к файлу из URL
-                        val userId = supabaseAuth.getUserId()
-                        if (userId != null && url.contains(userId)) {
-                            val fileName = url.substringAfter("avatars/")
-                            val bucket = supabase.storage.from("avatars")
-                            bucket.delete(fileName)
-                        }
+                        supabase.storage.from("avatars").delete("$userId/avatar.jpg")
                     } catch (e: Exception) {
-                        android.util.Log.e("ProfileViewModel", "Не удалось удалить файл из Storage", e)
+                        android.util.Log.w("ProfileViewModel", "Не удалось удалить файл из Storage: ${e.message}")
                     }
                 }
 
-                // Обновляем в Supabase таблице users
-                supabaseAuth.updateProfile(displayName = null, photoUrl = null)
+                // Явно обнуляем photo_url в таблице users
+                supabaseAuth.updateProfile(clearPhoto = true)
 
                 // Обновляем в локальной БД
                 val updatedUser = currentUser.copy(photoUrl = null)
@@ -314,7 +313,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 val currentUser = _uiState.value.user ?: return@launch
 
                 // Обновляем в Supabase
-                supabaseAuth.updateProfile(displayName = newName, photoUrl = null)
+                supabaseAuth.updateProfile(displayName = newName)
 
                 // Обновляем локально
                 val updatedUser = currentUser.copy(displayName = newName)
@@ -352,7 +351,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun signOut(navController: NavController) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 1. Выходим из Supabase
+                // 1. Удаляем FCM токен чтобы не получать чужие уведомления после выхода
+                FcmTokenManager.deleteCurrentToken()
                 supabaseAuth.signOut()
 
                 // 2. КРИТИЧНО: Очищаем ВСЕ локальные данные

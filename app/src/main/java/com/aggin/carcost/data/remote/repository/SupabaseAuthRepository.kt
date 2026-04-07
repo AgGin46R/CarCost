@@ -143,21 +143,28 @@ class SupabaseAuthRepository {
     /**
      * Обновление профиля пользователя
      */
-    suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> = withContext(Dispatchers.IO) {
+    /**
+     * @param clearPhoto  если true — явно обнуляет photo_url в БД (нельзя передать null через ?.let)
+     */
+    suspend fun updateProfile(
+        displayName: String? = null,
+        photoUrl: String? = null,
+        clearPhoto: Boolean = false
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val userId = getUserId()
                 ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
 
-            // ✅ Используем buildJsonObject для обновления профиля
             val update = buildJsonObject {
                 displayName?.let { put("display_name", it) }
-                photoUrl?.let { put("photo_url", it) }
+                when {
+                    clearPhoto       -> put("photo_url", null as String?)
+                    photoUrl != null -> put("photo_url", photoUrl)
+                }
             }
 
             supabase.from("users").update(update) {
-                filter {
-                    eq("id", userId)
-                }
+                filter { eq("id", userId) }
             }
 
             Result.success(Unit)

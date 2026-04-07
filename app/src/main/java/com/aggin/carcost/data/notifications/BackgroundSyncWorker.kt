@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.work.*
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.supabase
+import io.github.jan.supabase.gotrue.SessionStatus
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
@@ -109,11 +110,15 @@ class BackgroundSyncWorker(
 
     override suspend fun doWork(): Result {
         return try {
-            val currentUserId = supabase.auth.currentUserOrNull()?.id
-            if (currentUserId == null) {
+            // Ждём пока auth загрузится из storage (может быть асинхронным при старте)
+            val sessionStatus = supabase.auth.sessionStatus.first {
+                it is SessionStatus.Authenticated || it is SessionStatus.NotAuthenticated
+            }
+            if (sessionStatus !is SessionStatus.Authenticated) {
                 Log.d(TAG, "Not authenticated — skipping background sync")
                 return Result.success()
             }
+            val currentUserId = supabase.auth.currentUserOrNull()?.id ?: return Result.success()
 
             val db = AppDatabase.getDatabase(context)
             val prefs = context.syncDataStore.data.first()

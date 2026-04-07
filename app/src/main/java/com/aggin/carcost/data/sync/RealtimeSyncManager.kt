@@ -3,6 +3,7 @@ package com.aggin.carcost.data.sync
 import android.content.Context
 import android.util.Log
 import com.aggin.carcost.data.local.database.AppDatabase
+import com.aggin.carcost.data.notifications.ActiveChatTracker
 import com.aggin.carcost.data.notifications.NotificationHelper
 import com.aggin.carcost.data.remote.repository.CarDto
 import com.aggin.carcost.data.remote.repository.ExpenseDto
@@ -23,6 +24,7 @@ import io.github.jan.supabase.realtime.realtime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -51,7 +53,7 @@ class RealtimeSyncManager(private val context: Context) {
                     is SessionStatus.Authenticated -> {
                         if (activeChannel == null) {
                             Log.d(TAG, "Auth confirmed — starting Realtime channel")
-                            connectChannel()
+                            safeConnect()
                         }
                     }
                     is SessionStatus.NotAuthenticated -> {
@@ -61,6 +63,20 @@ class RealtimeSyncManager(private val context: Context) {
                     else -> Unit
                 }
             }
+        }
+    }
+
+    /** Обёртка над connectChannel — ловит SocketException и другие сетевые ошибки,
+     *  которые иначе крашат приложение через DefaultDispatcher-worker */
+    private suspend fun safeConnect() {
+        try {
+            connectChannel()
+        } catch (e: java.net.SocketException) {
+            Log.w(TAG, "SocketException during Realtime connect — will retry on next auth event: ${e.message}")
+            activeChannel = null
+        } catch (e: Exception) {
+            Log.w(TAG, "Realtime connect failed: ${e.message}")
+            activeChannel = null
         }
     }
 
@@ -85,10 +101,8 @@ class RealtimeSyncManager(private val context: Context) {
                     db.expenseDao().insertExpense(dto.toExpense())
                     Log.d(TAG, "📥 Expense inserted: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = false)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling expense insert", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling expense insert", e) }
+            }.catch { Log.w(TAG, "Expense insert flow error: ${it.message}") }.launchIn(scope)
 
             ch.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
                 table = "expenses"
@@ -98,10 +112,8 @@ class RealtimeSyncManager(private val context: Context) {
                     db.expenseDao().insertExpense(dto.toExpense())
                     Log.d(TAG, "✏️ Expense updated: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = true)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling expense update", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling expense update", e) }
+            }.catch { Log.w(TAG, "Expense update flow error: ${it.message}") }.launchIn(scope)
 
             ch.postgresChangeFlow<PostgresAction.Delete>(schema = "public") {
                 table = "expenses"
@@ -110,10 +122,8 @@ class RealtimeSyncManager(private val context: Context) {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.oldRecord)
                     db.expenseDao().deleteExpenseById(dto.id)
                     Log.d(TAG, "🗑️ Expense deleted: ${dto.id}")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling expense delete", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling expense delete", e) }
+            }.catch { Log.w(TAG, "Expense delete flow error: ${it.message}") }.launchIn(scope)
 
             // ── Cars ──────────────────────────────────────────────────────────
 
@@ -124,10 +134,8 @@ class RealtimeSyncManager(private val context: Context) {
                     val dto = json.decodeFromJsonElement(CarDto.serializer(), change.record)
                     db.carDao().insertCar(dto.toCar())
                     Log.d(TAG, "🚗 Car synced: ${dto.id}")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling car insert", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling car insert", e) }
+            }.catch { Log.w(TAG, "Car insert flow error: ${it.message}") }.launchIn(scope)
 
             ch.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
                 table = "cars"
@@ -136,10 +144,8 @@ class RealtimeSyncManager(private val context: Context) {
                     val dto = json.decodeFromJsonElement(CarDto.serializer(), change.record)
                     db.carDao().insertCar(dto.toCar())
                     Log.d(TAG, "🚗 Car updated: ${dto.id}")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling car update", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling car update", e) }
+            }.catch { Log.w(TAG, "Car update flow error: ${it.message}") }.launchIn(scope)
 
             // ── Maintenance Reminders ─────────────────────────────────────────
 
@@ -147,31 +153,23 @@ class RealtimeSyncManager(private val context: Context) {
                 table = "maintenance_reminders"
             }.onEach { change ->
                 try {
-                    val dto = json.decodeFromJsonElement(
-                        MaintenanceReminderDto.serializer(), change.record
-                    )
+                    val dto = json.decodeFromJsonElement(MaintenanceReminderDto.serializer(), change.record)
                     db.maintenanceReminderDao().insertReminder(dto.toMaintenanceReminder())
                     Log.d(TAG, "🔧 Reminder inserted: ${dto.id}")
                     maybeNotifyReminder(dto, isUpdate = false)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling reminder insert", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling reminder insert", e) }
+            }.catch { Log.w(TAG, "Reminder insert flow error: ${it.message}") }.launchIn(scope)
 
             ch.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
                 table = "maintenance_reminders"
             }.onEach { change ->
                 try {
-                    val dto = json.decodeFromJsonElement(
-                        MaintenanceReminderDto.serializer(), change.record
-                    )
+                    val dto = json.decodeFromJsonElement(MaintenanceReminderDto.serializer(), change.record)
                     db.maintenanceReminderDao().insertReminder(dto.toMaintenanceReminder())
                     Log.d(TAG, "🔧 Reminder updated: ${dto.id}")
                     maybeNotifyReminder(dto, isUpdate = true)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling reminder update", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling reminder update", e) }
+            }.catch { Log.w(TAG, "Reminder update flow error: ${it.message}") }.launchIn(scope)
 
             // ── Chat Messages ─────────────────────────────────────────────────
 
@@ -183,10 +181,8 @@ class RealtimeSyncManager(private val context: Context) {
                     db.chatMessageDao().insert(dto.toChatMessage())
                     Log.d(TAG, "💬 Chat message received: ${dto.id}")
                     maybeNotifyChat(dto)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling chat message", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling chat message", e) }
+            }.catch { Log.w(TAG, "Chat insert flow error: ${it.message}") }.launchIn(scope)
 
             ch.postgresChangeFlow<PostgresAction.Delete>(schema = "public") {
                 table = "chat_messages"
@@ -195,10 +191,8 @@ class RealtimeSyncManager(private val context: Context) {
                     val dto = json.decodeFromJsonElement(ChatMessageDto.serializer(), change.oldRecord)
                     db.chatMessageDao().deleteById(dto.id)
                     Log.d(TAG, "🗑️ Chat message deleted: ${dto.id}")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling chat delete", e)
-                }
-            }.launchIn(scope)
+                } catch (e: Exception) { Log.e(TAG, "Error handling chat delete", e) }
+            }.catch { Log.w(TAG, "Chat delete flow error: ${it.message}") }.launchIn(scope)
 
             ch.subscribe()
             Log.d(TAG, "✅ Realtime channel subscribed")
@@ -276,6 +270,7 @@ class RealtimeSyncManager(private val context: Context) {
     private suspend fun maybeNotifyChat(dto: ChatMessageDto) {
         val currentUserId = supabase.auth.currentUserOrNull()?.id ?: return
         if (dto.userId == currentUserId) return  // own message — skip
+        if (ActiveChatTracker.activeCarId == dto.carId) return  // user is in this chat — skip
 
         val car = db.carDao().getCarById(dto.carId) ?: return
         val carName = "${car.brand} ${car.model}"

@@ -27,4 +27,8 @@ interface CarMemberDao {
 
     @Query("SELECT email FROM car_members WHERE userId = :userId LIMIT 1")
     suspend fun getEmailByUserId(userId: String): String?
+
+    // Удаляет ghost-записи с пустым userId или email (артефакты гонки при старте)
+    @Query("DELETE FROM car_members WHERE carId = :carId AND (userId = '' OR email = '')")
+    suspend fun deleteGhostMembers(carId: String)
 }

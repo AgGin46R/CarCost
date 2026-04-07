@@ -147,30 +147,61 @@ class BugReportViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun collectAppLogs(): List<String> {
         val logs = mutableListOf<String>()
-
         try {
-            // Получаем логи приложения через logcat
-            val process = Runtime.getRuntime().exec("logcat -d -t 500")
-            val bufferedReader = BufferedReader(InputStreamReader(process.inputStream))
+            val twoHoursAgoMs = System.currentTimeMillis() - 2 * 60 * 60 * 1000L
 
+            // Фильтруем по тегам наших классов — работает даже после краша (PID мог смениться).
+            // AndroidRuntime:E — захватывает stack trace при падении приложения.
+            // -T ms — логи за последние 2 часа.
+            val tags = arrayOf(
+                "CarCostApp:V",
+                "RealtimeSync:V",
+                "BackgroundSyncWorker:V",
+                "GpsTripService:V",
+                "ProfileViewModel:V",
+                "ChatViewModel:V",
+                "SupabaseCarMembers:V",
+                "BugReportViewModel:V",
+                "FcmTokenManager:V",
+                "CarCostFCM:V",
+                "AndroidRuntime:E",   // крэш stack trace
+                "*:S"                 // всё остальное — молчать
+            )
+
+            val cmd = arrayOf("logcat", "-d", "-T", twoHoursAgoMs.toString(), "-v", "time", "-s") + tags
+            val process = Runtime.getRuntime().exec(cmd)
+
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
             var line: String?
-            while (bufferedReader.readLine().also { line = it } != null) {
-                // Фильтруем только логи нашего приложения
-                if (line?.contains("CarCost") == true ||
-                    line?.contains("com.aggin.carcost") == true) {
-                    logs.add(line!!)
-                }
+            while (reader.readLine().also { line = it } != null) {
+                line?.let { logs.add(it) }
             }
+            reader.close()
+            process.waitFor()
 
-            bufferedReader.close()
+            // Fallback: если тегов нет — собираем по нашему package name из общего лога
+            if (logs.size <= 2) {
+                logs.clear()
+                val fallbackProcess = Runtime.getRuntime().exec(arrayOf(
+                    "logcat", "-d", "-T", twoHoursAgoMs.toString(), "-v", "time"
+                ))
+                val fbReader = BufferedReader(InputStreamReader(fallbackProcess.inputStream))
+                while (fbReader.readLine().also { line = it } != null) {
+                    val l = line ?: continue
+                    if (l.contains("carcost", ignoreCase = true) ||
+                        l.contains("aggin", ignoreCase = true)) {
+                        logs.add(l)
+                    }
+                }
+                fbReader.close()
+                fallbackProcess.waitFor()
+            }
 
         } catch (e: Exception) {
             Log.e("BugReportViewModel", "Error collecting logs", e)
-            logs.add("Error collecting logs: ${e.message}")
+            logs.add("[Ошибка сбора логов: ${e.message}]")
         }
-
-        // Ограничиваем количество логов
-        return logs.takeLast(200)
+        return logs.takeLast(3000)
     }
 
     private fun getAppVersion(): String {

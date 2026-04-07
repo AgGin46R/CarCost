@@ -10,6 +10,7 @@ import com.aggin.carcost.data.notifications.BackgroundSyncWorker
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
+import com.aggin.carcost.data.remote.fcm.FcmTokenManager
 import com.aggin.carcost.data.sync.RealtimeSyncManager
 import com.yandex.mapkit.MapKitFactory
 import io.github.jan.supabase.SupabaseClient
@@ -18,6 +19,10 @@ import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.realtime.Realtime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
@@ -60,6 +65,11 @@ class App : Application() {
         // Start real-time sync after Supabase is ready
         realtimeSync = RealtimeSyncManager(this)
         realtimeSync.start()
+
+        // Регистрируем FCM токен в Supabase (нужен для push когда приложение закрыто)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            FcmTokenManager.registerCurrentToken()
+        }
     }
 
     private fun scheduleFuelReminder() {

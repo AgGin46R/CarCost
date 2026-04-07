@@ -5,6 +5,7 @@ plugins {
     id("com.google.devtools.ksp") version "2.0.21-1.0.28"
     id("kotlin-parcelize")
     id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21"
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -15,8 +16,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "2.0.0"
+        versionCode = 14
+        versionName = "2.1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -90,8 +91,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     // === END SUPABASE ===
 
-    // Firebase не используется — push через Supabase + WorkManager
-    // implementation("com.google.android.gms:play-services-auth:20.7.0")
+    // Firebase Cloud Messaging — мгновенные push даже когда приложение закрыто
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
 
     // Compose
     implementation(platform("androidx.compose:compose-bom:2024.05.00"))

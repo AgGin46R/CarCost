@@ -124,6 +124,13 @@ object NotificationHelper {
         notify(context, CHANNEL_SOCIAL_ID, notificationId, "$senderName • $carName", message)
     }
 
+    // ── FCM generic (используется CarCostFirebaseMessagingService) ───────────
+
+    /** Показывает уведомление из FCM data-сообщения (title/body уже готовы от Edge Function) */
+    fun sendGenericNotification(context: Context, notificationId: Int, title: String, body: String) {
+        notify(context, CHANNEL_SOCIAL_ID, notificationId, title, body)
+    }
+
     // ── Internal helper ─────────────────────────────────────────────────────
 
     private fun notify(context: Context, channelId: String, id: Int, title: String, body: String) {

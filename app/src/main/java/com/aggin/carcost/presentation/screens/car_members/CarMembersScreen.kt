@@ -1,7 +1,6 @@
 package com.aggin.carcost.presentation.screens.car_members
 
 import android.app.Application
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,7 +38,7 @@ data class CarMembersUiState(
     val members: List<CarMember> = emptyList(),
     val currentUserRole: MemberRole? = null,
     val isLoading: Boolean = true,
-    val pendingInviteLink: String? = null,  // share this after creating invitation
+    val inviteSentToEmail: String? = null,  // показывается после успешной отправки
     val errorMessage: String? = null
 )
 
@@ -74,14 +73,13 @@ class CarMembersViewModel(
     }
 
     private suspend fun ensureOwnerRegistered() {
-        // Check AFTER sync — only insert OWNER locally if Supabase has no record for this user.
-        // This handles the case where the user created the car before the members feature existed.
-        // Members (DRIVER / MECHANIC) already have a record from syncMembersFromSupabase(), so
-        // this branch is skipped for them and they keep their correct role.
+        // Если currentUserId пустой — auth ещё не загрузился, ничего не делаем
+        // (иначе вставляется ghost-запись с пустым userId/email)
+        if (currentUserId.isBlank()) return
+
         val existing = dao.getRoleForUser(carId, currentUserId)
         if (existing == null) {
-            val email = auth.getCurrentUserEmail() ?: ""
-            // Remove any stale entry first to avoid duplicates, then insert as OWNER
+            val email = auth.getCurrentUserEmail() ?: return  // нет email — пропускаем
             dao.removeMember(carId, currentUserId)
             dao.insert(CarMember(
                 id = UUID.randomUUID().toString(),
@@ -90,33 +88,28 @@ class CarMembersViewModel(
                 email = email,
                 role = MemberRole.OWNER
             ))
-            // Register in Supabase so other members can see this user
             supabaseMembers.ensureOwner(carId)
         }
     }
 
     private suspend fun syncMembersFromSupabase() {
+        // Чистим ghost-записи с пустым userId/email перед синхронизацией
+        dao.deleteGhostMembers(carId)
+
         val remoteMembers = supabaseMembers.getMembersByCarId(carId).getOrNull() ?: return
-        // For each remote member, delete the existing local record by (carId, userId) before
-        // inserting the Supabase record. This prevents duplicates caused by different `id` UUIDs
-        // (locally-generated vs Supabase-generated).
         remoteMembers.forEach { member ->
             dao.removeMember(member.carId, member.userId)
             dao.insert(member)
         }
-        // Remove all pending_ placeholders — real records are now in DB
         dao.deletePendingMembers(carId)
     }
 
-    /** Creates invitation in Supabase and returns share link via uiState.pendingInviteLink */
+    /** Создаёт приглашение в Supabase и отправляет его напрямую на email */
     fun inviteMember(email: String, role: MemberRole) {
         viewModelScope.launch {
-            // Only create invitation in Supabase — NO local pending insert
-            // The real member record will appear after they accept
             supabaseMembers.createInvitation(carId, email, role)
-                .onSuccess { token ->
-                    val link = "https://YOUR_GITHUB_USERNAME.github.io/carcost-invite/?token=$token"
-                    _uiState.value = _uiState.value.copy(pendingInviteLink = link)
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(inviteSentToEmail = email)
                 }
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(
@@ -133,8 +126,8 @@ class CarMembersViewModel(
         }
     }
 
-    fun clearInviteLink() {
-        _uiState.value = _uiState.value.copy(pendingInviteLink = null)
+    fun clearInviteSent() {
+        _uiState.value = _uiState.value.copy(inviteSentToEmail = null)
     }
 
     fun clearError() {
@@ -168,34 +161,15 @@ fun CarMembersScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showInviteDialog by remember { mutableStateOf(false) }
 
-    // Share sheet — показывается когда готова invite-ссылка
-    uiState.pendingInviteLink?.let { link ->
+    // Подтверждение успешной отправки приглашения
+    uiState.inviteSentToEmail?.let { email ->
         AlertDialog(
-            onDismissRequest = { viewModel.clearInviteLink() },
-            title = { Text("Ссылка-приглашение готова") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Отправьте эту ссылку приглашённому пользователю. Ссылка действительна 7 дней.")
-                    Text(
-                        link,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
+            onDismissRequest = { viewModel.clearInviteSent() },
+            icon = { Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Приглашение отправлено") },
+            text = { Text("Приглашение отправлено на $email. Пользователь получит письмо со ссылкой для присоединения.") },
             confirmButton = {
-                TextButton(onClick = {
-                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, "Вас приглашают в CarCost для совместного учёта автомобиля.\n\nОткройте ссылку в приложении CarCost:\n$link")
-                        putExtra(Intent.EXTRA_SUBJECT, "Приглашение в CarCost")
-                    }
-                    context.startActivity(Intent.createChooser(sendIntent, "Поделиться приглашением"))
-                    viewModel.clearInviteLink()
-                }) { Text("Поделиться") }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.clearInviteLink() }) { Text("Закрыть") }
+                TextButton(onClick = { viewModel.clearInviteSent() }) { Text("OK") }
             }
         )
     }
