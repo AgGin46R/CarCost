@@ -23,6 +23,7 @@ import io.github.jan.supabase.realtime.RealtimeChannel
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,10 +37,29 @@ import kotlin.math.abs
 class RealtimeSyncManager(private val context: Context) {
 
     private val db = AppDatabase.getDatabase(context)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val json = Json { ignoreUnknownKeys = true }
     private val TAG = "RealtimeSync"
+    private val json = Json { ignoreUnknownKeys = true }
     private val carRepo = SupabaseCarRepository(SupabaseAuthRepository())
+
+    // Перехватывает SocketException/IOException, которые бросает Supabase Realtime при обрыве
+    // TCP-соединения (сеть упала, телефон ушёл в сон). Без этого хэндлера exception
+    // попадает в SupervisorJob без обработчика → FATAL EXCEPTION → краш.
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        when (throwable) {
+            is java.net.SocketException,
+            is java.io.IOException,
+            is java.net.ConnectException -> {
+                Log.w(TAG, "Network error in Realtime scope (caught, no crash): ${throwable.message}")
+            }
+            else -> {
+                Log.e(TAG, "Unexpected error in Realtime scope: ${throwable.message}", throwable)
+            }
+        }
+        // Сбрасываем канал — reconnectIfNeeded() при следующем форегрануде переподключится
+        activeChannel = null
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + exceptionHandler)
 
     private var activeChannel: RealtimeChannel? = null
 

@@ -65,6 +65,20 @@ class App : Application() {
         scheduleAiInsightsRefresh()
         BackgroundSyncWorker.schedule(this)
 
+        // Глобальная страховка: SocketException из любой корутины не должна крашить приложение.
+        // RealtimeSyncManager имеет свой CoroutineExceptionHandler, но на случай если где-то
+        // ещё остался незащищённый scope — ловим здесь и только логируем.
+        val originalUncaughtHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            if (throwable is java.net.SocketException || throwable is java.io.IOException) {
+                Log.e(TAG, "Global safety net: network exception on ${thread.name} — suppressed crash", throwable)
+                // Не крашим — это сетевые ошибки от потери соединения, не баги в коде
+            } else {
+                // Всё остальное (NPE, OOM, IllegalState...) — крашим как обычно
+                originalUncaughtHandler?.uncaughtException(thread, throwable)
+            }
+        }
+
         // Start real-time sync after Supabase is ready
         realtimeSync = RealtimeSyncManager(this)
         realtimeSync.start()
