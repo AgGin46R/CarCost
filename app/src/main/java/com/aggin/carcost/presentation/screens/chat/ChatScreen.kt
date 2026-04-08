@@ -1,10 +1,16 @@
 package com.aggin.carcost.presentation.screens.chat
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,14 +22,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -31,19 +39,23 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.ChatMessage
+import com.aggin.carcost.data.notifications.ActiveChatTracker
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseChatRepository
-import com.aggin.carcost.data.notifications.ActiveChatTracker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -71,13 +83,9 @@ class ChatViewModel(
 
     init {
         val currentUserId = auth.getUserId() ?: ""
-        val car = null // car name loaded below
-
         viewModelScope.launch {
-            // Get car name
             val carEntity = db.carDao().getCarById(carId)
             val carName = carEntity?.let { "${it.brand} ${it.model}" } ?: ""
-
             _uiState.update { it.copy(currentUserId = currentUserId, carName = carName) }
 
             // Initial sync from Supabase
@@ -85,31 +93,42 @@ class ChatViewModel(
                 remote.forEach { db.chatMessageDao().insert(it) }
             }
 
-            // Observe local DB (Realtime will keep it updated)
+            // Observe local DB (Realtime keeps it updated)
             db.chatMessageDao().getMessagesByCarId(carId).collect { messages ->
                 _uiState.update { it.copy(messages = messages, isLoading = false) }
             }
         }
     }
 
-    fun sendMessage(text: String) {
+    fun sendMessage(text: String, mediaUri: Uri? = null) {
         val trimmed = text.trim()
-        if (trimmed.isBlank()) return
+        if (trimmed.isBlank() && mediaUri == null) return
         val userId = auth.getUserId() ?: return
         val email = auth.getCurrentUserEmail() ?: ""
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSending = true) }
             try {
+                val messageId = UUID.randomUUID().toString()
+                var mediaUrl: String? = null
+
+                // Upload image if provided
+                if (mediaUri != null) {
+                    val bytes = compressImage(mediaUri)
+                    if (bytes != null) {
+                        mediaUrl = supabaseChat.uploadMedia(carId, messageId, bytes).getOrNull()
+                    }
+                }
+
                 val message = ChatMessage(
+                    id = messageId,
                     carId = carId,
                     userId = userId,
                     userEmail = email,
-                    message = trimmed
+                    message = trimmed,
+                    mediaUrl = mediaUrl
                 )
-                // Insert locally immediately for instant feedback
                 db.chatMessageDao().insert(message)
-                // Sync to Supabase (failure is non-fatal — BackgroundSync will retry)
                 supabaseChat.sendMessage(message)
             } finally {
                 _uiState.update { it.copy(isSending = false) }
@@ -119,12 +138,34 @@ class ChatViewModel(
 
     fun deleteMessage(message: ChatMessage) {
         viewModelScope.launch {
-            // Delete remote first — if it succeeds, Realtime will remove it locally via RealtimeSyncManager.
-            // If remote fails, keep local copy so user doesn't lose data silently.
             val result = supabaseChat.deleteMessage(message.id)
             if (result.isSuccess) {
                 db.chatMessageDao().deleteById(message.id)
             }
+        }
+    }
+
+    private fun compressImage(uri: Uri): ByteArray? {
+        return try {
+            val stream = getApplication<Application>().contentResolver.openInputStream(uri)
+                ?: return null
+            val original = BitmapFactory.decodeStream(stream)
+            stream.close()
+            val maxDim = 1200
+            val scaled = if (original.width > maxDim || original.height > maxDim) {
+                val ratio = minOf(maxDim.toFloat() / original.width, maxDim.toFloat() / original.height)
+                Bitmap.createScaledBitmap(
+                    original,
+                    (original.width * ratio).toInt(),
+                    (original.height * ratio).toInt(),
+                    true
+                )
+            } else original
+            ByteArrayOutputStream().also { out ->
+                scaled.compress(Bitmap.CompressFormat.JPEG, 82, out)
+            }.toByteArray()
+        } catch (e: Exception) {
+            null
         }
     }
 }
@@ -151,20 +192,42 @@ fun ChatScreen(carId: String, navController: NavController) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     var inputText by remember { mutableStateOf("") }
+    var pendingMediaUri by remember { mutableStateOf<Uri?>(null) }
+    var fullscreenImageUrl by remember { mutableStateOf<String?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    // Сообщаем трекеру что пользователь сейчас в этом чате → уведомления подавляются
+    // Image picker launcher
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> pendingMediaUri = uri }
+
+    // Suppress notifications while in this chat
     DisposableEffect(carId) {
         ActiveChatTracker.activeCarId = carId
         onDispose { ActiveChatTracker.activeCarId = null }
     }
 
-    // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(uiState.messages.size) {
-        if (uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.messages.size - 1)
+    // ── Scroll management ──────────────────────────────────────────────────────
+    // Track whether initial scroll to bottom has been done (instant, no animation)
+    var hasScrolledInitially by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.isLoading) {
+        if (!uiState.isLoading && uiState.messages.isNotEmpty() && !hasScrolledInitially) {
+            val grouped = uiState.messages.groupByDate()
+            val lastIndex = grouped.size + uiState.messages.size - 1
+            listState.scrollToItem(lastIndex)
+            hasScrolledInitially = true
         }
     }
+
+    LaunchedEffect(uiState.messages.size) {
+        if (hasScrolledInitially && uiState.messages.isNotEmpty()) {
+            val grouped = uiState.messages.groupByDate()
+            val lastIndex = grouped.size + uiState.messages.size - 1
+            listState.animateScrollToItem(lastIndex)
+        }
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     Scaffold(
         topBar = {
@@ -195,10 +258,14 @@ fun ChatScreen(carId: String, navController: NavController) {
             ChatInputBar(
                 text = inputText,
                 isSending = uiState.isSending,
+                pendingMediaUri = pendingMediaUri,
                 onTextChange = { inputText = it },
+                onAttachImage = { imagePicker.launch("image/*") },
+                onRemoveImage = { pendingMediaUri = null },
                 onSend = {
-                    viewModel.sendMessage(inputText)
+                    viewModel.sendMessage(inputText, pendingMediaUri)
                     inputText = ""
+                    pendingMediaUri = null
                     keyboard?.hide()
                 }
             )
@@ -232,20 +299,47 @@ fun ChatScreen(carId: String, navController: NavController) {
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Group messages by date
                 val grouped = uiState.messages.groupByDate()
                 grouped.forEach { (dateLabel, msgs) ->
-                    item(key = "date_$dateLabel") {
-                        DateSeparator(dateLabel)
-                    }
+                    item(key = "date_$dateLabel") { DateSeparator(dateLabel) }
                     items(msgs, key = { it.id }) { message ->
                         val isMe = message.userId == uiState.currentUserId
                         ChatBubble(
                             message = message,
                             isMe = isMe,
-                            onDelete = if (isMe) ({ viewModel.deleteMessage(message) }) else null
+                            onDelete = if (isMe) ({ viewModel.deleteMessage(message) }) else null,
+                            onImageClick = { url -> fullscreenImageUrl = url }
                         )
                     }
+                }
+            }
+        }
+    }
+
+    // Fullscreen image viewer
+    fullscreenImageUrl?.let { url ->
+        Dialog(
+            onDismissRequest = { fullscreenImageUrl = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable { fullscreenImageUrl = null },
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Фото",
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.Fit
+                )
+                IconButton(
+                    onClick = { fullscreenImageUrl = null },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                ) {
+                    Icon(Icons.Default.Close, null, tint = Color.White)
                 }
             }
         }
@@ -258,44 +352,98 @@ fun ChatScreen(carId: String, navController: NavController) {
 private fun ChatInputBar(
     text: String,
     isSending: Boolean,
+    pendingMediaUri: Uri?,
     onTextChange: (String) -> Unit,
+    onAttachImage: () -> Unit,
+    onRemoveImage: () -> Unit,
     onSend: () -> Unit
 ) {
-    Surface(
-        tonalElevation = 3.dp,
-        shadowElevation = 8.dp
-    ) {
-        Row(
+    val canSend = (text.isNotBlank() || pendingMediaUri != null) && !isSending
+
+    Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .navigationBarsPadding()
-                .imePadding(),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .imePadding()
         ) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = onTextChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Сообщение...") },
-                shape = RoundedCornerShape(24.dp),
-                maxLines = 4,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Send
-                ),
-                keyboardActions = KeyboardActions(onSend = { if (text.isNotBlank()) onSend() })
-            )
-            FilledIconButton(
-                onClick = onSend,
-                enabled = text.isNotBlank() && !isSending,
-                modifier = Modifier.size(48.dp)
+            // Image preview strip
+            if (pendingMediaUri != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AsyncImage(
+                        model = pendingMediaUri,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Фото прикреплено",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onRemoveImage) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Удалить фото",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                HorizontalDivider()
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                if (isSending) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.AutoMirrored.Filled.Send, null)
+                // Attach image button
+                IconButton(
+                    onClick = onAttachImage,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Default.AttachFile,
+                        contentDescription = "Прикрепить фото",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = onTextChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Сообщение...") },
+                    shape = RoundedCornerShape(24.dp),
+                    maxLines = 4,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Send
+                    ),
+                    keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() })
+                )
+
+                FilledIconButton(
+                    onClick = onSend,
+                    enabled = canSend,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    if (isSending) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.AutoMirrored.Filled.Send, null)
+                    }
                 }
             }
         }
@@ -307,7 +455,8 @@ private fun ChatInputBar(
 private fun ChatBubble(
     message: ChatMessage,
     isMe: Boolean,
-    onDelete: (() -> Unit)?
+    onDelete: (() -> Unit)?,
+    onImageClick: (String) -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -332,7 +481,6 @@ private fun ChatBubble(
         horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
     ) {
         if (!isMe) {
-            // Avatar
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -364,28 +512,45 @@ private fun ChatBubble(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = if (isMe) 16.dp else 4.dp,
-                            topEnd = if (isMe) 4.dp else 16.dp,
-                            bottomStart = 16.dp,
-                            bottomEnd = 16.dp
-                        )
-                    )
-                    .background(
-                        if (isMe) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    message.message,
-                    color = if (isMe) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 15.sp
+            // Image bubble (if has media)
+            message.mediaUrl?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Фото",
+                    modifier = Modifier
+                        .widthIn(max = 240.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onImageClick(url) },
+                    contentScale = ContentScale.FillWidth
                 )
+                if (message.message.isNotBlank()) Spacer(Modifier.height(4.dp))
+            }
+
+            // Text bubble (if has text)
+            if (message.message.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = if (isMe) 16.dp else 4.dp,
+                                topEnd = if (isMe) 4.dp else 16.dp,
+                                bottomStart = 16.dp,
+                                bottomEnd = 16.dp
+                            )
+                        )
+                        .background(
+                            if (isMe) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        message.message,
+                        color = if (isMe) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 15.sp
+                    )
+                }
             }
 
             Row(
@@ -443,13 +608,12 @@ private fun DateSeparator(label: String) {
 
 private fun List<ChatMessage>.groupByDate(): List<Pair<String, List<ChatMessage>>> {
     val dateFmt = SimpleDateFormat("d MMMM yyyy", Locale.getDefault())
-    val todayFmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-    val today = todayFmt.format(Date())
-    val yesterday = todayFmt.format(Date(System.currentTimeMillis() - 86_400_000))
+    val keyFmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+    val today = keyFmt.format(Date())
+    val yesterday = keyFmt.format(Date(System.currentTimeMillis() - 86_400_000))
 
     return groupBy { msg ->
-        val key = todayFmt.format(Date(msg.createdAt))
-        when (key) {
+        when (keyFmt.format(Date(msg.createdAt))) {
             today -> "Сегодня"
             yesterday -> "Вчера"
             else -> dateFmt.format(Date(msg.createdAt))

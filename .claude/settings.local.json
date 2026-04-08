@@ -19,7 +19,11 @@
       "Bash(grep -A 2 \"fun.*toCar\\(\\)\\\\|fun.*toExpense\\(\\)\\\\|fun.*toMaintenanceReminder\\(\\)\" /e/CarCost/app/src/main/java/com/aggin/carcost/data/remote/repository/Supabase*.kt)",
       "Bash(grep -n \"internal fun CarDto.toCar\\\\|internal fun ExpenseDto.toExpense\\\\|fun MaintenanceReminderDto.toMaintenanceReminder\" /e/CarCost/app/src/main/java/com/aggin/carcost/data/remote/repository/*.kt)",
       "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__deploy_edge_function",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__get_edge_function",
+      "Bash(Remove-Item \"E:\\\\CarCost\\\\app\\\\src\\\\main\\\\java\\\\com\\\\aggin\\\\carcost\\\\presentation\\\\screens\\\\recalls\\\\RecallsScreen.kt\" -Force)",
+      "Bash(Remove-Item \"E:\\\\CarCost\\\\app\\\\src\\\\main\\\\java\\\\com\\\\aggin\\\\carcost\\\\data\\\\remote\\\\api\\\\NhtsaRecallApiService.kt\" -Force)",
+      "Bash(Write-Host \"Deleted\")"
     ]
   }
 }

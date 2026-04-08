@@ -153,14 +153,6 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.DirectionsCar, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Отзывы NHTSA") },
-                                onClick = {
-                                    showMenu = false
-                                    navController.navigate(Screen.Recalls.createRoute(carId))
-                                },
-                                leadingIcon = { Icon(Icons.Default.Report, null) }
-                            )
-                            DropdownMenuItem(
                                 text = { Text("Экспорт данных") },
                                 onClick = {
                                     showMenu = false

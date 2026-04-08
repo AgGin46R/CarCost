@@ -25,5 +25,6 @@ data class ChatMessage(
     val userId: String,
     val userEmail: String,
     val message: String,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val mediaUrl: String? = null
 )

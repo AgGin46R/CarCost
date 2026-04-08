@@ -59,11 +59,18 @@ class CarCostFirebaseMessagingService : FirebaseMessagingService() {
             else                    -> 74_000 + Math.abs(carId.hashCode() % 9_000)
         }
 
+        val navType = when (table) {
+            "chat_messages" -> NotificationHelper.NAV_TYPE_CHAT
+            else            -> NotificationHelper.NAV_TYPE_CAR
+        }
+
         NotificationHelper.sendGenericNotification(
             context = applicationContext,
             notificationId = notifId,
             title = title,
             body = body,
+            carId = carId.ifBlank { null },
+            navType = navType.takeIf { carId.isNotBlank() }
         )
     }
 }

@@ -2,41 +2,44 @@ package com.aggin.carcost.data.notifications
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import androidx.core.app.NotificationCompat
+import com.aggin.carcost.MainActivity
 import com.aggin.carcost.R
 
 object NotificationHelper {
 
-    // ── Existing channel (ТО + топливо) ────────────────────────────────────
+    // Navigation extra keys — used by MainActivity to deep-link after tap
+    const val EXTRA_NAV_TYPE = "nav_type"
+    const val EXTRA_NAV_CAR_ID = "nav_car_id"
+    const val NAV_TYPE_CHAT = "chat"
+    const val NAV_TYPE_CAR = "car"
+
+    // ── Channels ────────────────────────────────────────────────────────────────
     const val CHANNEL_ID = "maintenance_reminders"
     private const val CHANNEL_NAME = "Напоминания о ТО"
     private const val CHANNEL_DESCRIPTION = "Уведомления о предстоящем техническом обслуживании"
 
-    // ── New channel (совместный доступ) ─────────────────────────────────────
     const val CHANNEL_SOCIAL_ID = "shared_activity"
     private const val CHANNEL_SOCIAL_NAME = "Активность участников"
     private const val CHANNEL_SOCIAL_DESCRIPTION =
         "Уведомления о расходах и ТО, добавленных другими участниками автомобиля"
 
-    /** Creates ALL notification channels. Call once from App.onCreate(). */
     fun createChannel(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
                 .apply { description = CHANNEL_DESCRIPTION }
         )
         manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_SOCIAL_ID,
-                CHANNEL_SOCIAL_NAME,
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply { description = CHANNEL_SOCIAL_DESCRIPTION }
+            NotificationChannel(CHANNEL_SOCIAL_ID, CHANNEL_SOCIAL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
+                .apply { description = CHANNEL_SOCIAL_DESCRIPTION }
         )
     }
 
-    // ── ТО / Топливо уведомления ────────────────────────────────────────────
+    // ── ТО / Топливо ─────────────────────────────────────────────────────────
 
     fun sendFuelNotification(
         context: Context,
@@ -45,13 +48,13 @@ object NotificationHelper {
         estimatedLiters: Double,
         tankCapacity: Double?
     ) {
-        val contentText = if (tankCapacity != null) {
+        val body = if (tankCapacity != null) {
             val pct = (estimatedLiters / tankCapacity * 100).toInt()
             "Топливо на исходе — около $pct% бака (~${estimatedLiters.toInt()} л)"
         } else {
             "Топливо на исходе — около ${estimatedLiters.toInt()} л"
         }
-        notify(context, CHANNEL_ID, notificationId, "Заправьте автомобиль: $carName", contentText)
+        notify(context, CHANNEL_ID, notificationId, "Заправьте автомобиль: $carName", body)
     }
 
     fun sendMaintenanceNotification(
@@ -61,55 +64,12 @@ object NotificationHelper {
         serviceType: String,
         kmLeft: Int
     ) {
-        val contentText = when {
+        val body = when {
             kmLeft <= 0 -> "$serviceType — требуется сейчас!"
             kmLeft <= 100 -> "$serviceType — осталось $kmLeft км"
             else -> "$serviceType — через $kmLeft км"
         }
-        notify(context, CHANNEL_ID, notificationId, "Техобслуживание: $carName", contentText)
-    }
-
-    // ── Совместный доступ: расходы ──────────────────────────────────────────
-
-    /**
-     * Shown when another car member adds or edits an expense.
-     * @param actorEmail  Email участника (e.g. "wife@mail.com") or null → "Участник"
-     * @param isUpdate    true = редактирование, false = добавление
-     */
-    fun sendSharedExpenseNotification(
-        context: Context,
-        notificationId: Int,
-        carName: String,
-        categoryName: String,
-        amount: Double,
-        actorEmail: String?,
-        isUpdate: Boolean
-    ) {
-        val actor = actorEmail?.substringBefore("@") ?: "Участник"
-        val action = if (isUpdate) "изменил(а) расход" else "добавил(а) расход"
-        val title = "$actor $action • $carName"
-        val body = "$categoryName — ${"%.0f".format(amount)} ₽"
-        notify(context, CHANNEL_SOCIAL_ID, notificationId, title, body)
-    }
-
-    // ── Совместный доступ: напоминания ТО ───────────────────────────────────
-
-    /**
-     * Shown when another car member adds or updates a maintenance reminder.
-     */
-    fun sendSharedReminderNotification(
-        context: Context,
-        notificationId: Int,
-        carName: String,
-        reminderTypeName: String,
-        actorEmail: String?,
-        isUpdate: Boolean
-    ) {
-        val actor = actorEmail?.substringBefore("@") ?: "Участник"
-        val action = if (isUpdate) "обновил(а) напоминание" else "добавил(а) напоминание ТО"
-        val title = "$actor $action • $carName"
-        val body = reminderTypeName
-        notify(context, CHANNEL_SOCIAL_ID, notificationId, title, body)
+        notify(context, CHANNEL_ID, notificationId, "Техобслуживание: $carName", body)
     }
 
     // ── Чат ─────────────────────────────────────────────────────────────────
@@ -119,34 +79,108 @@ object NotificationHelper {
         notificationId: Int,
         carName: String,
         senderName: String,
-        message: String
+        message: String,
+        carId: String? = null
     ) {
-        notify(context, CHANNEL_SOCIAL_ID, notificationId, "$senderName • $carName", message)
+        val intent = carId?.let { makeNavIntent(context, NAV_TYPE_CHAT, it, notificationId) }
+        notify(context, CHANNEL_SOCIAL_ID, notificationId, "$senderName • $carName", message, intent)
     }
 
-    // ── FCM generic (используется CarCostFirebaseMessagingService) ───────────
+    // ── Расходы ────────────────────────────────────────────────────────────
 
-    /** Показывает уведомление из FCM data-сообщения (title/body уже готовы от Edge Function) */
-    fun sendGenericNotification(context: Context, notificationId: Int, title: String, body: String) {
-        notify(context, CHANNEL_SOCIAL_ID, notificationId, title, body)
+    fun sendSharedExpenseNotification(
+        context: Context,
+        notificationId: Int,
+        carName: String,
+        categoryName: String,
+        amount: Double,
+        actorEmail: String?,
+        isUpdate: Boolean,
+        carId: String? = null
+    ) {
+        val actor = actorEmail?.substringBefore("@") ?: "Участник"
+        val action = if (isUpdate) "изменил(а) расход" else "добавил(а) расход"
+        val title = "$actor $action • $carName"
+        val body = "$categoryName — ${"%.0f".format(amount)} ₽"
+        val intent = carId?.let { makeNavIntent(context, NAV_TYPE_CAR, it, notificationId) }
+        notify(context, CHANNEL_SOCIAL_ID, notificationId, title, body, intent)
     }
 
-    // ── Internal helper ─────────────────────────────────────────────────────
+    // ── Напоминания ТО ──────────────────────────────────────────────────────
 
-    private fun notify(context: Context, channelId: String, id: Int, title: String, body: String) {
+    fun sendSharedReminderNotification(
+        context: Context,
+        notificationId: Int,
+        carName: String,
+        reminderTypeName: String,
+        actorEmail: String?,
+        isUpdate: Boolean,
+        carId: String? = null
+    ) {
+        val actor = actorEmail?.substringBefore("@") ?: "Участник"
+        val action = if (isUpdate) "обновил(а) напоминание" else "добавил(а) напоминание ТО"
+        val title = "$actor $action • $carName"
+        val intent = carId?.let { makeNavIntent(context, NAV_TYPE_CAR, it, notificationId) }
+        notify(context, CHANNEL_SOCIAL_ID, notificationId, title, reminderTypeName, intent)
+    }
+
+    // ── FCM generic ─────────────────────────────────────────────────────────
+
+    fun sendGenericNotification(
+        context: Context,
+        notificationId: Int,
+        title: String,
+        body: String,
+        carId: String? = null,
+        navType: String? = null
+    ) {
+        val intent = if (carId != null && navType != null)
+            makeNavIntent(context, navType, carId, notificationId) else null
+        notify(context, CHANNEL_SOCIAL_ID, notificationId, title, body, intent)
+    }
+
+    // ── Internal ────────────────────────────────────────────────────────────
+
+    private fun makeNavIntent(
+        context: Context,
+        navType: String,
+        carId: String,
+        requestCode: Int
+    ): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NAV_TYPE, navType)
+            putExtra(EXTRA_NAV_CAR_ID, carId)
+        }
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun notify(
+        context: Context,
+        channelId: String,
+        id: Int,
+        title: String,
+        body: String,
+        contentIntent: PendingIntent? = null
+    ) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val notification = NotificationCompat.Builder(context, channelId)
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification_wrench)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
-            .build()
-        manager.notify(id, notification)
+        if (contentIntent != null) builder.setContentIntent(contentIntent)
+        manager.notify(id, builder.build())
     }
 
-    // ── Category / type name helpers ────────────────────────────────────────
+    // ── Display name helpers ─────────────────────────────────────────────────
 
     fun categoryDisplayName(category: String): String = when (category.uppercase()) {
         "FUEL"         -> "Топливо"

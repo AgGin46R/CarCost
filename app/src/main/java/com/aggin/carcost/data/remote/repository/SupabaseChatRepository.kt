@@ -1,9 +1,11 @@
 package com.aggin.carcost.data.remote.repository
 
+import android.util.Log
 import com.aggin.carcost.data.local.database.entities.ChatMessage
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -16,7 +18,8 @@ data class ChatMessageDto(
     @SerialName("user_id") val userId: String,
     @SerialName("user_email") val userEmail: String,
     val message: String,
-    @SerialName("created_at") val createdAt: Long
+    @SerialName("created_at") val createdAt: Long,
+    @SerialName("media_url") val mediaUrl: String? = null
 )
 
 fun ChatMessageDto.toChatMessage() = ChatMessage(
@@ -25,7 +28,8 @@ fun ChatMessageDto.toChatMessage() = ChatMessage(
     userId = userId,
     userEmail = userEmail,
     message = message,
-    createdAt = createdAt
+    createdAt = createdAt,
+    mediaUrl = mediaUrl
 )
 
 fun ChatMessage.toDto() = ChatMessageDto(
@@ -34,7 +38,8 @@ fun ChatMessage.toDto() = ChatMessageDto(
     userId = userId,
     userEmail = userEmail,
     message = message,
-    createdAt = createdAt
+    createdAt = createdAt,
+    mediaUrl = mediaUrl
 )
 
 class SupabaseChatRepository {
@@ -75,4 +80,22 @@ class SupabaseChatRepository {
             Result.failure(e)
         }
     }
+
+    /**
+     * Upload image bytes to Supabase Storage (chat_media bucket).
+     * Returns the public URL of the uploaded image.
+     */
+    suspend fun uploadMedia(carId: String, messageId: String, bytes: ByteArray): Result<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                val path = "$carId/$messageId.jpg"
+                val bucket = supabase.storage.from("chat_media")
+                bucket.upload(path = path, data = bytes, upsert = true)
+                val url = bucket.publicUrl(path)
+                Result.success(url)
+            } catch (e: Exception) {
+                Log.e("ChatRepo", "uploadMedia failed", e)
+                Result.failure(e)
+            }
+        }
 }

@@ -22,16 +22,20 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-    /** Token extracted from carcost://invite?token=... deep link, passed to AppNavigation */
+    /** Token extracted from carcost://invite?token=... deep link */
     var pendingInviteToken: String? = null
+        private set
+
+    /** Navigation route to open when activity starts from a notification tap */
+    var pendingNavRoute by androidx.compose.runtime.mutableStateOf<String?>(null)
         private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Extract invite token from deep link if launched via carcost://invite
         pendingInviteToken = intent?.data
             ?.takeIf { it.scheme == "carcost" && it.host == "invite" }
             ?.getQueryParameter("token")
+        pendingNavRoute = extractNavRoute(intent)
 
         setContent {
             val settingsManager = SettingsManager(LocalContext.current)
@@ -39,7 +43,6 @@ class MainActivity : ComponentActivity() {
             var pendingUpdate by remember { mutableStateOf<VersionInfo?>(null) }
             val updateManager = remember { AppUpdateManager(this) }
 
-            // Check for update once on start
             LaunchedEffect(Unit) {
                 pendingUpdate = updateManager.checkForUpdate()
             }
@@ -49,7 +52,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation(pendingInviteToken = pendingInviteToken)
+                    AppNavigation(
+                        pendingInviteToken = pendingInviteToken,
+                        pendingNavRoute = pendingNavRoute,
+                        onNavRouteConsumed = { pendingNavRoute = null }
+                    )
 
                     pendingUpdate?.let { info ->
                         AlertDialog(
@@ -86,9 +93,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
-        // Handle deep link when app is already open (singleTop/singleTask)
         pendingInviteToken = intent.data
             ?.takeIf { it.scheme == "carcost" && it.host == "invite" }
             ?.getQueryParameter("token")
+        pendingNavRoute = extractNavRoute(intent)
+    }
+
+    private fun extractNavRoute(intent: android.content.Intent?): String? {
+        val navType = intent?.getStringExtra(com.aggin.carcost.data.notifications.NotificationHelper.EXTRA_NAV_TYPE)
+            ?: return null
+        val carId = intent.getStringExtra(com.aggin.carcost.data.notifications.NotificationHelper.EXTRA_NAV_CAR_ID)
+            ?: return null
+        return when (navType) {
+            com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_CHAT -> "chat/$carId"
+            else -> "car_detail/$carId"
+        }
     }
 }

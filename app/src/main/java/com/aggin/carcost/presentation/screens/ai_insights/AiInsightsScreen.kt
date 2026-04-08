@@ -47,6 +47,13 @@ fun AiInsightsScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.refresh() }) {
+                        if (uiState.isRefreshing) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Обновить")
+                        }
+                    }
                     if (uiState.unreadCount > 0) {
                         TextButton(onClick = { viewModel.markAllRead() }) {
                             Text("Прочитать все")
@@ -103,6 +110,13 @@ fun AiInsightsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (uiState.isRefreshing) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                    }
+                }
+            }
             items(uiState.insights, key = { it.id }) { insight ->
                 InsightCard(
                     insight = insight,

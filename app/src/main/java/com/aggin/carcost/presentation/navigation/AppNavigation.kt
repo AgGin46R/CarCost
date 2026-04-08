@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,7 +43,6 @@ import com.aggin.carcost.presentation.screens.service_timeline.ServiceTimelineSc
 import com.aggin.carcost.presentation.screens.ai_insights.AiInsightsScreen
 import com.aggin.carcost.presentation.screens.fuel_prices.FuelPricesScreen
 import com.aggin.carcost.presentation.screens.vin_decoder.VinDecoderScreen
-import com.aggin.carcost.presentation.screens.recalls.RecallsScreen
 import com.aggin.carcost.presentation.screens.achievements.AchievementsScreen
 import com.aggin.carcost.presentation.screens.goals.GoalsScreen
 import com.aggin.carcost.presentation.screens.car_members.CarMembersScreen
@@ -148,10 +148,6 @@ sealed class Screen(val route: String) {
         fun createRoute(carId: String) = "vin_decoder/$carId"
     }
 
-    object Recalls : Screen("recalls/{carId}") {
-        fun createRoute(carId: String) = "recalls/$carId"
-    }
-
     object Achievements : Screen("achievements")
 
     object Goals : Screen("goals/{carId}") {
@@ -184,7 +180,9 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavigation(
     navController: NavHostController = rememberNavController(),
-    pendingInviteToken: String? = null
+    pendingInviteToken: String? = null,
+    pendingNavRoute: String? = null,
+    onNavRouteConsumed: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
@@ -203,6 +201,17 @@ fun AppNavigation(
         isLoggedIn && pendingInviteToken != null -> Screen.AcceptInvite.createRoute(pendingInviteToken)
         isLoggedIn -> Screen.Home.route
         else -> Screen.Login.route
+    }
+
+    // Handle deep link from notification tap (after NavHost is initialized)
+    LaunchedEffect(pendingNavRoute) {
+        val route = pendingNavRoute ?: return@LaunchedEffect
+        if (!isLoggedIn) return@LaunchedEffect
+        kotlinx.coroutines.delay(200) // wait for NavHost to be ready
+        try {
+            navController.navigate(route) { launchSingleTop = true }
+        } catch (_: Exception) { }
+        onNavRouteConsumed()
     }
 
     NavHost(
@@ -456,15 +465,6 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             VinDecoderScreen(carId = carId, navController = navController)
-        }
-
-        // Отзывы NHTSA
-        composable(
-            route = Screen.Recalls.route,
-            arguments = listOf(navArgument("carId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: ""
-            RecallsScreen(carId = carId, navController = navController)
         }
 
         // AI-советы

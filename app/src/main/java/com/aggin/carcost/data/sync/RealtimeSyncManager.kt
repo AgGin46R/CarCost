@@ -281,7 +281,8 @@ class RealtimeSyncManager(private val context: Context) {
             categoryName = categoryName,
             amount = dto.amount,
             actorEmail = actorEmail,
-            isUpdate = isUpdate
+            isUpdate = isUpdate,
+            carId = dto.carId
         )
         Log.d(TAG, "🔔 Sent expense notification for ${dto.id}")
     }
@@ -306,7 +307,8 @@ class RealtimeSyncManager(private val context: Context) {
             carName = carName,
             reminderTypeName = typeName,
             actorEmail = actorEmail,
-            isUpdate = isUpdate
+            isUpdate = isUpdate,
+            carId = dto.carId
         )
         Log.d(TAG, "🔔 Sent reminder notification for ${dto.id}")
     }
@@ -326,7 +328,8 @@ class RealtimeSyncManager(private val context: Context) {
             notificationId = notifId,
             carName = carName,
             senderName = sender,
-            message = dto.message
+            message = dto.message,
+            carId = dto.carId
         )
         Log.d(TAG, "🔔 Sent chat notification from $sender")
     }

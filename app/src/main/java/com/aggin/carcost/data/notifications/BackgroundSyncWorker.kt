@@ -164,7 +164,8 @@ class BackgroundSyncWorker(
                         notificationId = CHAT_BASE + abs(carId.hashCode() % 8_000),
                         carName = carName,
                         senderName = sender,
-                        message = body
+                        message = body,
+                        carId = carId
                     )
                     notifCount++
                 }
@@ -201,7 +202,8 @@ class BackgroundSyncWorker(
                             categoryName = categoryName,
                             amount = exp.amount,
                             actorEmail = actorEmail,
-                            isUpdate = false
+                            isUpdate = false,
+                            carId = carId
                         )
                     } else {
                         NotificationHelper.sendSharedExpenseNotification(
@@ -211,7 +213,8 @@ class BackgroundSyncWorker(
                             categoryName = "${expenses.size} новых расходов",
                             amount = expenses.sumOf { it.amount },
                             actorEmail = actorEmail,
-                            isUpdate = false
+                            isUpdate = false,
+                            carId = carId
                         )
                     }
                     notifCount++
@@ -246,7 +249,8 @@ class BackgroundSyncWorker(
                         carName = carName,
                         reminderTypeName = typeName,
                         actorEmail = actorEmail,
-                        isUpdate = false
+                        isUpdate = false,
+                        carId = carId
                     )
                     notifCount++
                 }
