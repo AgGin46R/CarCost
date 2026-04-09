@@ -1,9 +1,11 @@
 package com.aggin.carcost.presentation.screens.auth
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.aggin.carcost.data.auth.GoogleSignInHelper
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.User
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
@@ -18,9 +20,13 @@ import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
 import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
 import com.aggin.carcost.data.sync.SyncRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class RegisterUiState(
@@ -65,6 +71,10 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         supabasePlannedExpenseRepo = supabasePlannedExpenseRepo // ✅ ДОБАВЛЕНО
     )
 
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val emailRegex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
+
     private val _uiState = MutableStateFlow(RegisterUiState())
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
 
@@ -95,6 +105,11 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
         if (state.email.isBlank()) {
             _uiState.value = state.copy(errorMessage = "Введите email")
+            return
+        }
+
+        if (!emailRegex.matches(state.email.trim())) {
+            _uiState.value = state.copy(errorMessage = "Введите корректный email адрес")
             return
         }
 
@@ -188,6 +203,46 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     isLoading = false,
                     errorMessage = e.message ?: "Неизвестная ошибка"
                 )
+            }
+        }
+    }
+
+    fun signInWithGoogle(context: Context) {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            try {
+                val tokenResult = GoogleSignInHelper.getIdToken(context)
+                tokenResult.fold(
+                    onSuccess = { token ->
+                        val result = supabaseAuth.signInWithGoogle(token)
+                        result.fold(
+                            onSuccess = { userInfo ->
+                                val displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"')
+                                val photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+                                val user = User(
+                                    uid = userInfo.id,
+                                    email = userInfo.email ?: "",
+                                    displayName = displayName ?: "Пользователь",
+                                    photoUrl = photoUrl,
+                                    lastLoginAt = System.currentTimeMillis()
+                                )
+                                database.userDao().insertUser(user)
+                                _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                                backgroundScope.launch {
+                                    try { syncRepo.safeInitialSync() } catch (_: Exception) { }
+                                }
+                            },
+                            onFailure = { e ->
+                                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка входа через Google") }
+                            }
+                        )
+                    },
+                    onFailure = { e ->
+                        _uiState.update { it.copy(isLoading = false, errorMessage = if (e.message == "Отменено пользователем") null else e.message) }
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, errorMessage = e.message) }
             }
         }
     }

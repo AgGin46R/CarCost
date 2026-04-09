@@ -19,7 +19,9 @@ data class ChatMessageDto(
     @SerialName("user_email") val userEmail: String,
     val message: String,
     @SerialName("created_at") val createdAt: Long,
-    @SerialName("media_url") val mediaUrl: String? = null
+    @SerialName("media_url") val mediaUrl: String? = null,
+    @SerialName("media_type") val mediaType: String? = null,
+    @SerialName("file_name") val fileName: String? = null
 )
 
 fun ChatMessageDto.toChatMessage() = ChatMessage(
@@ -29,7 +31,9 @@ fun ChatMessageDto.toChatMessage() = ChatMessage(
     userEmail = userEmail,
     message = message,
     createdAt = createdAt,
-    mediaUrl = mediaUrl
+    mediaUrl = mediaUrl,
+    mediaType = mediaType,
+    fileName = fileName
 )
 
 fun ChatMessage.toDto() = ChatMessageDto(
@@ -39,7 +43,9 @@ fun ChatMessage.toDto() = ChatMessageDto(
     userEmail = userEmail,
     message = message,
     createdAt = createdAt,
-    mediaUrl = mediaUrl
+    mediaUrl = mediaUrl,
+    mediaType = mediaType,
+    fileName = fileName
 )
 
 class SupabaseChatRepository {
@@ -82,20 +88,27 @@ class SupabaseChatRepository {
     }
 
     /**
-     * Upload image bytes to Supabase Storage (chat_media bucket).
-     * Returns the public URL of the uploaded image.
+     * Upload any media file to Supabase Storage (chat_media bucket).
+     * @param extension  File extension without dot: "jpg", "m4a", "pdf", etc.
+     * @param mimeType   MIME type for the Content-Type header.
+     * Returns the public URL of the uploaded file.
      */
-    suspend fun uploadMedia(carId: String, messageId: String, bytes: ByteArray): Result<String> =
-        withContext(Dispatchers.IO) {
-            try {
-                val path = "$carId/$messageId.jpg"
-                val bucket = supabase.storage.from("chat_media")
-                bucket.upload(path = path, data = bytes, upsert = true)
-                val url = bucket.publicUrl(path)
-                Result.success(url)
-            } catch (e: Exception) {
-                Log.e("ChatRepo", "uploadMedia failed", e)
-                Result.failure(e)
-            }
+    suspend fun uploadMedia(
+        carId: String,
+        messageId: String,
+        bytes: ByteArray,
+        extension: String = "jpg",
+        mimeType: String = "image/jpeg"
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val path = "$carId/$messageId.$extension"
+            val bucket = supabase.storage.from("chat_media")
+            bucket.upload(path = path, data = bytes, upsert = true)
+            val url = bucket.publicUrl(path)
+            Result.success(url)
+        } catch (e: Exception) {
+            Log.e("ChatRepo", "uploadMedia failed", e)
+            Result.failure(e)
         }
+    }
 }

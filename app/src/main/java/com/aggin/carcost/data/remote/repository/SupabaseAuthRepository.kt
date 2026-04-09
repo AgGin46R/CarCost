@@ -2,7 +2,9 @@ package com.aggin.carcost.data.remote.repository
 
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.Email
+import io.github.jan.supabase.gotrue.providers.builtin.IDToken
 import io.github.jan.supabase.gotrue.user.UserInfo
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +71,41 @@ class SupabaseAuthRepository {
                     eq("id", user.id)
                 }
             }
+
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Вход через Google (Credential Manager ID Token → Supabase IDToken provider).
+     * Upsert профиля: если пользователь уже существует — обновляем last_login_at,
+     * если новый — создаём запись с именем и фото из Google аккаунта.
+     */
+    suspend fun signInWithGoogle(idToken: String): Result<UserInfo> = withContext(Dispatchers.IO) {
+        try {
+            supabase.auth.signInWith(IDToken) {
+                provider = Google
+                this.idToken = idToken
+            }
+
+            val user = supabase.auth.currentUserOrNull()
+                ?: return@withContext Result.failure(Exception("Пользователь не найден"))
+
+            val displayName = user.userMetadata?.get("full_name")?.toString()?.trim('"')
+            val photoUrl = user.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+
+            val profile = buildJsonObject {
+                put("id", user.id)
+                put("email", user.email ?: "")
+                put("display_name", displayName)
+                put("photo_url", photoUrl)
+                put("last_login_at", System.currentTimeMillis())
+            }
+
+            // upsert: создать если нет, обновить если есть
+            supabase.from("users").upsert(profile)
 
             Result.success(user)
         } catch (e: Exception) {

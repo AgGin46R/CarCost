@@ -15,8 +15,6 @@ import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.text.SimpleDateFormat
-import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
@@ -44,11 +42,6 @@ class BackgroundSyncWorker(
     companion object {
         const val WORK_NAME = "background_sync"
         private const val TAG = "BackgroundSyncWorker"
-
-        // ISO 8601 formatter for Supabase timestamptz queries
-        private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
-        }
 
         private const val CHAT_BASE     = 50_000
         private const val EXPENSE_BASE  = 55_000
@@ -125,9 +118,7 @@ class BackgroundSyncWorker(
             val lastSyncMs = prefs[KEY_LAST_SYNC] ?: (System.currentTimeMillis() - 60_000L)
             val nowMs = System.currentTimeMillis()
 
-            // Convert epoch ms → ISO 8601 UTC string for Supabase filter
-            val lastSyncIso = isoFormat.format(Date(lastSyncMs))
-            Log.d(TAG, "Background sync: checking since $lastSyncIso")
+            Log.d(TAG, "Background sync: checking since $lastSyncMs ms")
 
             // Get IDs of all cars this user is a member of
             val myCars = db.carDao().getAllActiveCars().first().map { it.id }
@@ -144,7 +135,7 @@ class BackgroundSyncWorker(
                     .select {
                         filter {
                             isIn("car_id", myCars)
-                            gt("created_at", lastSyncIso)
+                            gt("created_at", lastSyncMs)
                             neq("user_id", currentUserId)
                         }
                         order("created_at", Order.DESCENDING)
@@ -179,7 +170,7 @@ class BackgroundSyncWorker(
                     .select {
                         filter {
                             isIn("car_id", myCars)
-                            gt("created_at", lastSyncIso)
+                            gt("created_at", lastSyncMs)
                             neq("user_id", currentUserId)
                         }
                         order("created_at", Order.DESCENDING)
@@ -229,7 +220,7 @@ class BackgroundSyncWorker(
                     .select {
                         filter {
                             isIn("car_id", myCars)
-                            gt("created_at", lastSyncIso)
+                            gt("created_at", lastSyncMs)
                             neq("user_id", currentUserId)
                         }
                         order("created_at", Order.DESCENDING)

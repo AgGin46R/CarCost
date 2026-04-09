@@ -11,6 +11,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -18,6 +21,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.aggin.carcost.R
 import androidx.compose.material.icons.filled.DirectionsCar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,7 +147,28 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Кнопка входа через Google
+            val context = LocalContext.current
+            OutlinedButton(
+                onClick = { viewModel.signInWithGoogle(context) },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = !uiState.isLoading
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_google),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color.Unspecified
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Войти через Google", style = MaterialTheme.typography.titleSmall)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Кнопка регистрации
             TextButton(

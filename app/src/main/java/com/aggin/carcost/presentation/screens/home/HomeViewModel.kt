@@ -40,6 +40,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     init {
         checkPendingInvitations()
         syncRemindersForAllCars()
+        syncCarsIfLocalEmpty()
     }
 
     /**
@@ -63,6 +64,50 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 Log.d("HomeViewModel", "Reminder sync skipped: ${e.message}")
+            }
+        }
+    }
+
+    private fun syncCarsIfLocalEmpty() {
+        viewModelScope.launch {
+            try {
+                val localCars = carRepository.getAllActiveCars().first()
+                if (localCars.isEmpty() && supabaseAuth.isUserLoggedIn()) {
+                    Log.d("HomeViewModel", "Local cars empty — pulling from Supabase...")
+
+                    // 1. Собственные машины
+                    val ownedCars = mutableListOf<com.aggin.carcost.data.local.database.entities.Car>()
+                    supabaseCarRepo.getAllCars()
+                        .onSuccess { ownedCars.addAll(it) }
+                        .onFailure { Log.e("HomeViewModel", "Failed to pull owned cars", it) }
+
+                    // 2. Shared машины из car_members
+                    val sharedCarIds = mutableListOf<String>()
+                    supabaseMembers.getMyMemberCarIds()
+                        .onSuccess { ids ->
+                            // только те, которых нет среди собственных
+                            sharedCarIds.addAll(ids.filter { id -> ownedCars.none { it.id == id } })
+                        }
+                        .onFailure { Log.e("HomeViewModel", "Failed to get member car ids", it) }
+
+                    val sharedCars = mutableListOf<com.aggin.carcost.data.local.database.entities.Car>()
+                    sharedCarIds.forEach { carId ->
+                        supabaseCarRepo.fetchSharedCar(carId)
+                            .onSuccess { sharedCars.add(it) }
+                            .onFailure { Log.w("HomeViewModel", "Could not fetch shared car $carId") }
+                    }
+
+                    // 3. Вставляем всё в локальную БД
+                    val allCars = ownedCars + sharedCars
+                    allCars.forEach { car ->
+                        try { carRepository.insertCar(car) } catch (e: Exception) {
+                            Log.w("HomeViewModel", "Failed to insert car ${car.id}: ${e.message}")
+                        }
+                    }
+                    Log.d("HomeViewModel", "✅ Pulled ${ownedCars.size} owned + ${sharedCars.size} shared cars")
+                }
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "syncCarsIfLocalEmpty failed", e)
             }
         }
     }

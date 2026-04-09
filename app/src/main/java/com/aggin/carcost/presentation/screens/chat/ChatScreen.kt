@@ -1,12 +1,23 @@
 package com.aggin.carcost.presentation.screens.chat
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
+import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -22,25 +33,27 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -53,9 +66,15 @@ import com.aggin.carcost.data.local.database.entities.ChatMessage
 import com.aggin.carcost.data.notifications.ActiveChatTracker
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseChatRepository
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -66,7 +85,13 @@ data class ChatUiState(
     val carName: String = "",
     val isLoading: Boolean = true,
     val isSending: Boolean = false,
-    val currentUserId: String = ""
+    val currentUserId: String = "",
+    val isRecording: Boolean = false,
+    val recordingDurationSeconds: Int = 0,
+    // message.id → playback progress 0f..1f
+    val playbackProgress: Map<String, Float> = emptyMap(),
+    // currently playing message id
+    val playingMessageId: String? = null
 )
 
 class ChatViewModel(
@@ -81,6 +106,10 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    private var mediaRecorder: MediaRecorder? = null
+    private var recordingFilePath: String? = null
+    private val mediaPlayers = mutableMapOf<String, MediaPlayer>()
+
     init {
         val currentUserId = auth.getUserId() ?: ""
         viewModelScope.launch {
@@ -88,18 +117,17 @@ class ChatViewModel(
             val carName = carEntity?.let { "${it.brand} ${it.model}" } ?: ""
             _uiState.update { it.copy(currentUserId = currentUserId, carName = carName) }
 
-            // Initial sync from Supabase
             supabaseChat.getMessages(carId).onSuccess { remote ->
                 remote.forEach { db.chatMessageDao().insert(it) }
             }
 
-            // Observe local DB (Realtime keeps it updated)
             db.chatMessageDao().getMessagesByCarId(carId).collect { messages ->
                 _uiState.update { it.copy(messages = messages, isLoading = false) }
             }
         }
     }
 
+    /** Send a text message, optionally with an image. */
     fun sendMessage(text: String, mediaUri: Uri? = null) {
         val trimmed = text.trim()
         if (trimmed.isBlank() && mediaUri == null) return
@@ -112,11 +140,10 @@ class ChatViewModel(
                 val messageId = UUID.randomUUID().toString()
                 var mediaUrl: String? = null
 
-                // Upload image if provided
                 if (mediaUri != null) {
                     val bytes = compressImage(mediaUri)
                     if (bytes != null) {
-                        mediaUrl = supabaseChat.uploadMedia(carId, messageId, bytes).getOrNull()
+                        mediaUrl = supabaseChat.uploadMedia(carId, messageId, bytes, "jpg", "image/jpeg").getOrNull()
                     }
                 }
 
@@ -126,7 +153,8 @@ class ChatViewModel(
                     userId = userId,
                     userEmail = email,
                     message = trimmed,
-                    mediaUrl = mediaUrl
+                    mediaUrl = mediaUrl,
+                    mediaType = if (mediaUrl != null) "image" else null
                 )
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
@@ -134,6 +162,201 @@ class ChatViewModel(
                 _uiState.update { it.copy(isSending = false) }
             }
         }
+    }
+
+    /** Send a file (pdf, doc, etc.) */
+    fun sendFile(uri: Uri, fileName: String) {
+        val userId = auth.getUserId() ?: return
+        val email = auth.getCurrentUserEmail() ?: ""
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSending = true) }
+            try {
+                val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.readBytes()
+                    ?: return@launch
+                val extension = fileName.substringAfterLast('.', "bin")
+                val mimeType = mimeTypeForExtension(extension)
+                val messageId = UUID.randomUUID().toString()
+
+                val mediaUrl = supabaseChat.uploadMedia(carId, messageId, bytes, extension, mimeType).getOrNull()
+
+                val message = ChatMessage(
+                    id = messageId,
+                    carId = carId,
+                    userId = userId,
+                    userEmail = email,
+                    message = "",
+                    mediaUrl = mediaUrl,
+                    mediaType = "file",
+                    fileName = fileName
+                )
+                db.chatMessageDao().insert(message)
+                supabaseChat.sendMessage(message)
+            } finally {
+                _uiState.update { it.copy(isSending = false) }
+            }
+        }
+    }
+
+    /** Start audio recording. */
+    fun startRecording(context: Context) {
+        try {
+            val file = File(context.cacheDir, "voice_${System.currentTimeMillis()}.m4a")
+            recordingFilePath = file.absolutePath
+            mediaRecorder = MediaRecorder(context).apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioSamplingRate(44100)
+                setAudioEncodingBitRate(128000)
+                setOutputFile(file.absolutePath)
+                prepare()
+                start()
+            }
+            _uiState.update { it.copy(isRecording = true, recordingDurationSeconds = 0) }
+            viewModelScope.launch {
+                while (_uiState.value.isRecording) {
+                    delay(1000)
+                    _uiState.update { it.copy(recordingDurationSeconds = it.recordingDurationSeconds + 1) }
+                }
+            }
+        } catch (e: Exception) {
+            cancelRecording()
+        }
+    }
+
+    /** Stop recording and send the voice message. */
+    fun stopAndSendRecording() {
+        val path = recordingFilePath ?: run { cancelRecording(); return }
+        val durationSec = _uiState.value.recordingDurationSeconds
+        val userId = auth.getUserId() ?: run { cancelRecording(); return }
+        val email = auth.getCurrentUserEmail() ?: ""
+
+        try {
+            mediaRecorder?.stop()
+        } catch (_: Exception) { }
+        mediaRecorder?.release()
+        mediaRecorder = null
+        _uiState.update { it.copy(isRecording = false) }
+
+        if (durationSec < 1) {
+            File(path).delete()
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSending = true) }
+            try {
+                val bytes = File(path).readBytes()
+                File(path).delete()
+                val messageId = UUID.randomUUID().toString()
+                val mediaUrl = supabaseChat.uploadMedia(
+                    carId, messageId, bytes, "m4a", "audio/m4a"
+                ).getOrNull()
+
+                val message = ChatMessage(
+                    id = messageId,
+                    carId = carId,
+                    userId = userId,
+                    userEmail = email,
+                    message = "",
+                    mediaUrl = mediaUrl,
+                    mediaType = "audio",
+                    fileName = "voice_${durationSec}s.m4a"
+                )
+                db.chatMessageDao().insert(message)
+                supabaseChat.sendMessage(message)
+            } finally {
+                _uiState.update { it.copy(isSending = false) }
+            }
+        }
+    }
+
+    /** Cancel recording without sending. */
+    fun cancelRecording() {
+        try {
+            mediaRecorder?.stop()
+        } catch (_: Exception) { }
+        mediaRecorder?.release()
+        mediaRecorder = null
+        recordingFilePath?.let { File(it).delete() }
+        recordingFilePath = null
+        _uiState.update { it.copy(isRecording = false, recordingDurationSeconds = 0) }
+    }
+
+    /** Toggle playback for a voice message. */
+    fun togglePlayback(message: ChatMessage) {
+        val url = message.mediaUrl ?: return
+        val currentlyPlayingId = _uiState.value.playingMessageId
+
+        if (currentlyPlayingId == message.id) {
+            // Pause/resume
+            mediaPlayers[message.id]?.let { player ->
+                if (player.isPlaying) {
+                    player.pause()
+                    _uiState.update { it.copy(playingMessageId = null) }
+                } else {
+                    player.start()
+                    _uiState.update { it.copy(playingMessageId = message.id) }
+                    trackPlayback(message.id, player)
+                }
+            }
+            return
+        }
+
+        // Stop previous player
+        currentlyPlayingId?.let { stopPlayer(it) }
+
+        viewModelScope.launch {
+            try {
+                val player = MediaPlayer().apply {
+                    setDataSource(url)
+                    prepareAsync()
+                    setOnPreparedListener {
+                        it.start()
+                        _uiState.update { s -> s.copy(playingMessageId = message.id) }
+                        trackPlayback(message.id, it)
+                    }
+                    setOnCompletionListener {
+                        _uiState.update { s ->
+                            s.copy(
+                                playingMessageId = null,
+                                playbackProgress = s.playbackProgress - message.id
+                            )
+                        }
+                        mediaPlayers.remove(message.id)?.release()
+                    }
+                    setOnErrorListener { _, _, _ ->
+                        _uiState.update { s -> s.copy(playingMessageId = null) }
+                        true
+                    }
+                }
+                mediaPlayers[message.id] = player
+            } catch (_: Exception) {
+                _uiState.update { it.copy(playingMessageId = null) }
+            }
+        }
+    }
+
+    private fun trackPlayback(messageId: String, player: MediaPlayer) {
+        viewModelScope.launch {
+            while (mediaPlayers[messageId] == player && player.isPlaying) {
+                val duration = player.duration
+                if (duration > 0) {
+                    val progress = player.currentPosition.toFloat() / duration
+                    _uiState.update { it.copy(playbackProgress = it.playbackProgress + (messageId to progress)) }
+                }
+                delay(100)
+            }
+        }
+    }
+
+    private fun stopPlayer(messageId: String) {
+        mediaPlayers.remove(messageId)?.let { player ->
+            try { player.stop() } catch (_: Exception) { }
+            player.release()
+        }
+        _uiState.update { it.copy(playingMessageId = null) }
     }
 
     fun deleteMessage(message: ChatMessage) {
@@ -145,28 +368,25 @@ class ChatViewModel(
         }
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        mediaPlayers.values.forEach { try { it.release() } catch (_: Exception) { } }
+        mediaPlayers.clear()
+        try { mediaRecorder?.release() } catch (_: Exception) { }
+    }
+
     private fun compressImage(uri: Uri): ByteArray? {
         return try {
-            val stream = getApplication<Application>().contentResolver.openInputStream(uri)
-                ?: return null
+            val stream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
             val original = BitmapFactory.decodeStream(stream)
             stream.close()
             val maxDim = 1200
             val scaled = if (original.width > maxDim || original.height > maxDim) {
                 val ratio = minOf(maxDim.toFloat() / original.width, maxDim.toFloat() / original.height)
-                Bitmap.createScaledBitmap(
-                    original,
-                    (original.width * ratio).toInt(),
-                    (original.height * ratio).toInt(),
-                    true
-                )
+                Bitmap.createScaledBitmap(original, (original.width * ratio).toInt(), (original.height * ratio).toInt(), true)
             } else original
-            ByteArrayOutputStream().also { out ->
-                scaled.compress(Bitmap.CompressFormat.JPEG, 82, out)
-            }.toByteArray()
-        } catch (e: Exception) {
-            null
-        }
+            ByteArrayOutputStream().also { out -> scaled.compress(Bitmap.CompressFormat.JPEG, 82, out) }.toByteArray()
+        } catch (_: Exception) { null }
     }
 }
 
@@ -182,7 +402,7 @@ class ChatViewModelFactory(
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ChatScreen(carId: String, navController: NavController) {
     val context = LocalContext.current
@@ -193,22 +413,30 @@ fun ChatScreen(carId: String, navController: NavController) {
     val listState = rememberLazyListState()
     var inputText by remember { mutableStateOf("") }
     var pendingMediaUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingFileUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingFileName by remember { mutableStateOf<String?>(null) }
     var fullscreenImageUrl by remember { mutableStateOf<String?>(null) }
+    var showAttachSheet by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    // Image picker launcher
-    val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> pendingMediaUri = uri }
+    val audioPermission = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
 
-    // Suppress notifications while in this chat
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        pendingMediaUri = uri
+    }
+
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            pendingFileUri = uri
+            pendingFileName = getFileName(context, uri)
+        }
+    }
+
     DisposableEffect(carId) {
         ActiveChatTracker.activeCarId = carId
         onDispose { ActiveChatTracker.activeCarId = null }
     }
 
-    // ── Scroll management ──────────────────────────────────────────────────────
-    // Track whether initial scroll to bottom has been done (instant, no animation)
     var hasScrolledInitially by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isLoading) {
@@ -227,7 +455,6 @@ fun ChatScreen(carId: String, navController: NavController) {
             listState.animateScrollToItem(lastIndex)
         }
     }
-    // ──────────────────────────────────────────────────────────────────────────
 
     Scaffold(
         topBar = {
@@ -258,14 +485,36 @@ fun ChatScreen(carId: String, navController: NavController) {
             ChatInputBar(
                 text = inputText,
                 isSending = uiState.isSending,
+                isRecording = uiState.isRecording,
+                recordingDurationSeconds = uiState.recordingDurationSeconds,
                 pendingMediaUri = pendingMediaUri,
+                pendingFileName = pendingFileName,
                 onTextChange = { inputText = it },
-                onAttachImage = { imagePicker.launch("image/*") },
+                onAttachClick = { showAttachSheet = true },
                 onRemoveImage = { pendingMediaUri = null },
+                onRemoveFile = { pendingFileUri = null; pendingFileName = null },
+                onMicClick = {
+                    if (audioPermission.status.isGranted) {
+                        viewModel.startRecording(context)
+                    } else {
+                        audioPermission.launchPermissionRequest()
+                    }
+                },
+                onCancelRecording = { viewModel.cancelRecording() },
+                onStopAndSend = { viewModel.stopAndSendRecording() },
                 onSend = {
-                    viewModel.sendMessage(inputText, pendingMediaUri)
-                    inputText = ""
-                    pendingMediaUri = null
+                    when {
+                        pendingFileUri != null && pendingFileName != null -> {
+                            viewModel.sendFile(pendingFileUri!!, pendingFileName!!)
+                            pendingFileUri = null
+                            pendingFileName = null
+                        }
+                        else -> {
+                            viewModel.sendMessage(inputText, pendingMediaUri)
+                            inputText = ""
+                            pendingMediaUri = null
+                        }
+                    }
                     keyboard?.hide()
                 }
             )
@@ -280,16 +529,8 @@ fun ChatScreen(carId: String, navController: NavController) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("💬", fontSize = 48.sp)
                     Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Нет сообщений",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "Напишите первым!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("Нет сообщений", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Напишите первым!", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -307,12 +548,47 @@ fun ChatScreen(carId: String, navController: NavController) {
                         ChatBubble(
                             message = message,
                             isMe = isMe,
+                            isPlaying = uiState.playingMessageId == message.id,
+                            playbackProgress = uiState.playbackProgress[message.id] ?: 0f,
                             onDelete = if (isMe) ({ viewModel.deleteMessage(message) }) else null,
-                            onImageClick = { url -> fullscreenImageUrl = url }
+                            onImageClick = { url -> fullscreenImageUrl = url },
+                            onPlayPause = { viewModel.togglePlayback(message) },
+                            onOpenFile = { url, name -> openFile(context, url, name) }
                         )
                     }
                 }
             }
+        }
+    }
+
+    // Attach bottom sheet
+    if (showAttachSheet) {
+        ModalBottomSheet(onDismissRequest = { showAttachSheet = false }) {
+            ListItem(
+                leadingContent = { Icon(Icons.Default.Image, null, tint = MaterialTheme.colorScheme.primary) },
+                headlineContent = { Text("Фото из галереи") },
+                modifier = Modifier.clickable {
+                    imagePicker.launch("image/*")
+                    showAttachSheet = false
+                }
+            )
+            ListItem(
+                leadingContent = { Icon(Icons.Default.InsertDriveFile, null, tint = MaterialTheme.colorScheme.secondary) },
+                headlineContent = { Text("Документ") },
+                supportingContent = { Text("PDF, Word, TXT, JSON, PPTX") },
+                modifier = Modifier.clickable {
+                    filePicker.launch(arrayOf(
+                        "application/pdf",
+                        "text/plain",
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/json"
+                    ))
+                    showAttachSheet = false
+                }
+            )
+            Spacer(Modifier.height(16.dp))
         }
     }
 
@@ -323,10 +599,7 @@ fun ChatScreen(carId: String, navController: NavController) {
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .clickable { fullscreenImageUrl = null },
+                modifier = Modifier.fillMaxSize().background(Color.Black).clickable { fullscreenImageUrl = null },
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
@@ -346,103 +619,114 @@ fun ChatScreen(carId: String, navController: NavController) {
     }
 }
 
-// ── Composables ───────────────────────────────────────────────────────────────
+// ── Input Bar ─────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ChatInputBar(
     text: String,
     isSending: Boolean,
+    isRecording: Boolean,
+    recordingDurationSeconds: Int,
     pendingMediaUri: Uri?,
+    pendingFileName: String?,
     onTextChange: (String) -> Unit,
-    onAttachImage: () -> Unit,
+    onAttachClick: () -> Unit,
     onRemoveImage: () -> Unit,
+    onRemoveFile: () -> Unit,
+    onMicClick: () -> Unit,
+    onCancelRecording: () -> Unit,
+    onStopAndSend: () -> Unit,
     onSend: () -> Unit
 ) {
-    val canSend = (text.isNotBlank() || pendingMediaUri != null) && !isSending
+    val canSend = (text.isNotBlank() || pendingMediaUri != null || pendingFileName != null) && !isSending
+    val showMic = text.isBlank() && pendingMediaUri == null && pendingFileName == null
 
     Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()
         ) {
-            // Image preview strip
-            if (pendingMediaUri != null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AsyncImage(
-                        model = pendingMediaUri,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Фото прикреплено",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = onRemoveImage) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Удалить фото",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                HorizontalDivider()
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // Attach image button
-                IconButton(
-                    onClick = onAttachImage,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        Icons.Default.AttachFile,
-                        contentDescription = "Прикрепить фото",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = onTextChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Сообщение...") },
-                    shape = RoundedCornerShape(24.dp),
-                    maxLines = 4,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences,
-                        imeAction = ImeAction.Send
-                    ),
-                    keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() })
+            if (isRecording) {
+                // ── Recording mode UI ──────────────────────────────────────────
+                RecordingBar(
+                    durationSeconds = recordingDurationSeconds,
+                    onCancel = onCancelRecording,
+                    onStop = onStopAndSend
                 )
+            } else {
+                // ── Pending image preview ──────────────────────────────────────
+                if (pendingMediaUri != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = pendingMediaUri,
+                            contentDescription = null,
+                            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Фото прикреплено", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                        IconButton(onClick = onRemoveImage) { Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    HorizontalDivider()
+                }
 
-                FilledIconButton(
-                    onClick = onSend,
-                    enabled = canSend,
-                    modifier = Modifier.size(48.dp)
+                // ── Pending file preview ───────────────────────────────────────
+                if (pendingFileName != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            fileIcon(pendingFileName),
+                            null,
+                            tint = fileColor(pendingFileName),
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            pendingFileName,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        IconButton(onClick = onRemoveFile) { Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    HorizontalDivider()
+                }
+
+                // ── Input row ──────────────────────────────────────────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    if (isSending) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    IconButton(onClick = onAttachClick, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.AttachFile, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = onTextChange,
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Сообщение...") },
+                        shape = RoundedCornerShape(24.dp),
+                        maxLines = 4,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() })
+                    )
+
+                    if (showMic) {
+                        FilledIconButton(onClick = onMicClick, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.Mic, "Голосовое сообщение")
+                        }
                     } else {
-                        Icon(Icons.AutoMirrored.Filled.Send, null)
+                        FilledIconButton(onClick = onSend, enabled = canSend, modifier = Modifier.size(48.dp)) {
+                            if (isSending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            else Icon(Icons.AutoMirrored.Filled.Send, null)
+                        }
                     }
                 }
             }
@@ -450,13 +734,62 @@ private fun ChatInputBar(
     }
 }
 
+@Composable
+private fun RecordingBar(
+    durationSeconds: Int,
+    onCancel: () -> Unit,
+    onStop: () -> Unit
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.8f, targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+        label = "pulse"
+    )
+
+    Surface(tonalElevation = 3.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onCancel) {
+                Icon(Icons.Default.Delete, "Отменить запись", tint = MaterialTheme.colorScheme.error)
+            }
+            Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier.scale(scale).size(12.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                formatDuration(durationSeconds),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(Modifier.weight(1f))
+            FilledIconButton(
+                onClick = onStop,
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Icon(Icons.Default.Stop, "Остановить запись", tint = Color.White)
+            }
+        }
+    }
+}
+
+// ── Chat Bubble ───────────────────────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatBubble(
     message: ChatMessage,
     isMe: Boolean,
+    isPlaying: Boolean,
+    playbackProgress: Float,
     onDelete: (() -> Unit)?,
-    onImageClick: (String) -> Unit
+    onImageClick: (String) -> Unit,
+    onPlayPause: () -> Unit,
+    onOpenFile: (String, String) -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -482,18 +815,10 @@ private fun ChatBubble(
     ) {
         if (!isMe) {
             Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(avatarColor(message.userEmail)),
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(avatarColor(message.userEmail)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    message.userEmail.take(1).uppercase(),
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
+                Text(message.userEmail.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
             Spacer(Modifier.width(6.dp))
         }
@@ -505,51 +830,117 @@ private fun ChatBubble(
             if (!isMe) {
                 Text(
                     message.userEmail.substringBefore("@"),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
                 )
             }
 
-            // Image bubble (if has media)
-            message.mediaUrl?.let { url ->
-                AsyncImage(
-                    model = url,
-                    contentDescription = "Фото",
-                    modifier = Modifier
-                        .widthIn(max = 240.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onImageClick(url) },
-                    contentScale = ContentScale.FillWidth
-                )
-                if (message.message.isNotBlank()) Spacer(Modifier.height(4.dp))
-            }
+            val bubbleShape = RoundedCornerShape(
+                topStart = if (isMe) 16.dp else 4.dp,
+                topEnd = if (isMe) 4.dp else 16.dp,
+                bottomStart = 16.dp, bottomEnd = 16.dp
+            )
+            val bubbleBg = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
 
-            // Text bubble (if has text)
-            if (message.message.isNotBlank()) {
-                Box(
-                    modifier = Modifier
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = if (isMe) 16.dp else 4.dp,
-                                topEnd = if (isMe) 4.dp else 16.dp,
-                                bottomStart = 16.dp,
-                                bottomEnd = 16.dp
+            when (message.mediaType) {
+                "audio" -> {
+                    // Voice message bubble
+                    Box(
+                        modifier = Modifier.clip(bubbleShape).background(bubbleBg).padding(horizontal = 12.dp, vertical = 8.dp).widthIn(min = 180.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = onPlayPause, modifier = Modifier.size(40.dp)) {
+                                    Icon(
+                                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        null,
+                                        tint = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Spacer(Modifier.width(6.dp))
+                                WaveformDecoration(isMe = isMe, modifier = Modifier.weight(1f))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    parseDurationFromFileName(message.fileName),
+                                    fontSize = 12.sp,
+                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (isPlaying) {
+                                LinearProgressIndicator(
+                                    progress = { playbackProgress },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                "file" -> {
+                    // File card bubble
+                    Card(
+                        shape = bubbleShape,
+                        colors = CardDefaults.cardColors(containerColor = bubbleBg),
+                        modifier = Modifier.clickable {
+                            message.mediaUrl?.let { url -> onOpenFile(url, message.fileName ?: "file") }
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).widthIn(min = 160.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                fileIcon(message.fileName ?: ""),
+                                null,
+                                tint = if (isMe) MaterialTheme.colorScheme.onPrimary else fileColor(message.fileName ?: ""),
+                                modifier = Modifier.size(32.dp)
                             )
-                        )
-                        .background(
-                            if (isMe) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        message.message,
-                        color = if (isMe) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 15.sp
-                    )
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    message.fileName ?: "Файл",
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "Нажмите, чтобы открыть",
+                                    fontSize = 11.sp,
+                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    // Image (existing) and text bubbles
+                    message.mediaUrl?.let { url ->
+                        if (message.mediaType == null || message.mediaType == "image") {
+                            AsyncImage(
+                                model = url,
+                                contentDescription = "Фото",
+                                modifier = Modifier.widthIn(max = 240.dp).clip(bubbleShape).clickable { onImageClick(url) },
+                                contentScale = ContentScale.FillWidth
+                            )
+                            if (message.message.isNotBlank()) Spacer(Modifier.height(4.dp))
+                        }
+                    }
+                    if (message.message.isNotBlank()) {
+                        Box(
+                            modifier = Modifier.clip(bubbleShape).background(bubbleBg).padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                message.message,
+                                color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
                 }
             }
 
@@ -558,22 +949,11 @@ private fun ChatBubble(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
             ) {
-                Text(
-                    timeFmt.format(Date(message.createdAt)),
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(timeFmt.format(Date(message.createdAt)), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (onDelete != null) {
                     AnimatedVisibility(visible = true, enter = fadeIn(), exit = fadeOut()) {
-                        IconButton(
-                            onClick = { showDeleteDialog = true },
-                            modifier = Modifier.size(16.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Delete, null,
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        IconButton(onClick = { showDeleteDialog = true }, modifier = Modifier.size(16.dp)) {
+                            Icon(Icons.Default.Delete, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -583,23 +963,28 @@ private fun ChatBubble(
 }
 
 @Composable
-private fun DateSeparator(label: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
+private fun WaveformDecoration(isMe: Boolean, modifier: Modifier = Modifier) {
+    val heights = remember { listOf(0.4f, 0.7f, 1.0f, 0.6f, 0.9f, 0.5f, 0.8f, 0.3f, 0.7f, 0.5f) }
+    val color = if (isMe) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
+                else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+    Row(
+        modifier = modifier.height(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-        ) {
-            Text(
-                label,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        heights.forEach { h ->
+            Box(
+                modifier = Modifier.width(3.dp).fillMaxHeight(h).clip(RoundedCornerShape(2.dp)).background(color)
             )
+        }
+    }
+}
+
+@Composable
+private fun DateSeparator(label: String) {
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)) {
+            Text(label, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -611,7 +996,6 @@ private fun List<ChatMessage>.groupByDate(): List<Pair<String, List<ChatMessage>
     val keyFmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
     val today = keyFmt.format(Date())
     val yesterday = keyFmt.format(Date(System.currentTimeMillis() - 86_400_000))
-
     return groupBy { msg ->
         when (keyFmt.format(Date(msg.createdAt))) {
             today -> "Сегодня"
@@ -628,4 +1012,85 @@ private fun avatarColor(email: String): Color {
         Color(0xFF5D4037), Color(0xFF0288D1)
     )
     return colors[email.hashCode().and(0x7FFFFFFF) % colors.size]
+}
+
+private fun formatDuration(seconds: Int): String {
+    val m = seconds / 60
+    val s = seconds % 60
+    return "%d:%02d".format(m, s)
+}
+
+private fun parseDurationFromFileName(fileName: String?): String {
+    if (fileName == null) return "0:00"
+    val match = Regex("voice_(\\d+)s\\.m4a").find(fileName)
+    val sec = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    return formatDuration(sec)
+}
+
+private fun fileIcon(fileName: String): ImageVector {
+    return when (fileName.substringAfterLast('.').lowercase()) {
+        "pdf" -> Icons.Default.PictureAsPdf
+        "doc", "docx" -> Icons.Default.Description
+        "pptx", "ppt" -> Icons.Default.Slideshow
+        "json" -> Icons.Default.Code
+        "txt" -> Icons.Default.TextSnippet
+        else -> Icons.Default.InsertDriveFile
+    }
+}
+
+private fun fileColor(fileName: String): Color {
+    return when (fileName.substringAfterLast('.').lowercase()) {
+        "pdf" -> Color(0xFFE53935)
+        "doc", "docx" -> Color(0xFF1565C0)
+        "pptx", "ppt" -> Color(0xFFD84315)
+        "json" -> Color(0xFF558B2F)
+        "txt" -> Color(0xFF546E7A)
+        else -> Color(0xFF78909C)
+    }
+}
+
+private fun mimeTypeForExtension(ext: String): String {
+    return when (ext.lowercase()) {
+        "pdf" -> "application/pdf"
+        "doc" -> "application/msword"
+        "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        "json" -> "application/json"
+        "txt" -> "text/plain"
+        "m4a" -> "audio/m4a"
+        else -> "application/octet-stream"
+    }
+}
+
+private fun getFileName(context: Context, uri: Uri): String {
+    var name = "file"
+    val cursor: Cursor? = context.contentResolver.query(uri, null, null, null, null)
+    cursor?.use {
+        if (it.moveToFirst()) {
+            val idx = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0) name = it.getString(idx)
+        }
+    }
+    return name
+}
+
+private fun openFile(context: Context, url: String, fileName: String) {
+    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val downloadsDir = File(context.cacheDir, "downloads").also { it.mkdirs() }
+            val file = File(downloadsDir, fileName)
+            if (!file.exists()) {
+                val bytes = URL(url).readBytes()
+                file.writeBytes(bytes)
+            }
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val ext = fileName.substringAfterLast('.', "")
+            val mime = mimeTypeForExtension(ext)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mime)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) { }
+    }
 }

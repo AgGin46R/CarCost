@@ -188,6 +188,20 @@ class SupabaseCarMembersRepository(private val auth: SupabaseAuthRepository) {
         }
     }
 
+    /** Returns all car_ids where the current user is a member (owner or driver). */
+    suspend fun getMyMemberCarIds(): Result<List<String>> = withContext(Dispatchers.IO) {
+        try {
+            val userId = auth.getUserId() ?: return@withContext Result.success(emptyList())
+            val dtos = supabase.from("car_members")
+                .select { filter { eq("user_id", userId) } }
+                .decodeList<CarMemberDto>()
+            Result.success(dtos.map { it.carId })
+        } catch (e: Exception) {
+            Log.e(TAG, "getMyMemberCarIds failed", e)
+            Result.failure(e)
+        }
+    }
+
     /** Remove a member from Supabase. */
     suspend fun removeMember(carId: String, userId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {

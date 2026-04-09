@@ -26,5 +26,9 @@ data class ChatMessage(
     val userEmail: String,
     val message: String,
     val createdAt: Long = System.currentTimeMillis(),
-    val mediaUrl: String? = null
+    val mediaUrl: String? = null,
+    // "image" | "audio" | "file" | null (null = совместимость со старыми записями = image)
+    val mediaType: String? = null,
+    // Оригинальное имя файла/длительность голосового (напр. "voice_12s.m4a", "document.pdf")
+    val fileName: String? = null
 )

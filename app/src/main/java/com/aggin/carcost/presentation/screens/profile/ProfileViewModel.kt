@@ -12,7 +12,18 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.User
+import com.aggin.carcost.data.local.repository.CarRepository
+import com.aggin.carcost.data.local.repository.ExpenseRepository
+import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
+import com.aggin.carcost.data.local.repository.ExpenseTagRepository
+import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
 import com.aggin.carcost.data.local.settings.SettingsManager
+import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
+import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
+import com.aggin.carcost.data.sync.SyncRepository
 import com.aggin.carcost.domain.gamification.DriverScore
 import com.aggin.carcost.domain.gamification.DriverScoreCalculator
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
@@ -53,6 +64,21 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     private val budgetDao = database.categoryBudgetDao()
     private val settingsManager = SettingsManager(application)
     private val context = application.applicationContext
+
+    private val syncRepo = SyncRepository(
+        localCarRepo = CarRepository(database.carDao()),
+        localExpenseRepo = ExpenseRepository(database.expenseDao()),
+        localReminderRepo = MaintenanceReminderRepository(database.maintenanceReminderDao()),
+        localTagRepo = ExpenseTagRepository(database.expenseTagDao()),
+        localTagDao = database.expenseTagDao(),
+        localPlannedExpenseRepo = PlannedExpenseRepository(database.plannedExpenseDao()),
+        supabaseAuthRepo = supabaseAuth,
+        supabaseCarRepo = SupabaseCarRepository(supabaseAuth),
+        supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth),
+        supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth),
+        supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth),
+        supabasePlannedExpenseRepo = SupabasePlannedExpenseRepository(supabaseAuth)
+    )
 
     var tempCameraUri: Uri? = null
         private set
@@ -351,16 +377,19 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun signOut(navController: NavController) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 1. Удаляем FCM токен чтобы не получать чужие уведомления после выхода
+                // 1. Синхронизируем все локальные данные в Supabase ПЕРЕД очисткой
+                try {
+                    syncRepo.fullSync()
+                    android.util.Log.d("ProfileViewModel", "✅ Pre-logout sync completed")
+                } catch (e: Exception) {
+                    android.util.Log.e("ProfileViewModel", "⚠️ Pre-logout sync failed (continuing logout)", e)
+                }
+
+                // 2. Удаляем FCM токен чтобы не получать чужие уведомления после выхода
                 FcmTokenManager.deleteCurrentToken()
                 supabaseAuth.signOut()
 
-                // 2. КРИТИЧНО: Очищаем ВСЕ локальные данные
-                database.userDao().deleteAllUsers()
-                database.carDao().deleteAllCars()
-                database.expenseDao().deleteAllExpenses()
-
-                // Очищаем все таблицы (включая reminders и tags)
+                // 3. Очищаем ВСЕ локальные данные
                 try {
                     database.clearAllTables()
                 } catch (e: Exception) {

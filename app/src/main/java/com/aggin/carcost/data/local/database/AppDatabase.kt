@@ -393,6 +393,13 @@ val MIGRATION_23_24 = object : Migration(23, 24) {
     }
 }
 
+val MIGRATION_24_25 = object : Migration(24, 25) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN mediaType TEXT")
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN fileName TEXT")
+    }
+}
+
 val MIGRATION_22_23 = object : Migration(22, 23) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("""
@@ -431,7 +438,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         VinCache::class,
         ChatMessage::class
     ],
-    version = 24,
+    version = 25,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -480,7 +487,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_20_21,
                         MIGRATION_21_22,
                         MIGRATION_22_23,
-                        MIGRATION_23_24
+                        MIGRATION_23_24,
+                        MIGRATION_24_25
                     )
                     .fallbackToDestructiveMigration()
                     .build()

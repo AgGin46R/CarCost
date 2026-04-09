@@ -69,15 +69,19 @@ class RealtimeSyncManager(private val context: Context) {
      * This prevents FOREIGN KEY constraint failures when Realtime delivers a record
      * whose car hasn't been synced locally yet.
      */
-    private suspend fun ensureCarExists(carId: String) {
-        if (db.carDao().getCarById(carId) != null) return
+    /** Returns true если машина есть или успешно загружена. False = вставку нужно пропустить. */
+    private suspend fun ensureCarExists(carId: String): Boolean {
+        if (db.carDao().getCarById(carId) != null) return true
         Log.d(TAG, "Car $carId not in local DB — fetching from Supabase")
+        var success = false
         carRepo.fetchSharedCar(carId).onSuccess { car ->
             db.carDao().insertCar(car)
             Log.d(TAG, "✅ Car $carId fetched and cached locally")
+            success = true
         }.onFailure {
-            Log.w(TAG, "Could not fetch car $carId: ${it.message}")
+            Log.w(TAG, "Could not fetch car $carId — skipping insert: ${it.message}")
         }
+        return success
     }
 
     /**
@@ -157,7 +161,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.record)
-                    ensureCarExists(dto.carId)
+                    if (!ensureCarExists(dto.carId)) return@onEach
                     db.expenseDao().insertExpense(dto.toExpense())
                     Log.d(TAG, "📥 Expense inserted: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = false)
@@ -169,7 +173,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.record)
-                    ensureCarExists(dto.carId)
+                    if (!ensureCarExists(dto.carId)) return@onEach
                     db.expenseDao().insertExpense(dto.toExpense())
                     Log.d(TAG, "✏️ Expense updated: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = true)
@@ -215,7 +219,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(MaintenanceReminderDto.serializer(), change.record)
-                    ensureCarExists(dto.carId)
+                    if (!ensureCarExists(dto.carId)) return@onEach
                     db.maintenanceReminderDao().insertReminder(dto.toMaintenanceReminder())
                     Log.d(TAG, "🔧 Reminder inserted: ${dto.id}")
                     maybeNotifyReminder(dto, isUpdate = false)
@@ -227,7 +231,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(MaintenanceReminderDto.serializer(), change.record)
-                    ensureCarExists(dto.carId)
+                    if (!ensureCarExists(dto.carId)) return@onEach
                     db.maintenanceReminderDao().insertReminder(dto.toMaintenanceReminder())
                     Log.d(TAG, "🔧 Reminder updated: ${dto.id}")
                     maybeNotifyReminder(dto, isUpdate = true)
@@ -241,7 +245,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(ChatMessageDto.serializer(), change.record)
-                    ensureCarExists(dto.carId)
+                    if (!ensureCarExists(dto.carId)) return@onEach
                     db.chatMessageDao().insert(dto.toChatMessage())
                     Log.d(TAG, "💬 Chat message received: ${dto.id}")
                     maybeNotifyChat(dto)
