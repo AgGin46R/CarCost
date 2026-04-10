@@ -23,6 +23,7 @@ import com.aggin.carcost.data.local.database.dao.CarMemberDao
 import com.aggin.carcost.data.local.database.dao.GpsTripDao
 import com.aggin.carcost.data.local.database.dao.VinCacheDao
 import com.aggin.carcost.data.local.database.dao.ChatMessageDao
+import com.aggin.carcost.data.local.database.dao.InsurancePolicyDao
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
@@ -40,6 +41,7 @@ import com.aggin.carcost.data.local.database.entities.CarMember
 import com.aggin.carcost.data.local.database.entities.GpsTrip
 import com.aggin.carcost.data.local.database.entities.VinCache
 import com.aggin.carcost.data.local.database.entities.ChatMessage
+import com.aggin.carcost.data.local.database.entities.InsurancePolicy
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -400,6 +402,26 @@ val MIGRATION_24_25 = object : Migration(24, 25) {
     }
 }
 
+val MIGRATION_25_26 = object : Migration(25, 26) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS insurance_policies (
+                id TEXT NOT NULL PRIMARY KEY,
+                carId TEXT NOT NULL,
+                type TEXT NOT NULL,
+                company TEXT NOT NULL DEFAULT '',
+                policyNumber TEXT NOT NULL DEFAULT '',
+                startDate INTEGER NOT NULL,
+                endDate INTEGER NOT NULL,
+                cost REAL NOT NULL DEFAULT 0.0,
+                notes TEXT,
+                FOREIGN KEY (carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_insurance_policies_carId ON insurance_policies(carId)")
+    }
+}
+
 val MIGRATION_22_23 = object : Migration(22, 23) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("""
@@ -436,9 +458,10 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         CarMember::class,
         GpsTrip::class,
         VinCache::class,
-        ChatMessage::class
+        ChatMessage::class,
+        InsurancePolicy::class
     ],
-    version = 25,
+    version = 26,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -460,6 +483,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun gpsTripDao(): GpsTripDao
     abstract fun vinCacheDao(): VinCacheDao
     abstract fun chatMessageDao(): ChatMessageDao
+    abstract fun insurancePolicyDao(): InsurancePolicyDao
 
     companion object {
         @Volatile
@@ -488,7 +512,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_21_22,
                         MIGRATION_22_23,
                         MIGRATION_23_24,
-                        MIGRATION_24_25
+                        MIGRATION_24_25,
+                        MIGRATION_25_26
                     )
                     .build()
                 INSTANCE = instance

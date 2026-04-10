@@ -12,6 +12,8 @@ import com.aggin.carcost.data.notifications.AiInsightsRefreshWorker
 import com.aggin.carcost.data.notifications.BackgroundSyncWorker
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
+import com.aggin.carcost.data.notifications.InsuranceExpiryWorker
+import com.aggin.carcost.data.notifications.WeeklySummaryWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
 import com.aggin.carcost.data.sync.RealtimeSyncManager
@@ -63,6 +65,8 @@ class App : Application() {
         scheduleMaintenanceCheck()
         scheduleFuelReminder()
         scheduleAiInsightsRefresh()
+        scheduleInsuranceCheck()
+        scheduleWeeklySummary()
         BackgroundSyncWorker.schedule(this)
 
         // Глобальная страховка: SocketException из любой корутины не должна крашить приложение.
@@ -114,6 +118,36 @@ class App : Application() {
             .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             AiInsightsRefreshWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    private fun scheduleWeeklySummary() {
+        // Calculate delay until next Sunday at 09:00
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 9)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            val daysUntilSunday = (java.util.Calendar.SUNDAY - get(java.util.Calendar.DAY_OF_WEEK) + 7) % 7
+            add(java.util.Calendar.DAY_OF_YEAR, if (daysUntilSunday == 0) 7 else daysUntilSunday)
+        }
+        val initialDelay = (cal.timeInMillis - System.currentTimeMillis()).coerceAtLeast(0)
+        val workRequest = PeriodicWorkRequestBuilder<WeeklySummaryWorker>(7, TimeUnit.DAYS)
+            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            WeeklySummaryWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    private fun scheduleInsuranceCheck() {
+        val workRequest = PeriodicWorkRequestBuilder<InsuranceExpiryWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            InsuranceExpiryWorker.WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
         )

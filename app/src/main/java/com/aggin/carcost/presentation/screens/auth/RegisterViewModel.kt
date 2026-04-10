@@ -209,40 +209,54 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
     fun signInWithGoogle(context: Context) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
             try {
                 val tokenResult = GoogleSignInHelper.getIdToken(context)
-                tokenResult.fold(
-                    onSuccess = { token ->
-                        val result = supabaseAuth.signInWithGoogle(token)
-                        result.fold(
-                            onSuccess = { userInfo ->
-                                val displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"')
-                                val photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
-                                val user = User(
-                                    uid = userInfo.id,
-                                    email = userInfo.email ?: "",
-                                    displayName = displayName ?: "Пользователь",
-                                    photoUrl = photoUrl,
-                                    lastLoginAt = System.currentTimeMillis()
-                                )
-                                database.userDao().insertUser(user)
-                                _uiState.update { it.copy(isLoading = false, isSuccess = true) }
-                                backgroundScope.launch {
-                                    try { syncRepo.safeInitialSync() } catch (_: Exception) { }
-                                }
-                            },
-                            onFailure = { e ->
-                                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка входа через Google") }
-                            }
+
+                if (tokenResult.isFailure) {
+                    val msg = tokenResult.exceptionOrNull()?.message
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = if (msg == "Отменено пользователем") null else (msg ?: "Ошибка Google Sign-In")
                         )
+                    }
+                    return@launch
+                }
+
+                val token = tokenResult.getOrThrow()
+
+                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    supabaseAuth.signInWithGoogle(token)
+                }
+
+                result.fold(
+                    onSuccess = { userInfo ->
+                        val displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"')
+                        val photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+                        val user = User(
+                            uid = userInfo.id,
+                            email = userInfo.email ?: "",
+                            displayName = displayName ?: "Пользователь",
+                            photoUrl = photoUrl,
+                            lastLoginAt = System.currentTimeMillis()
+                        )
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            database.userDao().insertUser(user)
+                        }
+                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                        backgroundScope.launch {
+                            try { syncRepo.safeInitialSync() } catch (_: Exception) { }
+                        }
                     },
                     onFailure = { e ->
-                        _uiState.update { it.copy(isLoading = false, errorMessage = if (e.message == "Отменено пользователем") null else e.message) }
+                        _uiState.update {
+                            it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка регистрации через Google")
+                        }
                     }
                 )
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, errorMessage = e.message) }
+                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
             }
         }
     }

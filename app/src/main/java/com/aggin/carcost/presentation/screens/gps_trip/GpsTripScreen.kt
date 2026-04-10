@@ -199,6 +199,11 @@ fun GpsTripScreen(
                     onStop = { viewModel.stopTrip(context) }
                 )
             }
+            if (uiState.trips.isNotEmpty()) {
+                item {
+                    TripStatsCard(trips = uiState.trips)
+                }
+            }
             if (!hasLocationPermission) {
                 item {
                     Card(
@@ -396,5 +401,56 @@ private fun TripCard(
                     tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun TripStatsCard(trips: List<GpsTrip>) {
+    val monthStart = Calendar.getInstance().apply {
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val monthTrips = trips.filter { it.startTime >= monthStart }
+    val totalKmMonth = monthTrips.sumOf { it.distanceKm }
+    val avgKm = if (trips.isNotEmpty()) trips.sumOf { it.distanceKm } / trips.size else 0.0
+    val longestKm = trips.maxOfOrNull { it.distanceKm } ?: 0.0
+    val activeDays = monthTrips.map {
+        Calendar.getInstance().apply { timeInMillis = it.startTime }.get(Calendar.DAY_OF_MONTH)
+    }.toSet().size
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Статистика за месяц",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                TripStatItem("%.1f км".format(totalKmMonth), "Всего за месяц")
+                TripStatItem("%.1f км".format(avgKm), "Средняя")
+                TripStatItem("%.1f км".format(longestKm), "Длиннейшая")
+                TripStatItem("$activeDays дн.", "Активных")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripStatItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

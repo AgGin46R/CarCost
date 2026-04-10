@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.screens.add_expense
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -59,6 +60,28 @@ fun AddExpenseScreen(
             viewModel.updateDate(scannedDate)
             savedStateHandle.remove<Long>("scanned_date")
         }
+
+        // Данные заправки с чека
+        val scannedLiters = savedStateHandle?.get<Double>("scanned_liters")
+        if (scannedLiters != null) {
+            viewModel.updateFuelLiters(scannedLiters.toString())
+            viewModel.updateCategory(ExpenseCategory.FUEL)
+            savedStateHandle.remove<Double>("scanned_liters")
+        }
+
+        val scannedOdometer = savedStateHandle?.get<Int>("scanned_odometer")
+        if (scannedOdometer != null) {
+            viewModel.updateOdometer(scannedOdometer.toString())
+            savedStateHandle.remove<Int>("scanned_odometer")
+        }
+
+        val scannedStation = savedStateHandle?.get<String>("scanned_station")
+        if (scannedStation != null) {
+            viewModel.updateLocation(scannedStation)
+            savedStateHandle.remove<String>("scanned_station")
+        }
+
+        savedStateHandle?.remove<String>("scanned_fuel_type")
     }
     // --- КОНЕЦ НОВОГО БЛОКА ---
 
@@ -177,6 +200,22 @@ fun AddExpenseScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 enabled = !uiState.isSaving
             )
+            uiState.suggestedOdometer?.let { suggested ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "GPS-подсказка: $suggested км",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = { viewModel.applySuggestedOdometer() }) {
+                        Text("Применить", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
 
             // Дата
             var showDatePicker by remember { mutableStateOf(false) }

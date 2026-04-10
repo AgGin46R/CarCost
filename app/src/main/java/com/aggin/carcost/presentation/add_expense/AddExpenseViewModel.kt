@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.*
 import com.aggin.carcost.data.local.repository.CarRepository
+import com.aggin.carcost.domain.categorization.ExpenseCategoryClassifier
 import com.aggin.carcost.domain.gamification.AchievementChecker
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
@@ -26,6 +27,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -55,7 +57,9 @@ data class AddExpenseUiState(
 
     val isSaving: Boolean = false,
     val showError: Boolean = false,
-    val errorMessage: String = ""
+    val errorMessage: String = "",
+    val categorySetManually: Boolean = false,
+    val suggestedOdometer: Int? = null
 )
 
 class AddExpenseViewModel(
@@ -67,6 +71,7 @@ class AddExpenseViewModel(
         LocationServices.getFusedLocationProviderClient(application)
     private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String UUID
     private val plannedId: String? = savedStateHandle.get<String>("plannedId")
+    private val initialCategory: String? = savedStateHandle.get<String>("category")
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
@@ -88,10 +93,33 @@ class AddExpenseViewModel(
         android.util.Log.d("AddExpense", "plannedId: $plannedId")
 
         viewModelScope.launch {
+            // Применяем начальную категорию из Quick Add чипов
+            initialCategory?.let { cat ->
+                runCatching { ExpenseCategory.valueOf(cat) }.getOrNull()?.let { category ->
+                    _uiState.value = _uiState.value.copy(category = category)
+                }
+            }
+
             // Загружаем текущий пробег автомобиля
             val car = carRepository.getCarById(carId)
             car?.let {
                 _uiState.value = _uiState.value.copy(odometer = it.currentOdometer.toString())
+
+                // Подсказка одометра: базовый одометр + км из GPS-поездок с последней заправки
+                try {
+                    val gpsTripDao = AppDatabase.getDatabase(getApplication()).gpsTripDao()
+                    val lastFuelExpense = database.expenseDao()
+                        .getExpensesByCar(carId).firstOrNull()
+                        ?.filter { e -> e.category == com.aggin.carcost.data.local.database.entities.ExpenseCategory.FUEL }
+                        ?.maxByOrNull { e -> e.date }
+                    val since = lastFuelExpense?.date ?: 0L
+                    val tripsResult = gpsTripDao.getTripsSince(carId, since).firstOrNull()
+                    val kmSinceLastFuel = tripsResult?.sumOf { t -> t.distanceKm }?.toInt() ?: 0
+                    val suggested = it.currentOdometer + kmSinceLastFuel
+                    if (kmSinceLastFuel > 0) {
+                        _uiState.value = _uiState.value.copy(suggestedOdometer = suggested)
+                    }
+                } catch (_: Exception) {}
             }
 
             // ✅ СНАЧАЛА синхронизируем теги из Supabase
@@ -147,7 +175,7 @@ class AddExpenseViewModel(
     }
 
     fun updateCategory(value: ExpenseCategory) {
-        _uiState.value = _uiState.value.copy(category = value, showError = false)
+        _uiState.value = _uiState.value.copy(category = value, showError = false, categorySetManually = true)
     }
 
     fun updateAmount(value: String) {
@@ -162,12 +190,24 @@ class AddExpenseViewModel(
         }
     }
 
+    fun applySuggestedOdometer() {
+        val suggested = _uiState.value.suggestedOdometer ?: return
+        _uiState.value = _uiState.value.copy(odometer = suggested.toString(), suggestedOdometer = null)
+    }
+
     fun updateDate(value: Long) {
         _uiState.value = _uiState.value.copy(date = value)
     }
 
     fun updateDescription(value: String) {
-        _uiState.value = _uiState.value.copy(description = value)
+        val current = _uiState.value
+        val suggested = if (!current.categorySetManually) {
+            ExpenseCategoryClassifier.classify(value)
+        } else null
+        _uiState.value = current.copy(
+            description = value,
+            category = suggested ?: current.category
+        )
     }
 
     fun updateLocation(value: String) {

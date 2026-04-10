@@ -50,6 +50,8 @@ import com.aggin.carcost.presentation.screens.car_members.AcceptInviteScreen
 import com.aggin.carcost.presentation.screens.chat.ChatScreen
 import com.aggin.carcost.presentation.screens.chat.ChatsListScreen
 import com.aggin.carcost.presentation.screens.gps_trip.GpsTripScreen
+import com.aggin.carcost.presentation.screens.insurance.InsurancePoliciesScreen
+import com.aggin.carcost.presentation.screens.parking.ParkingTimerScreen
 import com.aggin.carcost.presentation.screens.gps_trip.TripMapScreen
 
 sealed class Screen(val route: String) {
@@ -67,13 +69,15 @@ sealed class Screen(val route: String) {
         fun createRoute(carId: String) = "edit_car/$carId"
     }
 
-    object AddExpense : Screen("add_expense/{carId}?plannedId={plannedId}") {
-        fun createRoute(carId: String, plannedId: String? = null): String {
-            return if (plannedId != null) {
-                "add_expense/$carId?plannedId=$plannedId"
-            } else {
-                "add_expense/$carId"
-            }
+    object AddExpense : Screen("add_expense/{carId}?plannedId={plannedId}&category={category}") {
+        fun createRoute(carId: String, plannedId: String? = null, category: String? = null): String {
+            var route = "add_expense/$carId"
+            val params = listOfNotNull(
+                plannedId?.let { "plannedId=$it" },
+                category?.let { "category=$it" }
+            )
+            if (params.isNotEmpty()) route += "?" + params.joinToString("&")
+            return route
         }
     }
 
@@ -175,6 +179,12 @@ sealed class Screen(val route: String) {
     }
 
     object ChatsList : Screen("chats_list")
+
+    object Insurance : Screen("insurance/{carId}") {
+        fun createRoute(carId: String) = "insurance/$carId"
+    }
+
+    object ParkingTimer : Screen("parking_timer")
 }
 
 @Composable
@@ -278,6 +288,11 @@ fun AppNavigation(
             arguments = listOf(
                 navArgument("carId") { type = NavType.StringType },
                 navArgument("plannedId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("category") {
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
@@ -424,6 +439,20 @@ fun AppNavigation(
         // Цены топлива
         composable(Screen.FuelPrices.route) {
             FuelPricesScreen(navController = navController)
+        }
+
+        // Таймер парковки
+        composable(Screen.ParkingTimer.route) {
+            ParkingTimerScreen(navController = navController)
+        }
+
+        // Страховые полисы
+        composable(
+            route = Screen.Insurance.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            InsurancePoliciesScreen(carId = carId, navController = navController)
         }
 
         // GPS Поездки

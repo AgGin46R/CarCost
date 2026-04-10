@@ -28,6 +28,12 @@ import com.aggin.carcost.presentation.components.ExpenseFilterDialog
 import com.aggin.carcost.presentation.components.OfflineBanner
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FilterListOff
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import com.aggin.carcost.domain.tco.CarValueEstimator
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -88,6 +94,14 @@ fun CarDetailScreen(
                                     navController.navigate(Screen.Documents.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Folder, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Страховка") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.Insurance.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Security, null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Бюджет") },
@@ -203,6 +217,10 @@ fun CarDetailScreen(
                 )
             }
 
+            item {
+                QuickAddRow(carId = carId, navController = navController)
+            }
+
             if (uiState.expenses.isEmpty()) {
                 item {
                     EmptyExpensesState(isFiltered = uiState.currentFilter.isActive())
@@ -212,6 +230,7 @@ fun CarDetailScreen(
                     SwipeableExpenseCard(
                         expense = expense,
                         tags = uiState.expensesWithTags[expense.id] ?: emptyList(),
+                        fuelConsumptionL100km = uiState.fuelConsumptionPerFill[expense.id],
                         onDelete = { viewModel.deleteExpense(expense) },
                         onEdit = {
                             navController.navigate(Screen.EditExpense.createRoute(expense.carId, expense.id))
@@ -239,6 +258,20 @@ fun CarDetailScreen(
 @Composable
 fun CarInfoCard(uiState: CarDetailUiState) {
     val car = uiState.car ?: return
+
+    // Car photo banner (shown above the card if photo exists)
+    car.photoUri?.let { photoUrl ->
+        AsyncImage(
+            model = photoUrl,
+            contentDescription = "Фото автомобиля",
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -285,6 +318,39 @@ fun CarInfoCard(uiState: CarDetailUiState) {
                     liters = uiState.estimatedFuelLiters,
                     tankCapacity = car.tankCapacity
                 )
+            }
+
+            // Оценочная стоимость (если есть цена покупки)
+            car.purchasePrice?.let { price ->
+                val currentValue = CarValueEstimator.estimateCurrentValue(price, car.year)
+                val deprPct = CarValueEstimator.depreciationPercent(price, currentValue)
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Оценочная стоимость",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "~${formatCurrency(currentValue)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "-$deprPct% от покупки",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -360,6 +426,7 @@ fun StatItem(label: String, value: String, icon: androidx.compose.ui.graphics.ve
 fun SwipeableExpenseCard(
     expense: Expense,
     tags: List<ExpenseTag> = emptyList(),
+    fuelConsumptionL100km: Double? = null,
     onDelete: () -> Unit,
     onEdit: () -> Unit
 ) {
@@ -413,7 +480,7 @@ fun SwipeableExpenseCard(
                     )
                 }
         ) {
-            ExpenseCardContent(expense = expense, tags = tags)
+            ExpenseCardContent(expense = expense, tags = tags, fuelConsumptionL100km = fuelConsumptionL100km)
         }
     }
 
@@ -510,7 +577,8 @@ fun SwipeBackground(
 @Composable
 fun ExpenseCardContent(
     expense: Expense,
-    tags: List<ExpenseTag> = emptyList()
+    tags: List<ExpenseTag> = emptyList(),
+    fuelConsumptionL100km: Double? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -547,6 +615,13 @@ fun ExpenseCardContent(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (fuelConsumptionL100km != null) {
+                        Text(
+                            text = "%.1f л/100км".format(fuelConsumptionL100km),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                     if (expense.description?.isNotBlank() == true) {
                         Text(
                             text = expense.description,
@@ -730,4 +805,29 @@ fun formatDate(timestamp: Long): String {
 
 fun formatCurrency(amount: Double): String {
     return String.format("%.2f ₽", amount)
+}
+
+@Composable
+private fun QuickAddRow(carId: String, navController: NavController) {
+    val chips = listOf(
+        Triple("⛽ Топливо", ExpenseCategory.FUEL, Icons.Default.LocalGasStation),
+        Triple("🔧 ТО", ExpenseCategory.MAINTENANCE, Icons.Default.Build),
+        Triple("🚿 Мойка", ExpenseCategory.WASH, Icons.Default.LocalCarWash),
+        Triple("🅿️ Парковка", ExpenseCategory.PARKING, Icons.Default.LocalParking)
+    )
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 0.dp)
+    ) {
+        items(chips.size) { i ->
+            val (label, category, _) = chips[i]
+            FilterChip(
+                selected = false,
+                onClick = {
+                    navController.navigate(Screen.AddExpense.createRoute(carId, category = category.name))
+                },
+                label = { Text(label) }
+            )
+        }
+    }
 }

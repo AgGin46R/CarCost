@@ -177,36 +177,55 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
     fun signInWithGoogle(context: Context) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
+        // launch на Main — CredentialManager требует Main-поток для показа UI
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
             try {
                 val tokenResult = GoogleSignInHelper.getIdToken(context)
-                tokenResult.fold(
-                    onSuccess = { token ->
-                        val result = supabaseAuth.signInWithGoogle(token)
-                        result.fold(
-                            onSuccess = { userInfo ->
-                                saveUserLocally(
-                                    userId = userInfo.id,
-                                    email = userInfo.email ?: "",
-                                    displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"'),
-                                    photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
-                                )
-                                _uiState.update { it.copy(isLoading = false, isSuccess = true) }
-                                backgroundScope.launch {
-                                    try { syncRepo.fullSync() } catch (_: Exception) { }
-                                }
-                            },
-                            onFailure = { e ->
-                                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка входа через Google") }
-                            }
+
+                if (tokenResult.isFailure) {
+                    val msg = tokenResult.exceptionOrNull()?.message
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = if (msg == "Отменено пользователем") null else (msg ?: "Ошибка Google Sign-In")
                         )
+                    }
+                    return@launch
+                }
+
+                val token = tokenResult.getOrThrow()
+                Log.d("LoginViewModel", "Got Google token, signing in to Supabase...")
+
+                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    supabaseAuth.signInWithGoogle(token)
+                }
+
+                result.fold(
+                    onSuccess = { userInfo ->
+                        Log.d("LoginViewModel", "Supabase Google sign-in success: ${userInfo.id}")
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            saveUserLocally(
+                                userId = userInfo.id,
+                                email = userInfo.email ?: "",
+                                displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"'),
+                                photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+                            )
+                        }
+                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                        backgroundScope.launch {
+                            try { syncRepo.fullSync() } catch (_: Exception) { }
+                        }
                     },
                     onFailure = { e ->
-                        _uiState.update { it.copy(isLoading = false, errorMessage = if (e.message == "Отменено пользователем") null else e.message) }
+                        Log.e("LoginViewModel", "Supabase Google sign-in failed", e)
+                        _uiState.update {
+                            it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка входа через Google")
+                        }
                     }
                 )
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, errorMessage = e.message) }
+                Log.e("LoginViewModel", "signInWithGoogle exception", e)
+                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
             }
         }
     }

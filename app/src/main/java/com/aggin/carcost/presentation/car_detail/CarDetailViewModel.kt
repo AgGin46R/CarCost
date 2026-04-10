@@ -44,6 +44,7 @@ data class CarDetailUiState(
     val availableTags: List<ExpenseTag> = emptyList(),
     val estimatedFuelLiters: Double? = null,
     val fuelLevelPct: Float? = null,
+    val fuelConsumptionPerFill: Map<String, Double> = emptyMap(), // expenseId → L/100km
     val isLoading: Boolean = true
 )
 
@@ -91,6 +92,7 @@ class CarDetailViewModel(
             availableTags = availableTags,
             estimatedFuelLiters = estimatedFuel,
             fuelLevelPct = fuelPct,
+            fuelConsumptionPerFill = calculateFuelConsumptionPerFill(expenses),
             isLoading = false
         )
     }.stateIn(
@@ -321,5 +323,24 @@ class CarDetailViewModel(
             if (km > 0 && l / km * 100 in 2.0..30.0) { totalL += l; totalKm += km }
         }
         return if (totalKm > 0) totalL * 100.0 / totalKm else null
+    }
+
+    private fun calculateFuelConsumptionPerFill(expenses: List<Expense>): Map<String, Double> {
+        val fullTanks = expenses
+            .filter { it.category == ExpenseCategory.FUEL && it.isFullTank && it.fuelLiters != null && it.odometer > 0 }
+            .sortedBy { it.date }
+        if (fullTanks.size < 2) return emptyMap()
+        val result = mutableMapOf<String, Double>()
+        for (i in 1 until fullTanks.size) {
+            val km = fullTanks[i].odometer - fullTanks[i - 1].odometer
+            val liters = fullTanks[i].fuelLiters!!
+            if (km > 0) {
+                val consumption = liters / km * 100.0
+                if (consumption in 3.0..40.0) {
+                    result[fullTanks[i].id] = consumption
+                }
+            }
+        }
+        return result
     }
 }

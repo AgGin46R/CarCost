@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -56,6 +59,10 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("CarCost") },
                 actions = {
+                    // Таймер парковки
+                    IconButton(onClick = { navController.navigate(Screen.ParkingTimer.route) }) {
+                        Icon(Icons.Default.LocalParking, contentDescription = "Таймер парковки")
+                    }
                     // Кнопка поиска
                     IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
                         Icon(Icons.Default.Search, contentDescription = "Поиск")
@@ -286,12 +293,23 @@ fun CarCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
-                Icon(
-                    imageVector = Icons.Default.DirectionsCar,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                if (car.photoUri != null) {
+                    AsyncImage(
+                        model = car.photoUri,
+                        contentDescription = "Фото автомобиля",
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.DirectionsCar,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))

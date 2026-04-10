@@ -312,6 +312,18 @@ fun ReceiptScanScreen(
                                 navController.previousBackStackEntry
                                     ?.savedStateHandle
                                     ?.set("receipt_photo_uri", selectedImageUri.toString())
+                                navController.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("scanned_liters", data.fuelLiters)
+                                navController.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("scanned_odometer", data.odometer)
+                                navController.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("scanned_station", data.stationName)
+                                navController.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("scanned_fuel_type", data.fuelType)
                                 navController.popBackStack()
                             }
                         },

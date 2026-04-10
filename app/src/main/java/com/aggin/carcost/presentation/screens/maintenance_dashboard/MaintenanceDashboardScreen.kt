@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.time.format.DateTimeFormatter
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.presentation.navigation.Screen
@@ -220,29 +221,40 @@ private fun ReminderCard(item: ReminderWithCar, navController: NavController) {
             }
 
             // Индикатор км
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = when (item.urgency) {
-                    ReminderUrgency.OVERDUE -> MaterialTheme.colorScheme.error
-                    ReminderUrgency.SOON -> MaterialTheme.colorScheme.tertiary
-                    ReminderUrgency.OK -> MaterialTheme.colorScheme.primaryContainer
-                },
+            Column(
+                horizontalAlignment = Alignment.End,
                 modifier = Modifier.padding(start = 8.dp)
             ) {
-                Text(
-                    when {
-                        item.kmRemaining <= 0 -> "+${abs(item.kmRemaining)} км"
-                        else -> "${item.kmRemaining} км"
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
+                Surface(
+                    shape = MaterialTheme.shapes.small,
                     color = when (item.urgency) {
-                        ReminderUrgency.OVERDUE -> MaterialTheme.colorScheme.onError
-                        ReminderUrgency.SOON -> MaterialTheme.colorScheme.onTertiary
-                        ReminderUrgency.OK -> MaterialTheme.colorScheme.onPrimaryContainer
-                    },
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
+                        ReminderUrgency.OVERDUE -> MaterialTheme.colorScheme.error
+                        ReminderUrgency.SOON -> MaterialTheme.colorScheme.tertiary
+                        ReminderUrgency.OK -> MaterialTheme.colorScheme.primaryContainer
+                    }
+                ) {
+                    Text(
+                        when {
+                            item.kmRemaining <= 0 -> "+${abs(item.kmRemaining)} км"
+                            else -> "${item.kmRemaining} км"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = when (item.urgency) {
+                            ReminderUrgency.OVERDUE -> MaterialTheme.colorScheme.onError
+                            ReminderUrgency.SOON -> MaterialTheme.colorScheme.onTertiary
+                            ReminderUrgency.OK -> MaterialTheme.colorScheme.onPrimaryContainer
+                        },
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+                item.predictedDate?.let { date ->
+                    Text(
+                        "~${date.format(DateTimeFormatter.ofPattern("dd MMM"))}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

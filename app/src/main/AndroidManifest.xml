@@ -92,6 +92,14 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <receiver
+            android:name=".data.parking.ParkingTimerReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.aggin.carcost.PARKING_EXPIRED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

@@ -23,4 +23,16 @@ interface GpsTripDao {
 
     @Query("SELECT * FROM gps_trips WHERE id = :id")
     suspend fun getById(id: String): GpsTrip?
+
+    @Query("SELECT * FROM gps_trips WHERE carId = :carId ORDER BY startTime DESC LIMIT 1")
+    suspend fun getLastTripForCar(carId: String): GpsTrip?
+
+    @Query("SELECT * FROM gps_trips WHERE carId = :carId AND startTime >= :since ORDER BY startTime DESC")
+    fun getTripsSince(carId: String, since: Long): Flow<List<GpsTrip>>
+
+    @Query("SELECT MAX(distanceKm) FROM gps_trips WHERE carId = :carId")
+    suspend fun getLongestTripDistance(carId: String): Double?
+
+    @Query("SELECT AVG(distanceKm) FROM gps_trips WHERE carId = :carId")
+    suspend fun getAvgTripDistance(carId: String): Double?
 }
