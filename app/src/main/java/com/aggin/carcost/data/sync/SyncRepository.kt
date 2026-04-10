@@ -16,12 +16,16 @@ import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
 import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
+import com.aggin.carcost.supabase
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 /**
  * Состояние синхронизации
@@ -89,11 +93,39 @@ class SyncRepository(
         }
     }
 
+    @Serializable
+    private data class CarMemberIdDto(
+        @SerialName("car_id") val carId: String
+    )
+
+    /** Возвращает set car_id машин, где текущий пользователь — OWNER. */
+    private suspend fun fetchOwnedCarIds(userId: String): Set<String> {
+        return try {
+            supabase.from("car_members")
+                .select { filter { eq("user_id", userId); eq("role", "OWNER") } }
+                .decodeList<CarMemberIdDto>()
+                .map { it.carId }
+                .toSet()
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchOwnedCarIds failed, defaulting to empty: ${e.message}")
+            emptySet()
+        }
+    }
+
     /**
      * Синхронизация автомобилей
      */
     private suspend fun syncCars() {
         Log.d(TAG, "Syncing cars...")
+
+        val userId = supabaseAuthRepo.getUserId() ?: run {
+            Log.w(TAG, "syncCars: user not authenticated, skipping")
+            return
+        }
+
+        // Получаем машины, где текущий пользователь — OWNER, чтобы не затирать чужих владельцев
+        val ownedCarIds = fetchOwnedCarIds(userId)
+        Log.d(TAG, "Owned car ids: $ownedCarIds")
 
         // 1. Pull - получаем данные с сервера
         val remoteCarsResult = supabaseCarRepo.getAllCars()
@@ -108,19 +140,27 @@ class SyncRepository(
             when {
                 // Новый автомобиль (только локально)
                 remoteCar == null -> {
-                    Log.d(TAG, "Pushing new car: ${localCar.id}")
-                    val result = supabaseCarRepo.insertCar(localCar)
-                    result.getOrNull()?.let { insertedCar ->
-                        // Обновляем локальный ID, если сервер вернул другой
-                        if (insertedCar.id != localCar.id) {
-                            localCarRepo.updateCar(localCar.copy(id = insertedCar.id))
+                    if (localCar.id !in ownedCarIds) {
+                        // Это shared-машина (мы DRIVER) — не пушим, чтобы не затереть владельца
+                        Log.d(TAG, "Skipping push for shared car: ${localCar.id}")
+                    } else {
+                        Log.d(TAG, "Pushing new car: ${localCar.id}")
+                        val result = supabaseCarRepo.insertCar(localCar)
+                        result.getOrNull()?.let { insertedCar ->
+                            if (insertedCar.id != localCar.id) {
+                                localCarRepo.updateCar(localCar.copy(id = insertedCar.id))
+                            }
                         }
                     }
                 }
-                // Автомобиль изменен локально позже
+                // Автомобиль изменен локально позже — обновляем только если мы владелец
                 localCar.updatedAt > remoteCar.updatedAt -> {
-                    Log.d(TAG, "Updating car on server: ${localCar.id}")
-                    supabaseCarRepo.updateCar(localCar)
+                    if (localCar.id in ownedCarIds) {
+                        Log.d(TAG, "Updating car on server: ${localCar.id}")
+                        supabaseCarRepo.updateCar(localCar)
+                    } else {
+                        Log.d(TAG, "Skipping update for shared car: ${localCar.id}")
+                    }
                 }
                 // Автомобиль изменен на сервере позже
                 remoteCar.updatedAt > localCar.updatedAt -> {

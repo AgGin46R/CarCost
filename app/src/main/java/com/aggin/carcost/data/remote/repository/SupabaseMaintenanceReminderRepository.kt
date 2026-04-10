@@ -55,6 +55,22 @@ class SupabaseMaintenanceReminderRepository(private val authRepository: Supabase
             }
         }
 
+    /** Один запрос для всех машин — избегает N+1 */
+    suspend fun getRemindersByCarIds(carIds: List<String>): Result<List<MaintenanceReminder>> =
+        withContext(Dispatchers.IO) {
+            if (carIds.isEmpty()) return@withContext Result.success(emptyList())
+            try {
+                val reminders = supabase.from("maintenance_reminders")
+                    .select {
+                        filter { isIn("car_id", carIds) }
+                    }
+                    .decodeList<MaintenanceReminderDto>()
+                Result.success(reminders.map { it.toMaintenanceReminder() })
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
     suspend fun getRemindersByCarId(carId: String): Result<List<MaintenanceReminder>> =
         withContext(Dispatchers.IO) {
             try {

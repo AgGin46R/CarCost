@@ -3,6 +3,9 @@ package com.aggin.carcost.presentation.screens.chat
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -112,17 +115,40 @@ class ChatViewModel(
 
     init {
         val currentUserId = auth.getUserId() ?: ""
+
+        // Корутина 1: Room Flow — стартует сразу, независимо от REST-запроса
+        viewModelScope.launch {
+            db.chatMessageDao().getMessagesByCarId(carId).collect { messages ->
+                _uiState.update { it.copy(messages = messages, isLoading = false) }
+            }
+        }
+
+        // Корутина 2: setup + первичная загрузка из Supabase
         viewModelScope.launch {
             val carEntity = db.carDao().getCarById(carId)
             val carName = carEntity?.let { "${it.brand} ${it.model}" } ?: ""
             _uiState.update { it.copy(currentUserId = currentUserId, carName = carName) }
-
             supabaseChat.getMessages(carId).onSuccess { remote ->
                 remote.forEach { db.chatMessageDao().insert(it) }
             }
+        }
 
-            db.chatMessageDao().getMessagesByCarId(carId).collect { messages ->
-                _uiState.update { it.copy(messages = messages, isLoading = false) }
+        // Корутина 3: периодический polling каждые 10 сек (резерв на случай Realtime gaps)
+        viewModelScope.launch {
+            while (true) {
+                delay(10_000)
+                supabaseChat.getMessages(carId).onSuccess { remote ->
+                    remote.forEach { db.chatMessageDao().insert(it) }
+                }
+            }
+        }
+    }
+
+    /** Принудительно обновить сообщения из Supabase (вызывается при ON_RESUME). */
+    fun refreshMessages() {
+        viewModelScope.launch {
+            supabaseChat.getMessages(carId).onSuccess { remote ->
+                remote.forEach { db.chatMessageDao().insert(it) }
             }
         }
     }
@@ -435,6 +461,16 @@ fun ChatScreen(carId: String, navController: NavController) {
     DisposableEffect(carId) {
         ActiveChatTracker.activeCarId = carId
         onDispose { ActiveChatTracker.activeCarId = null }
+    }
+
+    // Обновляем сообщения при каждом возврате на экран
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshMessages()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     var hasScrolledInitially by remember { mutableStateOf(false) }

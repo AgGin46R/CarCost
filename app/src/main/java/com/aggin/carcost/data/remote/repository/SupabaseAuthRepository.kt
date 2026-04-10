@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.remote.repository
 
+import android.util.Log
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.Google
@@ -104,8 +105,12 @@ class SupabaseAuthRepository {
                 put("last_login_at", System.currentTimeMillis())
             }
 
-            // upsert: создать если нет, обновить если есть
-            supabase.from("users").upsert(profile)
+            // upsert: создать если нет, обновить если есть (некритично — auth уже прошла)
+            try {
+                supabase.from("users").upsert(profile)
+            } catch (e: Exception) {
+                Log.w("SupabaseAuth", "Profile upsert failed (non-critical): ${e.message}")
+            }
 
             Result.success(user)
         } catch (e: Exception) {

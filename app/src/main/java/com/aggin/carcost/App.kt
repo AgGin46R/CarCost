@@ -131,8 +131,8 @@ class App : Application() {
 
     private fun initializeSupabase() {
         supabase = createSupabaseClient(
-            supabaseUrl = "https://mkwwidzaovxosnhsjomy.supabase.co",
-            supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rd3dpZHphb3Z4b3NuaHNqb215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2NDgzNTEsImV4cCI6MjA3OTIyNDM1MX0.jycoe9IJe2xUv7QXP8aafubFBzebK6tsjKr0Ca4gh_M"
+            supabaseUrl = BuildConfig.SUPABASE_URL,
+            supabaseKey = BuildConfig.SUPABASE_ANON_KEY
         ) {
             install(Auth) {
                 autoLoadFromStorage = true

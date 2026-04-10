@@ -21,6 +21,8 @@ data class HomeUiState(
     val cars: List<Car> = emptyList(),
     val remindersByCarId: Map<String, List<MaintenanceReminder>> = emptyMap(),
     val isLoading: Boolean = true,
+    val isSyncing: Boolean = false,
+    val syncError: String? = null,
     val pendingInvitations: List<CarInvitationDto> = emptyList()
 )
 
@@ -36,6 +38,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
 
     private val _pendingInvitations = MutableStateFlow<List<CarInvitationDto>>(emptyList())
+    private val _isSyncing = MutableStateFlow(false)
+    private val _syncError = MutableStateFlow<String?>(null)
 
     init {
         checkPendingInvitations()
@@ -44,28 +48,32 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Pulls maintenance reminders from Supabase for every car the user can see locally.
-     * This ensures the car card badge is correct for shared cars where reminders were
-     * created by the owner and never written to the driver's local Room DB.
+     * Один батч-запрос для всех машин вместо N+1.
      */
     private fun syncRemindersForAllCars() {
         viewModelScope.launch {
             try {
                 val cars = carRepository.getAllActiveCars().first()
-                cars.forEach { car ->
-                    supabaseReminderRepo.getRemindersByCarId(car.id)
-                        .onSuccess { reminders ->
-                            reminders.forEach { reminder ->
-                                try {
-                                    database.maintenanceReminderDao().insertReminder(reminder)
-                                } catch (_: Exception) {}
-                            }
+                if (cars.isEmpty()) return@launch
+                val carIds = cars.map { it.id }
+                supabaseReminderRepo.getRemindersByCarIds(carIds)
+                    .onSuccess { reminders ->
+                        reminders.forEach { reminder ->
+                            try {
+                                database.maintenanceReminderDao().insertReminder(reminder)
+                            } catch (_: Exception) {}
                         }
-                }
+                    }
             } catch (e: Exception) {
                 Log.d("HomeViewModel", "Reminder sync skipped: ${e.message}")
             }
         }
+    }
+
+    fun forceRefresh() {
+        syncCarsIfLocalEmpty()
+        syncRemindersForAllCars()
+        checkPendingInvitations()
     }
 
     private fun syncCarsIfLocalEmpty() {
@@ -73,6 +81,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val localCars = carRepository.getAllActiveCars().first()
                 if (localCars.isEmpty() && supabaseAuth.isUserLoggedIn()) {
+                    _isSyncing.value = true
+                    _syncError.value = null
                     Log.d("HomeViewModel", "Local cars empty — pulling from Supabase...")
 
                     // 1. Собственные машины
@@ -105,11 +115,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     Log.d("HomeViewModel", "✅ Pulled ${ownedCars.size} owned + ${sharedCars.size} shared cars")
+                    _isSyncing.value = false
                 }
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "syncCarsIfLocalEmpty failed", e)
+                _isSyncing.value = false
+                _syncError.value = e.message ?: "Ошибка синхронизации"
             }
         }
+    }
+
+    fun clearSyncError() {
+        _syncError.value = null
     }
 
     fun checkPendingInvitations() {
@@ -141,9 +158,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         },
-        _pendingInvitations
-    ) { baseState, invitations ->
-        baseState.copy(pendingInvitations = invitations)
+        _pendingInvitations,
+        _isSyncing,
+        _syncError
+    ) { baseState, invitations, syncing, error ->
+        baseState.copy(
+            pendingInvitations = invitations,
+            isSyncing = syncing,
+            syncError = error
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),

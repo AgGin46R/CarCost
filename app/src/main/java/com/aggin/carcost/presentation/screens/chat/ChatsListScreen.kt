@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.screens.chat
 
 import android.app.Application
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,9 +25,11 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.ChatMessage
+import com.aggin.carcost.data.remote.repository.SupabaseChatRepository
 import com.aggin.carcost.presentation.navigation.Screen
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -42,6 +45,25 @@ data class CarChatPreview(
 class ChatsListViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getDatabase(application)
+    private val supabaseChat = SupabaseChatRepository()
+
+    init {
+        // После перезахода Room пустой — подтянуть последние сообщения из Supabase
+        viewModelScope.launch {
+            try {
+                val cars = db.carDao().getAllActiveCars().first()
+                cars.forEach { car ->
+                    supabaseChat.getMessages(car.id).onSuccess { messages ->
+                        messages.forEach {
+                            try { db.chatMessageDao().insert(it) } catch (_: Exception) {}
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d("ChatsListVM", "Initial message sync skipped: ${e.message}")
+            }
+        }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val chatPreviews: StateFlow<List<CarChatPreview>> = db.carDao()

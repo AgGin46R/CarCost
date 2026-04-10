@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -8,6 +10,10 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val localProps = Properties()
+val localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) localPropsFile.inputStream().use { localProps.load(it) }
+
 android {
     namespace = "com.aggin.carcost"
     compileSdk = 34
@@ -16,13 +22,20 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 34
-        versionCode = 23
-        versionName = "2.4.4"
+        versionCode = 25
+        versionName = "2.4.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "SUPABASE_URL",
+            "\"${localProps.getProperty("supabase.url", "https://mkwwidzaovxosnhsjomy.supabase.co")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY",
+            "\"${localProps.getProperty("supabase.anon_key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rd3dpZHphb3Z4b3NuaHNqb215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2NDgzNTEsImV4cCI6MjA3OTIyNDM1MX0.jycoe9IJe2xUv7QXP8aafubFBzebK6tsjKr0Ca4gh_M")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID",
+            "\"${localProps.getProperty("google.web_client_id", "275357869761-tdmd17ql3oh7v0idrfe1770p81hbbmlu.apps.googleusercontent.com")}\"")
     }
 
     buildTypes {
@@ -59,6 +72,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -95,7 +109,7 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging-ktx")
 
     // Compose
-    implementation(platform("androidx.compose:compose-bom:2024.05.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.09.00"))
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

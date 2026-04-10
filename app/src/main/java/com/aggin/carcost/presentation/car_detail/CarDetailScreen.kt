@@ -25,6 +25,7 @@ import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.presentation.navigation.Screen
 import com.aggin.carcost.presentation.components.ExpenseFilterDialog
+import com.aggin.carcost.presentation.components.OfflineBanner
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FilterListOff
 import kotlinx.coroutines.launch
@@ -178,10 +179,14 @@ fun CarDetailScreen(
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
+                .padding(paddingValues)
+        ) {
+            OfflineBanner()
+            LazyColumn(
+            modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -215,6 +220,7 @@ fun CarDetailScreen(
                 }
             }
         }
+        } // end Column
     }
 
     if (showFilterDialog) {

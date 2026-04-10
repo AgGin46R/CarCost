@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +22,7 @@ import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
 import com.aggin.carcost.data.remote.repository.CarInvitationDto
+import com.aggin.carcost.presentation.components.OfflineBanner
 import com.aggin.carcost.presentation.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,8 +32,26 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val pullRefreshState = rememberPullToRefreshState()
+
+    // Показываем Snackbar при ошибке синхронизации
+    LaunchedEffect(uiState.syncError) {
+        uiState.syncError?.let { error ->
+            val result = snackbarHostState.showSnackbar(
+                message = error,
+                actionLabel = "Повторить",
+                duration = SnackbarDuration.Long
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.forceRefresh()
+            }
+            viewModel.clearSyncError()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("CarCost") },
@@ -78,7 +99,12 @@ fun HomeScreen(
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
+        PullToRefreshBox(
+            isRefreshing = uiState.isSyncing,
+            onRefresh = { viewModel.forceRefresh() },
+            state = pullRefreshState,
+            modifier = Modifier.padding(paddingValues)
+        ) {
             if (uiState.isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -87,6 +113,12 @@ fun HomeScreen(
                 EmptyState()
             } else {
                 Column(Modifier.fillMaxSize()) {
+                    // Индикатор фоновой синхронизации
+                    if (uiState.isSyncing) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    // Баннер отсутствия сети
+                    OfflineBanner()
                     // Incoming invitations banner
                     uiState.pendingInvitations.forEach { inv ->
                         InvitationBanner(
