@@ -2,3 +2,4 @@
 build
 build.gradle.kts
 release
+google-services.json
