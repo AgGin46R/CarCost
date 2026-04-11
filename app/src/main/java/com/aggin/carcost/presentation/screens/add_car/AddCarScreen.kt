@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.util.CurrencyUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -250,6 +252,21 @@ fun AddCarScreen(
                 singleLine = true,
                 enabled = !uiState.isSaving
             )
+
+            // Валюта
+            Text(text = "Валюта учёта", style = MaterialTheme.typography.bodyMedium)
+            androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(CurrencyUtils.SUPPORTED_CURRENCIES) { cur ->
+                    FilterChip(
+                        selected = uiState.currency == cur,
+                        onClick = { viewModel.updateCurrency(cur) },
+                        label = { Text("$cur ${CurrencyUtils.symbol(cur)}") },
+                        enabled = !uiState.isSaving
+                    )
+                }
+            }
 
             // Цена покупки
             OutlinedTextField(

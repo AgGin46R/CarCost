@@ -23,6 +23,7 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
+import com.aggin.carcost.data.local.database.entities.MemberRole
 import com.aggin.carcost.presentation.navigation.Screen
 import com.aggin.carcost.presentation.components.ExpenseFilterDialog
 import com.aggin.carcost.presentation.components.OfflineBanner
@@ -155,6 +156,14 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Savings, null) }
                             )
                             DropdownMenuItem(
+                                text = { Text("История инцидентов") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.IncidentHistory.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Warning, null) }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Экспорт данных") },
                                 onClick = {
                                     showMenu = false
@@ -172,11 +181,28 @@ fun CarDetailScreen(
             )
         },
         floatingActionButton = {
+            val isMechanic = uiState.userRole == MemberRole.MECHANIC
             FloatingActionButton(
-                onClick = { navController.navigate(Screen.AddExpense.createRoute(carId)) },
+                onClick = {
+                    if (isMechanic) {
+                        // Механик может добавлять только расходы на ТО, категория зафиксирована
+                        navController.navigate(
+                            Screen.AddExpense.createRoute(
+                                carId,
+                                category = ExpenseCategory.MAINTENANCE.name,
+                                lockedCategory = true
+                            )
+                        )
+                    } else {
+                        navController.navigate(Screen.AddExpense.createRoute(carId))
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Добавить расход")
+                Icon(
+                    if (isMechanic) Icons.Default.Build else Icons.Default.Add,
+                    contentDescription = if (isMechanic) "Добавить ТО" else "Добавить расход"
+                )
             }
         }
     ) { paddingValues ->
@@ -186,6 +212,9 @@ fun CarDetailScreen(
                 .padding(paddingValues)
         ) {
             OfflineBanner()
+            if (uiState.isSyncing) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
             LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(16.dp),
@@ -205,7 +234,11 @@ fun CarDetailScreen(
             }
 
             item {
-                QuickAddRow(carId = carId, navController = navController)
+                QuickAddRow(
+                    carId = carId,
+                    navController = navController,
+                    isMechanic = uiState.userRole == MemberRole.MECHANIC
+                )
             }
 
             if (uiState.expenses.isEmpty()) {
@@ -213,11 +246,16 @@ fun CarDetailScreen(
                     EmptyExpensesState(isFiltered = uiState.currentFilter.isActive())
                 }
             } else {
+                val isMechanic = uiState.userRole == MemberRole.MECHANIC
                 items(uiState.expenses, key = { it.id }) { expense ->
+                    // Механик может редактировать/удалять только расходы ТО
+                    val canEditDelete = !isMechanic || expense.category == ExpenseCategory.MAINTENANCE
                     SwipeableExpenseCard(
                         expense = expense,
                         tags = uiState.expensesWithTags[expense.id] ?: emptyList(),
                         fuelConsumptionL100km = uiState.fuelConsumptionPerFill[expense.id],
+                        currency = uiState.car?.currency ?: "RUB",
+                        canEditDelete = canEditDelete,
                         onDelete = { viewModel.deleteExpense(expense) },
                         onEdit = {
                             navController.navigate(Screen.EditExpense.createRoute(expense.carId, expense.id))
@@ -280,12 +318,12 @@ fun CarInfoCard(uiState: CarDetailUiState) {
             ) {
                 StatItem(
                     label = "Всего расходов",
-                    value = formatCurrency(uiState.totalExpenses),
+                    value = formatCurrency(uiState.totalExpenses, uiState.car?.currency ?: "RUB"),
                     icon = Icons.Default.AttachMoney
                 )
                 StatItem(
                     label = "За месяц",
-                    value = formatCurrency(uiState.monthlyExpenses),
+                    value = formatCurrency(uiState.monthlyExpenses, uiState.car?.currency ?: "RUB"),
                     icon = Icons.Default.CalendarMonth
                 )
                 StatItem(
@@ -414,6 +452,8 @@ fun SwipeableExpenseCard(
     expense: Expense,
     tags: List<ExpenseTag> = emptyList(),
     fuelConsumptionL100km: Double? = null,
+    currency: String = "RUB",
+    canEditDelete: Boolean = true,
     onDelete: () -> Unit,
     onEdit: () -> Unit
 ) {
@@ -428,25 +468,28 @@ fun SwipeableExpenseCard(
     Box(
         modifier = Modifier.fillMaxWidth()
     ) {
-        // Фон с кнопками
-        SwipeBackground(
-            onEdit = {
-                scope.launch {
-                    offsetX.animateTo(0f, animationSpec = tween(300))
+        // Фон с кнопками — только если разрешено редактирование/удаление
+        if (canEditDelete) {
+            SwipeBackground(
+                onEdit = {
+                    scope.launch {
+                        offsetX.animateTo(0f, animationSpec = tween(300))
+                    }
+                    onEdit()
+                },
+                onDelete = {
+                    showDeleteDialog = true
                 }
-                onEdit()
-            },
-            onDelete = {
-                showDeleteDialog = true
-            }
-        )
+            )
+        }
 
         // Передний слой (карточка расхода)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .pointerInput(Unit) {
+                .pointerInput(canEditDelete) {
+                    if (!canEditDelete) return@pointerInput
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             scope.launch {
@@ -467,7 +510,7 @@ fun SwipeableExpenseCard(
                     )
                 }
         ) {
-            ExpenseCardContent(expense = expense, tags = tags, fuelConsumptionL100km = fuelConsumptionL100km)
+            ExpenseCardContent(expense = expense, tags = tags, fuelConsumptionL100km = fuelConsumptionL100km, currency = currency)
         }
     }
 
@@ -565,7 +608,8 @@ fun SwipeBackground(
 fun ExpenseCardContent(
     expense: Expense,
     tags: List<ExpenseTag> = emptyList(),
-    fuelConsumptionL100km: Double? = null
+    fuelConsumptionL100km: Double? = null,
+    currency: String = "RUB"
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -616,6 +660,13 @@ fun ExpenseCardContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    if (expense.maintenanceParts?.isNotBlank() == true) {
+                        Text(
+                            text = "Детали: ${expense.maintenanceParts}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
                     // Отображение тегов
                     if (tags.isNotEmpty()) {
@@ -642,7 +693,7 @@ fun ExpenseCardContent(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = formatCurrency(expense.amount),
+                    text = formatCurrency(expense.amount, currency),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error
@@ -790,18 +841,21 @@ fun formatDate(timestamp: Long): String {
     return sdf.format(java.util.Date(timestamp))
 }
 
-fun formatCurrency(amount: Double): String {
-    return String.format("%.2f ₽", amount)
+fun formatCurrency(amount: Double, currency: String = "RUB"): String {
+    val symbol = com.aggin.carcost.util.CurrencyUtils.symbol(currency)
+    return "%.0f %s".format(amount, symbol)
 }
 
 @Composable
-private fun QuickAddRow(carId: String, navController: NavController) {
-    val chips = listOf(
-        Triple("⛽ Топливо", ExpenseCategory.FUEL, Icons.Default.LocalGasStation),
-        Triple("🔧 ТО", ExpenseCategory.MAINTENANCE, Icons.Default.Build),
-        Triple("🚿 Мойка", ExpenseCategory.WASH, Icons.Default.LocalCarWash),
-        Triple("🅿️ Парковка", ExpenseCategory.PARKING, Icons.Default.LocalParking)
+private fun QuickAddRow(carId: String, navController: NavController, isMechanic: Boolean = false) {
+    val allChips = listOf(
+        Triple("⛽ Топливо", ExpenseCategory.FUEL, false),
+        Triple("🔧 ТО", ExpenseCategory.MAINTENANCE, true),
+        Triple("🚿 Мойка", ExpenseCategory.WASH, false),
+        Triple("🅿️ Парковка", ExpenseCategory.PARKING, false)
     )
+    // Механик видит только чип ТО
+    val chips = if (isMechanic) allChips.filter { it.third } else allChips
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 0.dp)
@@ -811,7 +865,13 @@ private fun QuickAddRow(carId: String, navController: NavController) {
             FilterChip(
                 selected = false,
                 onClick = {
-                    navController.navigate(Screen.AddExpense.createRoute(carId, category = category.name))
+                    navController.navigate(
+                        Screen.AddExpense.createRoute(
+                            carId,
+                            category = category.name,
+                            lockedCategory = isMechanic
+                        )
+                    )
                 },
                 label = { Text(label) }
             )

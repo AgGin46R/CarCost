@@ -24,4 +24,7 @@ interface CarDocumentDao {
 
     @Query("SELECT * FROM car_documents WHERE carId = :carId AND expiryDate IS NOT NULL AND expiryDate < :timestamp")
     suspend fun getExpiredDocuments(carId: String, timestamp: Long = System.currentTimeMillis()): List<CarDocument>
+
+    @Query("SELECT * FROM car_documents WHERE expiryDate IS NOT NULL AND expiryDate BETWEEN :from AND :to")
+    suspend fun getDocumentsExpiringBetween(from: Long, to: Long): List<CarDocument>
 }

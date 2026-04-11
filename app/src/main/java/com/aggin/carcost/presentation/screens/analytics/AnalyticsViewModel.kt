@@ -11,6 +11,7 @@ import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.GpsTrip
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
@@ -141,11 +142,13 @@ class EnhancedAnalyticsViewModel(
             combine(
                 expenseDao.getExpensesByCarId(carId),
                 gpsTripDao.getTripsByCarId(carId)
-            ) { expenses, trips ->
-                calculateAnalytics(car, expenses, trips)
-            }.collect { state ->
-                _uiState.value = state
-            }
+            ) { expenses, trips -> expenses to trips }
+                .debounce(300.milliseconds)
+                .distinctUntilChanged()
+                .map { (expenses, trips) -> calculateAnalytics(car, expenses, trips) }
+                .collect { state ->
+                    _uiState.value = state
+                }
         }
     }
 
@@ -187,6 +190,7 @@ class EnhancedAnalyticsViewModel(
         val topMonths = calculateTopMonths(monthlyExpenses)
         val yearComparison = calculateYearComparison(expenses)
         val categoryTrends = calculateCategoryTrends(expenses)
+        val odometerHistory = calculateOdometerHistory(expenses)
 
         return AnalyticsUiState(
             car = car,
@@ -206,6 +210,7 @@ class EnhancedAnalyticsViewModel(
             yearComparison = yearComparison,
             categoryTrends = categoryTrends,
             gpsTripStats = gpsTripStats,
+            odometerHistory = odometerHistory,
             isLoading = false
         )
     }
@@ -439,6 +444,16 @@ class EnhancedAnalyticsViewModel(
             .filter { abs(it.changePercent) >= 5f || it.previousAmount == 0.0 }
             .sortedByDescending { abs(it.changePercent) }
             .take(5)
+    }
+
+    private fun calculateOdometerHistory(expenses: List<Expense>): List<OdometerPoint> {
+        val fmt = SimpleDateFormat("MMM yy", Locale("ru"))
+        return expenses
+            .filter { it.odometer > 0 }
+            .sortedBy { it.date }
+            .map { OdometerPoint(label = fmt.format(Date(it.date)), odometer = it.odometer) }
+            .distinctBy { it.label } // one point per month-year label
+            .takeLast(12)
     }
 
     private fun calculateGpsTripStats(trips: List<GpsTrip>): GpsTripStats {

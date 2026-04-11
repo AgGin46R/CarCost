@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.export.ExportService
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
+import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
@@ -22,7 +23,8 @@ data class ExportUiState(
     val errorMessage: String? = null,
     val exportSuccessMessage: String? = null,
     val filterStartDate: Long? = null,
-    val filterEndDate: Long? = null
+    val filterEndDate: Long? = null,
+    val selectedCategories: Set<ExpenseCategory> = ExpenseCategory.entries.toSet()
 )
 
 class ExportViewModel(
@@ -59,6 +61,20 @@ class ExportViewModel(
 
     fun setDateFilter(startDate: Long?, endDate: Long?) {
         _uiState.update { it.copy(filterStartDate = startDate, filterEndDate = endDate) }
+    }
+
+    fun toggleCategory(category: ExpenseCategory) {
+        val current = _uiState.value.selectedCategories.toMutableSet()
+        if (category in current) current.remove(category) else current.add(category)
+        _uiState.update { it.copy(selectedCategories = current) }
+    }
+
+    fun selectAllCategories() {
+        val current = _uiState.value.selectedCategories
+        val allSelected = current.size == ExpenseCategory.entries.size
+        _uiState.update {
+            it.copy(selectedCategories = if (allSelected) emptySet() else ExpenseCategory.entries.toSet())
+        }
     }
 
     fun exportToPdf() {
@@ -127,12 +143,13 @@ class ExportViewModel(
             try {
                 val allExpenses = expenseDao.getExpensesByCar(car.id).first()
 
-                // Фильтрация по периоду
+                // Фильтрация по периоду и категориям
                 val state = _uiState.value
                 val expenses = allExpenses.filter { expense ->
                     val afterStart = state.filterStartDate?.let { expense.date >= it } ?: true
                     val beforeEnd = state.filterEndDate?.let { expense.date <= it } ?: true
-                    afterStart && beforeEnd
+                    val inCategory = expense.category in state.selectedCategories
+                    afterStart && beforeEnd && inCategory
                 }
 
                 val reminders = reminderDao.getAllRemindersByCarId(car.id).first()

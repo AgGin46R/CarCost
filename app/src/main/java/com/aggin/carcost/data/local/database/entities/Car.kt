@@ -31,6 +31,9 @@ data class Car(
     val purchasePrice: Double? = null,
     val purchaseOdometer: Int? = null,
 
+    // Валюта (ISO 4217)
+    val currency: String = "RUB",
+
     // Топливо
     val fuelType: FuelType = FuelType.GASOLINE,
     val tankCapacity: Double? = null, // в литрах

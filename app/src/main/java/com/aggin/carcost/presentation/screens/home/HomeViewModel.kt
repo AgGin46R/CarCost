@@ -14,6 +14,7 @@ import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
+import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.repository.CarInvitationDto
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -22,6 +23,7 @@ data class HomeUiState(
     val cars: List<Car> = emptyList(),
     val remindersByCarId: Map<String, List<MaintenanceReminder>> = emptyMap(),
     val monthlyExpensePerCar: Map<String, Double> = emptyMap(),
+    val unreadChatCountPerCar: Map<String, Int> = emptyMap(),
     val isLoading: Boolean = true,
     val isSyncing: Boolean = false,
     val syncError: String? = null,
@@ -34,6 +36,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val carRepository = CarRepository(database.carDao())
     private val reminderRepository = MaintenanceReminderRepository(database.maintenanceReminderDao())
     private val expenseRepository = ExpenseRepository(database.expenseDao())
+    private val settingsManager = SettingsManager(application)
 
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
@@ -74,56 +77,86 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun forceRefresh() {
-        syncCarsIfLocalEmpty()
-        syncRemindersForAllCars()
-        checkPendingInvitations()
+        viewModelScope.launch {
+            _isSyncing.value = true
+            _syncError.value = null
+            try {
+                syncCarsFromSupabase()
+                syncRemindersForAllCars()
+                checkPendingInvitations()
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    private suspend fun syncCarsFromSupabase() {
+        if (!supabaseAuth.isUserLoggedIn()) return
+        try {
+            // 1. Собственные машины
+            val ownedCars = mutableListOf<com.aggin.carcost.data.local.database.entities.Car>()
+            supabaseCarRepo.getAllCars()
+                .onSuccess { ownedCars.addAll(it) }
+                .onFailure { Log.e("HomeViewModel", "Failed to pull owned cars", it) }
+
+            // 2. Shared машины из car_members
+            val sharedCarIds = mutableListOf<String>()
+            supabaseMembers.getMyMemberCarIds()
+                .onSuccess { ids ->
+                    sharedCarIds.addAll(ids.filter { id -> ownedCars.none { it.id == id } })
+                }
+                .onFailure { Log.e("HomeViewModel", "Failed to get member car ids", it) }
+
+            val sharedCars = mutableListOf<com.aggin.carcost.data.local.database.entities.Car>()
+            sharedCarIds.forEach { carId ->
+                supabaseCarRepo.fetchSharedCar(carId)
+                    .onSuccess { sharedCars.add(it) }
+                    .onFailure { Log.w("HomeViewModel", "Could not fetch shared car $carId") }
+            }
+
+            // 3. Вставляем машины в локальную БД
+            val allCars = ownedCars + sharedCars
+            allCars.forEach { car ->
+                try { carRepository.insertCar(car) } catch (e: Exception) {
+                    Log.w("HomeViewModel", "Failed to insert car ${car.id}: ${e.message}")
+                }
+            }
+
+            // 4. Синхронизируем членства текущего пользователя — критично для проверки ролей
+            supabaseMembers.getMyMemberships()
+                .onSuccess { memberships ->
+                    memberships.forEach { member ->
+                        try { database.carMemberDao().insert(member) } catch (e: Exception) {
+                            Log.w("HomeViewModel", "Failed to insert membership ${member.id}: ${e.message}")
+                        }
+                    }
+                    Log.d("HomeViewModel", "✅ Synced ${memberships.size} memberships")
+                }
+                .onFailure { Log.w("HomeViewModel", "Failed to sync memberships: ${it.message}") }
+
+            Log.d("HomeViewModel", "✅ Pulled ${ownedCars.size} owned + ${sharedCars.size} shared cars")
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "syncCarsFromSupabase failed", e)
+            _syncError.value = e.message ?: "Ошибка синхронизации"
+        }
     }
 
     private fun syncCarsIfLocalEmpty() {
         viewModelScope.launch {
             try {
                 val localCars = carRepository.getAllActiveCars().first()
-                if (localCars.isEmpty() && supabaseAuth.isUserLoggedIn()) {
+                if (localCars.isEmpty()) {
                     _isSyncing.value = true
                     _syncError.value = null
-                    Log.d("HomeViewModel", "Local cars empty — pulling from Supabase...")
-
-                    // 1. Собственные машины
-                    val ownedCars = mutableListOf<com.aggin.carcost.data.local.database.entities.Car>()
-                    supabaseCarRepo.getAllCars()
-                        .onSuccess { ownedCars.addAll(it) }
-                        .onFailure { Log.e("HomeViewModel", "Failed to pull owned cars", it) }
-
-                    // 2. Shared машины из car_members
-                    val sharedCarIds = mutableListOf<String>()
-                    supabaseMembers.getMyMemberCarIds()
-                        .onSuccess { ids ->
-                            // только те, которых нет среди собственных
-                            sharedCarIds.addAll(ids.filter { id -> ownedCars.none { it.id == id } })
-                        }
-                        .onFailure { Log.e("HomeViewModel", "Failed to get member car ids", it) }
-
-                    val sharedCars = mutableListOf<com.aggin.carcost.data.local.database.entities.Car>()
-                    sharedCarIds.forEach { carId ->
-                        supabaseCarRepo.fetchSharedCar(carId)
-                            .onSuccess { sharedCars.add(it) }
-                            .onFailure { Log.w("HomeViewModel", "Could not fetch shared car $carId") }
+                    try {
+                        syncCarsFromSupabase()
+                    } finally {
+                        _isSyncing.value = false
                     }
-
-                    // 3. Вставляем всё в локальную БД
-                    val allCars = ownedCars + sharedCars
-                    allCars.forEach { car ->
-                        try { carRepository.insertCar(car) } catch (e: Exception) {
-                            Log.w("HomeViewModel", "Failed to insert car ${car.id}: ${e.message}")
-                        }
-                    }
-                    Log.d("HomeViewModel", "✅ Pulled ${ownedCars.size} owned + ${sharedCars.size} shared cars")
-                    _isSyncing.value = false
                 }
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "syncCarsIfLocalEmpty failed", e)
                 _isSyncing.value = false
-                _syncError.value = e.message ?: "Ошибка синхронизации"
             }
         }
     }
@@ -151,15 +184,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 combine(cars.map { car ->
                     combine(
                         reminderRepository.getActiveReminders(car.id),
-                        expenseRepository.getMonthlyExpenses(car.id)
-                    ) { reminders, monthly ->
-                        Triple(car.id, reminders, monthly)
+                        expenseRepository.getMonthlyExpenses(car.id),
+                        settingsManager.lastChatSeenFlow(car.id).flatMapLatest { lastSeen ->
+                            database.chatMessageDao().getUnreadCount(car.id, lastSeen)
+                        }
+                    ) { reminders, monthly, unread ->
+                        listOf(car.id, reminders, monthly, unread)
                     }
-                }) { triples ->
+                }) { rows ->
+                    @Suppress("UNCHECKED_CAST")
                     HomeUiState(
                         cars = cars,
-                        remindersByCarId = triples.associate { it.first to it.second },
-                        monthlyExpensePerCar = triples.associate { it.first to it.third },
+                        remindersByCarId = rows.associate { it[0] as String to it[1] as List<MaintenanceReminder> },
+                        monthlyExpensePerCar = rows.associate { it[0] as String to it[2] as Double },
+                        unreadChatCountPerCar = rows.associate { it[0] as String to it[3] as Int },
                         isLoading = false
                     )
                 }

@@ -124,6 +124,10 @@ fun EnhancedAnalyticsScreen(
                         item { MonthlyChartCard(uiState.monthlyExpenses) }
                     }
 
+                    if (uiState.odometerHistory.size >= 2) {
+                        item { OdometerChartCard(uiState.odometerHistory) }
+                    }
+
                     uiState.fuelStatistics?.let { fs ->
                         item { FuelStatisticsCard(fs) }
                     }
@@ -807,5 +811,48 @@ fun getCategoryName(category: ExpenseCategory): String {
         ExpenseCategory.FINE -> "Штраф"
         ExpenseCategory.ACCESSORIES -> "Аксессуары"
         else -> "Прочее"
+    }
+}
+
+@Composable
+fun OdometerChartCard(history: List<OdometerPoint>) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Speed, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "История пробега",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            val chartEntryModel = entryModelOf(
+                *history.mapIndexed { index, point -> index to point.odometer }.toTypedArray()
+            )
+            Chart(
+                chart = columnChart(),
+                model = chartEntryModel,
+                startAxis = rememberStartAxis(),
+                bottomAxis = rememberBottomAxis(
+                    valueFormatter = { value, _ ->
+                        history.getOrNull(value.toInt())?.label ?: ""
+                    }
+                ),
+                modifier = Modifier.fillMaxWidth().height(200.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            val first = history.first().odometer
+            val last = history.last().odometer
+            val growth = last - first
+            if (growth > 0) {
+                Text(
+                    "Прирост за период: +$growth км",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

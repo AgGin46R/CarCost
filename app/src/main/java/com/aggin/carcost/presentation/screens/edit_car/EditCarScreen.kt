@@ -26,7 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.util.CurrencyUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -267,6 +270,19 @@ fun EditCarScreen(
                     singleLine = true,
                     enabled = !uiState.isSaving
                 )
+
+                // Валюта
+                Text("Валюта учёта", style = MaterialTheme.typography.bodyMedium)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(CurrencyUtils.SUPPORTED_CURRENCIES) { cur ->
+                        FilterChip(
+                            selected = uiState.currency == cur,
+                            onClick = { viewModel.updateCurrency(cur) },
+                            label = { Text("$cur ${CurrencyUtils.symbol(cur)}") },
+                            enabled = !uiState.isSaving
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 

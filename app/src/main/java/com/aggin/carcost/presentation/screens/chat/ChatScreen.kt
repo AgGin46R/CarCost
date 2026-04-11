@@ -56,8 +56,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.FileOutputOptions
+import androidx.camera.video.Quality
+import androidx.camera.video.QualitySelector
+import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
+import androidx.camera.video.VideoCapture
+import androidx.camera.video.VideoRecordEvent
+import androidx.camera.view.PreviewView
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -66,6 +83,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.ChatMessage
+import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.notifications.ActiveChatTracker
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseChatRepository
@@ -123,32 +141,25 @@ class ChatViewModel(
             }
         }
 
-        // Корутина 2: setup + первичная загрузка из Supabase
+        // Корутина 2: setup + первичная загрузка из Supabase (один раз при старте)
+        // Далее все обновления приходят через RealtimeSyncManager WebSocket
         viewModelScope.launch {
             val carEntity = db.carDao().getCarById(carId)
             val carName = carEntity?.let { "${it.brand} ${it.model}" } ?: ""
             _uiState.update { it.copy(currentUserId = currentUserId, carName = carName) }
             supabaseChat.getMessages(carId).onSuccess { remote ->
-                remote.forEach { db.chatMessageDao().insert(it) }
+                if (remote.isNotEmpty()) db.chatMessageDao().insertAll(remote)
             }
         }
-
-        // Корутина 3: периодический polling каждые 10 сек (резерв на случай Realtime gaps)
-        viewModelScope.launch {
-            while (true) {
-                delay(10_000)
-                supabaseChat.getMessages(carId).onSuccess { remote ->
-                    remote.forEach { db.chatMessageDao().insert(it) }
-                }
-            }
-        }
+        // Polling удалён: Realtime WebSocket в RealtimeSyncManager обновляет chat_messages
+        // в реальном времени без лишних HTTP-запросов
     }
 
     /** Принудительно обновить сообщения из Supabase (вызывается при ON_RESUME). */
     fun refreshMessages() {
         viewModelScope.launch {
             supabaseChat.getMessages(carId).onSuccess { remote ->
-                remote.forEach { db.chatMessageDao().insert(it) }
+                if (remote.isNotEmpty()) db.chatMessageDao().insertAll(remote)
             }
         }
     }
@@ -310,6 +321,37 @@ class ChatViewModel(
         _uiState.update { it.copy(isRecording = false, recordingDurationSeconds = 0) }
     }
 
+    /** Send a video note (кружок) — short circular MP4 video. */
+    fun sendVideoNote(videoFile: File, durationSec: Int) {
+        val userId = auth.getUserId() ?: return
+        val email = auth.getCurrentUserEmail() ?: ""
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSending = true) }
+            try {
+                val bytes = videoFile.readBytes()
+                videoFile.delete()
+                val messageId = UUID.randomUUID().toString()
+                val mediaUrl = supabaseChat.uploadMedia(
+                    carId, messageId, bytes, "mp4", "video/mp4"
+                ).getOrNull()
+                val message = ChatMessage(
+                    id = messageId,
+                    carId = carId,
+                    userId = userId,
+                    userEmail = email,
+                    message = "",
+                    mediaUrl = mediaUrl,
+                    mediaType = "video_note",
+                    fileName = "video_${durationSec}s.mp4"
+                )
+                db.chatMessageDao().insert(message)
+                supabaseChat.sendMessage(message)
+            } finally {
+                _uiState.update { it.copy(isSending = false) }
+            }
+        }
+    }
+
     /** Toggle playback for a voice message. */
     fun togglePlayback(message: ChatMessage) {
         val url = message.mediaUrl ?: return
@@ -443,9 +485,11 @@ fun ChatScreen(carId: String, navController: NavController) {
     var pendingFileName by remember { mutableStateOf<String?>(null) }
     var fullscreenImageUrl by remember { mutableStateOf<String?>(null) }
     var showAttachSheet by remember { mutableStateOf(false) }
+    var showVideoRecorder by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
 
     val audioPermission = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
+    val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         pendingMediaUri = uri
@@ -461,6 +505,12 @@ fun ChatScreen(carId: String, navController: NavController) {
     DisposableEffect(carId) {
         ActiveChatTracker.activeCarId = carId
         onDispose { ActiveChatTracker.activeCarId = null }
+    }
+
+    // Сбрасываем счётчик непрочитанных при открытии чата
+    LaunchedEffect(carId) {
+        val settingsManager = SettingsManager(context)
+        settingsManager.setLastChatSeen(carId)
     }
 
     // Обновляем сообщения при каждом возврате на экран
@@ -534,6 +584,13 @@ fun ChatScreen(carId: String, navController: NavController) {
                         viewModel.startRecording(context)
                     } else {
                         audioPermission.launchPermissionRequest()
+                    }
+                },
+                onVideoNoteClick = {
+                    when {
+                        !cameraPermission.status.isGranted -> cameraPermission.launchPermissionRequest()
+                        !audioPermission.status.isGranted -> audioPermission.launchPermissionRequest()
+                        else -> showVideoRecorder = true
                     }
                 },
                 onCancelRecording = { viewModel.cancelRecording() },
@@ -628,6 +685,17 @@ fun ChatScreen(carId: String, navController: NavController) {
         }
     }
 
+    // Video note recorder
+    if (showVideoRecorder) {
+        VideoNoteRecorderSheet(
+            onDismiss = { showVideoRecorder = false },
+            onVideoRecorded = { file, durationSec ->
+                showVideoRecorder = false
+                viewModel.sendVideoNote(file, durationSec)
+            }
+        )
+    }
+
     // Fullscreen image viewer
     fullscreenImageUrl?.let { url ->
         Dialog(
@@ -670,6 +738,7 @@ private fun ChatInputBar(
     onRemoveImage: () -> Unit,
     onRemoveFile: () -> Unit,
     onMicClick: () -> Unit,
+    onVideoNoteClick: () -> Unit,
     onCancelRecording: () -> Unit,
     onStopAndSend: () -> Unit,
     onSend: () -> Unit
@@ -757,6 +826,9 @@ private fun ChatInputBar(
                     if (showMic) {
                         FilledIconButton(onClick = onMicClick, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Default.Mic, "Голосовое сообщение")
+                        }
+                        FilledTonalIconButton(onClick = onVideoNoteClick, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.Videocam, "Видеосообщение")
                         }
                     } else {
                         FilledIconButton(onClick = onSend, enabled = canSend, modifier = Modifier.size(48.dp)) {
@@ -953,6 +1025,13 @@ private fun ChatBubble(
                     }
                 }
 
+                "video_note" -> {
+                    VideoNoteBubble(
+                        url = message.mediaUrl ?: "",
+                        durationLabel = parseDurationFromFileName(message.fileName)
+                    )
+                }
+
                 else -> {
                     // Image (existing) and text bubbles
                     message.mediaUrl?.let { url ->
@@ -1058,7 +1137,7 @@ private fun formatDuration(seconds: Int): String {
 
 private fun parseDurationFromFileName(fileName: String?): String {
     if (fileName == null) return "0:00"
-    val match = Regex("voice_(\\d+)s\\.m4a").find(fileName)
+    val match = Regex("(?:voice|video)_(\\d+)s\\.(?:m4a|mp4)").find(fileName)
     val sec = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
     return formatDuration(sec)
 }
@@ -1128,5 +1207,257 @@ private fun openFile(context: Context, url: String, fileName: String) {
             }
             context.startActivity(intent)
         } catch (_: Exception) { }
+    }
+}
+
+// ── Video Note Recorder ───────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@Composable
+fun VideoNoteRecorderSheet(
+    onDismiss: () -> Unit,
+    onVideoRecorded: (File, Int) -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isRecording by remember { mutableStateOf(false) }
+    var elapsedSec by remember { mutableStateOf(0) }
+    var recording: Recording? by remember { mutableStateOf(null) }
+    var videoCapture: VideoCapture<Recorder>? by remember { mutableStateOf(null) }
+    // True only after ProcessCameraProvider finishes binding — prevents null-vc taps
+    var isCameraReady by remember { mutableStateOf(false) }
+
+    // Stop recording and cleanup when sheet is dismissed
+    DisposableEffect(Unit) {
+        onDispose { recording?.stop() }
+    }
+
+    // Elapsed timer
+    LaunchedEffect(isRecording) {
+        if (isRecording) {
+            while (isRecording && elapsedSec < 60) {
+                delay(1_000)
+                elapsedSec++
+                if (elapsedSec >= 60) recording?.stop()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = {
+            recording?.stop()
+            onDismiss()
+        },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                when {
+                    isRecording -> formatDuration(elapsedSec)
+                    !isCameraReady -> "Инициализация камеры..."
+                    else -> "Нажмите для записи"
+                },
+                style = MaterialTheme.typography.titleMedium,
+                color = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(16.dp))
+
+            // Circular CameraX preview
+            // IMPORTANT: COMPATIBLE mode forces TextureView (instead of SurfaceView),
+            // which renders inside the Compose layer and correctly respects clip(CircleShape).
+            // SurfaceView (PERFORMANCE mode) renders on a separate hardware layer that
+            // ignores Compose clipping → black or square preview.
+            Box(
+                modifier = Modifier
+                    .size(220.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        PreviewView(ctx).apply {
+                            // TextureView — respects Compose clipping → proper circle
+                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                            cameraProviderFuture.addListener({
+                                try {
+                                    val cameraProvider = cameraProviderFuture.get()
+                                    val preview = Preview.Builder().build().also {
+                                        it.setSurfaceProvider(surfaceProvider)
+                                    }
+                                    val recorder = Recorder.Builder()
+                                        .setQualitySelector(QualitySelector.from(Quality.SD))
+                                        .build()
+                                    val vc = VideoCapture.withOutput(recorder)
+                                    cameraProvider.unbindAll()
+                                    // Try front camera first (selfie-style), fall back to back
+                                    val selector = try {
+                                        cameraProvider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            CameraSelector.DEFAULT_FRONT_CAMERA,
+                                            preview, vc
+                                        )
+                                        CameraSelector.DEFAULT_FRONT_CAMERA
+                                    } catch (_: Exception) {
+                                        cameraProvider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            CameraSelector.DEFAULT_BACK_CAMERA,
+                                            preview, vc
+                                        )
+                                        CameraSelector.DEFAULT_BACK_CAMERA
+                                    }
+                                    videoCapture = vc
+                                    isCameraReady = true
+                                } catch (e: Exception) {
+                                    android.util.Log.e("VideoNote", "Camera bind failed", e)
+                                }
+                            }, ContextCompat.getMainExecutor(ctx))
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Loading overlay until camera is ready
+                if (!isCameraReady) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(40.dp),
+                        color = Color.White,
+                        strokeWidth = 3.dp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Record / Stop button — disabled until camera is bound
+            FilledIconButton(
+                onClick = {
+                    if (isRecording) {
+                        recording?.stop()
+                    } else {
+                        val vc = videoCapture ?: return@FilledIconButton
+                        elapsedSec = 0
+                        val file = File(context.cacheDir, "video_note_${System.currentTimeMillis()}.mp4")
+                        val outputOptions = FileOutputOptions.Builder(file).build()
+                        recording = vc.output
+                            .prepareRecording(context, outputOptions)
+                            .withAudioEnabled()
+                            .start(ContextCompat.getMainExecutor(context)) { event ->
+                                when (event) {
+                                    is VideoRecordEvent.Start -> isRecording = true
+                                    is VideoRecordEvent.Finalize -> {
+                                        isRecording = false
+                                        if (!event.hasError()) {
+                                            onVideoRecorded(file, elapsedSec)
+                                        } else {
+                                            file.delete()
+                                            onDismiss()
+                                        }
+                                    }
+                                    else -> Unit
+                                }
+                            }
+                    }
+                },
+                enabled = isCameraReady,
+                modifier = Modifier.size(72.dp),
+                colors = if (isRecording)
+                    IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error)
+                else
+                    IconButtonDefaults.filledIconButtonColors()
+            ) {
+                Icon(
+                    if (isRecording) Icons.Default.Stop else Icons.Default.FiberManualRecord,
+                    contentDescription = if (isRecording) "Остановить" else "Записать",
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+
+            if (isRecording) {
+                Spacer(Modifier.height(8.dp))
+                Text("Макс. 60 сек", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+// ── Video Note Bubble ─────────────────────────────────────────────────────────
+
+@OptIn(UnstableApi::class)
+@Composable
+fun VideoNoteBubble(url: String, durationLabel: String) {
+    val context = LocalContext.current
+    var isPlaying by remember { mutableStateOf(false) }
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            prepare()
+            repeatMode = ExoPlayer.REPEAT_MODE_OFF
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { exoPlayer.release() }
+    }
+
+    Box(
+        modifier = Modifier.size(160.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = false
+                }
+            },
+            modifier = Modifier
+                .size(160.dp)
+                .clip(CircleShape)
+                .clickable {
+                    if (exoPlayer.isPlaying) {
+                        exoPlayer.pause()
+                        isPlaying = false
+                    } else {
+                        if (exoPlayer.playbackState == ExoPlayer.STATE_ENDED) {
+                            exoPlayer.seekTo(0)
+                        }
+                        exoPlayer.play()
+                        isPlaying = true
+                    }
+                }
+        )
+
+        // Play button overlay when not playing
+        if (!isPlaying) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(32.dp))
+            }
+        }
+
+        // Duration badge
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(durationLabel, fontSize = 11.sp, color = Color.White)
+        }
     }
 }

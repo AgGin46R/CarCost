@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -64,5 +65,15 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setNotifFuel(enabled: Boolean) {
         context.dataStore.edit { it[NOTIF_FUEL_KEY] = enabled }
+    }
+
+    fun lastChatSeenFlow(carId: String): Flow<Long> {
+        val key = longPreferencesKey("last_chat_seen_$carId")
+        return context.dataStore.data.map { it[key] ?: 0L }
+    }
+
+    suspend fun setLastChatSeen(carId: String, timestamp: Long = System.currentTimeMillis()) {
+        val key = longPreferencesKey("last_chat_seen_$carId")
+        context.dataStore.edit { it[key] = timestamp }
     }
 }

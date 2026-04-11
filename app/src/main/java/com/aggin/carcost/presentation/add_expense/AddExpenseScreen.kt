@@ -41,6 +41,7 @@ import java.util.*
 fun AddExpenseScreen(
     carId: String,
     plannedId: String? = null, // ✅ String UUID
+    lockedCategory: Boolean = false,
     navController: NavController,
     viewModel: AddExpenseViewModel = viewModel()
 ) {
@@ -161,15 +162,39 @@ fun AddExpenseScreen(
             }
 
             // Категория
-            Text(
-                text = "Категория",
-                style = MaterialTheme.typography.titleMedium
-            )
-            CategorySelector(
-                selectedCategory = uiState.category,
-                onCategorySelected = { viewModel.updateCategory(it) },
-                enabled = !uiState.isSaving
-            )
+            if (uiState.lockedCategory) {
+                // Механик: только MAINTENANCE, категория зафиксирована
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Категория:",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Text(
+                            text = "🔧 Техобслуживание",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = "Категория",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                CategorySelector(
+                    selectedCategory = uiState.category,
+                    onCategorySelected = { viewModel.updateCategory(it) },
+                    enabled = !uiState.isSaving
+                )
+            }
 
             // --- НОВАЯ КНОПКА "СКАНИРОВАТЬ ЧЕК" ---
             OutlinedButton(

@@ -177,6 +177,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         // Читаем изображение
         val bitmap = BitmapFactory.decodeStream(inputStream)
         inputStream.close()
+        if (bitmap == null) throw IllegalStateException("Не удалось декодировать изображение. Попробуйте выбрать другой формат (JPEG/PNG)")
 
         // Определяем размер для сжатия (макс 1024px по большей стороне, не апскейлируем)
         val maxSize = 1024

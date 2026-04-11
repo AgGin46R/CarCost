@@ -2,10 +2,13 @@ package com.aggin.carcost.presentation.screens.export
 
 import android.app.Application
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,6 +106,13 @@ fun ExportScreen(
                             onStartDateSelected = { viewModel.setDateFilter(it, uiState.filterEndDate) },
                             onEndDateSelected = { viewModel.setDateFilter(uiState.filterStartDate, it) },
                             onClear = { viewModel.setDateFilter(null, null) }
+                        )
+
+                        // Фильтр по категориям
+                        CategoryFilterCard(
+                            selectedCategories = uiState.selectedCategories,
+                            onToggle = { viewModel.toggleCategory(it) },
+                            onSelectAll = { viewModel.selectAllCategories() }
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -227,6 +237,42 @@ private fun PeriodFilterCard(
             },
             dismissButton = { TextButton(onClick = { showEndPicker = false }) { Text("Отмена") } }
         ) { DatePicker(state = state) }
+    }
+}
+
+@Composable
+private fun CategoryFilterCard(
+    selectedCategories: Set<ExpenseCategory>,
+    onToggle: (ExpenseCategory) -> Unit,
+    onSelectAll: () -> Unit
+) {
+    val allSelected = selectedCategories.size == ExpenseCategory.entries.size
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Категории", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                TextButton(onClick = onSelectAll, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Text(if (allSelected) "Снять все" else "Все", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(ExpenseCategory.entries) { cat ->
+                    FilterChip(
+                        selected = cat in selectedCategories,
+                        onClick = { onToggle(cat) },
+                        label = { Text(cat.name, style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -10,12 +10,14 @@ import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
+import com.aggin.carcost.data.local.database.entities.CarMember
 import com.aggin.carcost.data.local.database.entities.MemberRole
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import kotlinx.coroutines.flow.*
@@ -47,7 +49,9 @@ data class CarDetailUiState(
     val fuelLevelPct: Float? = null,
     val fuelConsumptionPerFill: Map<String, Double> = emptyMap(), // expenseId → L/100km
     val isLoading: Boolean = true,
-    val isOwner: Boolean = true // default true to avoid UI flicker while loading
+    val isSyncing: Boolean = false,
+    val isOwner: Boolean = true, // default true to avoid UI flicker while loading
+    val userRole: MemberRole? = null  // null = owner who hasn't added members yet
 )
 
 class CarDetailViewModel(
@@ -66,11 +70,14 @@ class CarDetailViewModel(
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
     private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
+    private val supabaseMembers = SupabaseCarMembersRepository(supabaseAuth)
 
     private val _currentFilter = MutableStateFlow(ExpenseFilter())
     private val _expensesWithTags = MutableStateFlow<Map<String, List<ExpenseTag>>>(emptyMap())
     private val _availableTags = MutableStateFlow<List<ExpenseTag>>(emptyList())
     private val _isOwner = MutableStateFlow(true)
+    private val _userRole = MutableStateFlow<MemberRole?>(null)
+    private val _isSyncing = MutableStateFlow(false)
 
     private val _baseState = combine(
         carRepository.getCarByIdFlow(carId),
@@ -97,8 +104,8 @@ class CarDetailViewModel(
         )
     }
 
-    val uiState: StateFlow<CarDetailUiState> = combine(_baseState, _isOwner) { state, isOwner ->
-        state.copy(isOwner = isOwner)
+    val uiState: StateFlow<CarDetailUiState> = combine(_baseState, _isOwner, _userRole, _isSyncing) { state, isOwner, role, syncing ->
+        state.copy(isOwner = isOwner, userRole = role, isSyncing = syncing)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -115,10 +122,37 @@ class CarDetailViewModel(
     private fun loadOwnerRole() {
         viewModelScope.launch {
             val userId = supabaseAuth.getUserId() ?: return@launch
-            val role = database.carMemberDao().getRoleForUser(carId, userId)
-            // null = not in car_members yet (owner who hasn't added members)
-            // OWNER = explicit owner
-            // DRIVER / MECHANIC = not owner
+
+            // 1. Сначала смотрим в локальной БД (быстро)
+            var role = database.carMemberDao().getRoleForUser(carId, userId)
+
+            // 2. Если записи нет локально — проверяем Supabase (авторитетный источник)
+            //    Это защита от ситуации когда car_members не синхронизированы локально
+            if (role == null) {
+                supabaseMembers.getMyRoleForCar(carId)
+                    .onSuccess { remoteRole ->
+                        if (remoteRole != null) {
+                            // Сохраняем в локальную БД чтобы следующий запрос был быстрым
+                            val email = supabaseAuth.getCurrentUserEmail() ?: ""
+                            database.carMemberDao().insert(
+                                CarMember(
+                                    carId = carId,
+                                    userId = userId,
+                                    email = email,
+                                    role = remoteRole
+                                )
+                            )
+                            role = remoteRole
+                        }
+                        // Если remoteRole == null → пользователь не в car_members → он владелец
+                    }
+                    .onFailure { e ->
+                        Log.w("CarDetail", "Could not verify role from Supabase: ${e.message}")
+                        // Оставляем role = null (трактуем как владелец при ошибке сети)
+                    }
+            }
+
+            _userRole.value = role
             _isOwner.value = role == null || role == MemberRole.OWNER
         }
     }
@@ -160,6 +194,7 @@ class CarDetailViewModel(
 
     private fun syncData() {
         viewModelScope.launch {
+            _isSyncing.value = true
             try {
                 // 1. Синхронизация расходов
                 val result = supabaseExpenseRepo.getExpensesByCarId(carId)
@@ -233,6 +268,8 @@ class CarDetailViewModel(
                 )
             } catch (e: Exception) {
                 Log.e("CarDetail", "Sync exception", e)
+            } finally {
+                _isSyncing.value = false
             }
         }
     }

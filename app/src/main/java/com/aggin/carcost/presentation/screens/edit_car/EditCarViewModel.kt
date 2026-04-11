@@ -34,6 +34,7 @@ data class EditCarUiState(
     val fuelType: FuelType = FuelType.GASOLINE,
     val vin: String = "",
     val color: String = "",
+    val currency: String = "RUB",
     val photoUri: String? = null,
 
     val isLoading: Boolean = true,
@@ -80,6 +81,7 @@ class EditCarViewModel(
                     vin = it.vin ?: "",
                     color = it.color ?: "",
                     photoUri = it.photoUri,
+                    currency = it.currency,
                     isLoading = false
                 )
             }
@@ -122,6 +124,10 @@ class EditCarViewModel(
         _uiState.value = _uiState.value.copy(color = value, showError = false)
     }
 
+    fun updateCurrency(value: String) {
+        _uiState.value = _uiState.value.copy(currency = value)
+    }
+
     fun showDeleteDialog() {
         _uiState.value = _uiState.value.copy(showDeleteDialog = true)
     }
@@ -140,7 +146,8 @@ class EditCarViewModel(
                 val fileName = "car-photos/$carId.jpg"
                 val bucket = supabase.storage.from("car-photos")
                 bucket.upload(path = fileName, data = bytes, upsert = true)
-                val photoUrl = bucket.publicUrl(fileName)
+                // Добавляем версию для сброса кэша Coil при смене фото
+                val photoUrl = bucket.publicUrl(fileName) + "?v=${System.currentTimeMillis()}"
 
                 val car = _uiState.value.car ?: return@launch
                 val updatedCar = car.copy(photoUri = photoUrl)
@@ -171,8 +178,10 @@ class EditCarViewModel(
 
     private suspend fun compressImage(uri: Uri): ByteArray = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri)
+            ?: throw IllegalStateException("Не удалось открыть изображение")
         val bitmap = BitmapFactory.decodeStream(inputStream)
-        inputStream?.close()
+        inputStream.close()
+        if (bitmap == null) throw IllegalStateException("Не удалось декодировать изображение. Попробуйте выбрать другой формат (JPEG/PNG)")
 
         val maxSize = 1024
         val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height, 1f)
@@ -226,6 +235,7 @@ class EditCarViewModel(
                     fuelType = state.fuelType,
                     vin = state.vin.ifBlank { null },
                     color = state.color.ifBlank { null },
+                    currency = state.currency,
                     photoUri = state.photoUri
                 )
 

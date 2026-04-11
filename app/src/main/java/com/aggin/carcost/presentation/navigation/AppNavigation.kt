@@ -52,6 +52,7 @@ import com.aggin.carcost.presentation.screens.chat.ChatsListScreen
 import com.aggin.carcost.presentation.screens.gps_trip.GpsTripScreen
 import com.aggin.carcost.presentation.screens.parking.ParkingTimerScreen
 import com.aggin.carcost.presentation.screens.gps_trip.TripMapScreen
+import com.aggin.carcost.presentation.screens.incidents.IncidentHistoryScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -68,12 +69,13 @@ sealed class Screen(val route: String) {
         fun createRoute(carId: String) = "edit_car/$carId"
     }
 
-    object AddExpense : Screen("add_expense/{carId}?plannedId={plannedId}&category={category}") {
-        fun createRoute(carId: String, plannedId: String? = null, category: String? = null): String {
+    object AddExpense : Screen("add_expense/{carId}?plannedId={plannedId}&category={category}&lockedCategory={lockedCategory}") {
+        fun createRoute(carId: String, plannedId: String? = null, category: String? = null, lockedCategory: Boolean = false): String {
             var route = "add_expense/$carId"
             val params = listOfNotNull(
                 plannedId?.let { "plannedId=$it" },
-                category?.let { "category=$it" }
+                category?.let { "category=$it" },
+                if (lockedCategory) "lockedCategory=true" else null
             )
             if (params.isNotEmpty()) route += "?" + params.joinToString("&")
             return route
@@ -173,6 +175,10 @@ sealed class Screen(val route: String) {
     object ChatsList : Screen("chats_list")
 
     object ParkingTimer : Screen("parking_timer")
+
+    object IncidentHistory : Screen("incident_history/{carId}") {
+        fun createRoute(carId: String) = "incident_history/$carId"
+    }
 }
 
 @Composable
@@ -291,14 +297,20 @@ fun AppNavigation(
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
+                },
+                navArgument("lockedCategory") {
+                    type = NavType.BoolType
+                    defaultValue = false
                 }
             )
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             val plannedId = backStackEntry.arguments?.getString("plannedId")
+            val lockedCategory = backStackEntry.arguments?.getBoolean("lockedCategory") ?: false
             AddExpenseScreen(
                 carId = carId,
                 plannedId = plannedId,
+                lockedCategory = lockedCategory,
                 navController = navController
             )
         }
@@ -522,6 +534,15 @@ fun AppNavigation(
         // Список всех чатов (из профиля)
         composable(Screen.ChatsList.route) {
             ChatsListScreen(navController = navController)
+        }
+
+        // История инцидентов
+        composable(
+            route = Screen.IncidentHistory.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            IncidentHistoryScreen(carId = carId, navController = navController)
         }
     }
 }

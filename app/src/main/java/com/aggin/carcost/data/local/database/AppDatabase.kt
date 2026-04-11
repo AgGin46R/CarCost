@@ -24,6 +24,7 @@ import com.aggin.carcost.data.local.database.dao.GpsTripDao
 import com.aggin.carcost.data.local.database.dao.VinCacheDao
 import com.aggin.carcost.data.local.database.dao.ChatMessageDao
 import com.aggin.carcost.data.local.database.dao.InsurancePolicyDao
+import com.aggin.carcost.data.local.database.dao.CarIncidentDao
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
@@ -42,6 +43,7 @@ import com.aggin.carcost.data.local.database.entities.GpsTrip
 import com.aggin.carcost.data.local.database.entities.VinCache
 import com.aggin.carcost.data.local.database.entities.ChatMessage
 import com.aggin.carcost.data.local.database.entities.InsurancePolicy
+import com.aggin.carcost.data.local.database.entities.CarIncident
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -402,6 +404,36 @@ val MIGRATION_24_25 = object : Migration(24, 25) {
     }
 }
 
+val MIGRATION_28_29 = object : Migration(28, 29) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS car_incidents (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                date INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                damageAmount REAL,
+                repairCost REAL,
+                repairDate INTEGER,
+                location TEXT,
+                insuranceClaimNumber TEXT,
+                photoUri TEXT,
+                notes TEXT,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """)
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_car_incidents_carId ON car_incidents(carId)")
+    }
+}
+
+val MIGRATION_27_28 = object : Migration(27, 28) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE cars ADD COLUMN currency TEXT NOT NULL DEFAULT 'RUB'")
+    }
+}
+
 val MIGRATION_26_27 = object : Migration(26, 27) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE expenses ADD COLUMN maintenanceParts TEXT")
@@ -465,9 +497,10 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         GpsTrip::class,
         VinCache::class,
         ChatMessage::class,
-        InsurancePolicy::class
+        InsurancePolicy::class,
+        CarIncident::class
     ],
-    version = 27,
+    version = 29,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -490,6 +523,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun vinCacheDao(): VinCacheDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun insurancePolicyDao(): InsurancePolicyDao
+    abstract fun carIncidentDao(): CarIncidentDao
 
     companion object {
         @Volatile
@@ -520,7 +554,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_23_24,
                         MIGRATION_24_25,
                         MIGRATION_25_26,
-                        MIGRATION_26_27
+                        MIGRATION_26_27,
+                        MIGRATION_27_28,
+                        MIGRATION_28_29
                     )
                     .build()
                 INSTANCE = instance

@@ -153,4 +153,12 @@ class Converters {
     @TypeConverter
     fun toMemberRole(value: String): MemberRole =
         try { MemberRole.valueOf(value) } catch (e: IllegalArgumentException) { MemberRole.DRIVER }
+
+    // IncidentType converters
+    @TypeConverter
+    fun fromIncidentType(value: IncidentType): String = value.name
+
+    @TypeConverter
+    fun toIncidentType(value: String): IncidentType =
+        try { IncidentType.valueOf(value) } catch (e: IllegalArgumentException) { IncidentType.OTHER }
 }

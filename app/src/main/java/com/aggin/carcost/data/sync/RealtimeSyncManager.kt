@@ -7,6 +7,7 @@ import com.aggin.carcost.data.notifications.ActiveChatTracker
 import com.aggin.carcost.data.notifications.NotificationHelper
 import com.aggin.carcost.data.remote.repository.CarDto
 import com.aggin.carcost.data.remote.repository.ExpenseDto
+import com.aggin.carcost.data.remote.repository.CarInvitationDto
 import com.aggin.carcost.data.remote.repository.ChatMessageDto
 import com.aggin.carcost.data.remote.repository.MaintenanceReminderDto
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
@@ -262,6 +263,26 @@ class RealtimeSyncManager(private val context: Context) {
                 } catch (e: Exception) { Log.e(TAG, "Error handling chat delete", e) }
             }.catch { Log.w(TAG, "Chat delete flow error: ${it.message}") }.launchIn(scope)
 
+            // ── Car Invitations ───────────────────────────────────────────────
+
+            val currentEmail = try { supabase.auth.currentUserOrNull()?.email } catch (e: Exception) { null }
+            if (currentEmail != null) {
+                ch.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+                    table = "car_invitations"
+                    filter = "invited_email=eq.$currentEmail"
+                }.onEach { change ->
+                    try {
+                        val dto = json.decodeFromJsonElement(CarInvitationDto.serializer(), change.record)
+                        // Look up car name for the notification
+                        val car = db.carDao().getCarById(dto.carId)
+                        val carName = if (car != null) "${car.brand} ${car.model}" else "авто"
+                        val notifId = INVITATION_NOTIF_BASE + (abs(dto.id.hashCode()) % NOTIF_RANGE)
+                        NotificationHelper.sendInvitationNotification(context, notifId, carName)
+                        Log.d(TAG, "📨 Invitation received for car ${dto.carId}")
+                    } catch (e: Exception) { Log.e(TAG, "Error handling invitation insert", e) }
+                }.catch { Log.w(TAG, "Invitation insert flow error: ${it.message}") }.launchIn(scope)
+            }
+
             ch.subscribe()
             Log.d(TAG, "✅ Realtime channel subscribed")
 
@@ -359,9 +380,10 @@ class RealtimeSyncManager(private val context: Context) {
     }
 
     companion object {
-        private const val EXPENSE_NOTIF_BASE  = 20_000
-        private const val REMINDER_NOTIF_BASE = 30_000
-        private const val CHAT_NOTIF_BASE     = 40_000
-        private const val NOTIF_RANGE         = 9_000
+        private const val EXPENSE_NOTIF_BASE    = 20_000
+        private const val REMINDER_NOTIF_BASE  = 30_000
+        private const val CHAT_NOTIF_BASE      = 40_000
+        private const val INVITATION_NOTIF_BASE = 50_000
+        private const val NOTIF_RANGE           = 9_000
     }
 }

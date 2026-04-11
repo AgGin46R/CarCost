@@ -35,7 +35,8 @@ class ExportService(private val context: Context) {
         val file = File(context.getExternalFilesDir(null), fileName)
         file.bufferedWriter().use { writer ->
             writer.write("CarCost - Экспорт данных\n")
-            writer.write("Дата экспорта: ${dateFormat.format(Date())}\n\n")
+            writer.write("Дата экспорта,${dateFormat.format(Date())}\n\n")
+
             writer.write("=== ИНФОРМАЦИЯ ОБ АВТОМОБИЛЕ ===\n")
             writer.write("Марка,${car.brand}\n")
             writer.write("Модель,${car.model}\n")
@@ -43,25 +44,47 @@ class ExportService(private val context: Context) {
             writer.write("Гос. номер,${car.licensePlate}\n")
             writer.write("VIN,${car.vin ?: "-"}\n")
             writer.write("Текущий пробег,${car.currentOdometer} км\n\n")
+
+            // Сводная статистика
+            val total = expenses.sumOf { it.amount }
+            writer.write("=== СВОДНАЯ СТАТИСТИКА ===\n")
+            writer.write("Всего записей,${expenses.size}\n")
+            writer.write("Итого расходов,${String.format(Locale.US, "%.2f", total)} ₽\n")
+            if (expenses.isNotEmpty()) {
+                writer.write("Средний расход,${String.format(Locale.US, "%.2f", total / expenses.size)} ₽\n")
+            }
+            writer.write("\nПо категориям\n")
+            writer.write("Категория,Сумма (₽),Кол-во\n")
+            expenses.groupBy { it.category }.toSortedMap(compareBy { it.name }).forEach { (cat, list) ->
+                writer.write("${cat.name},${String.format(Locale.US, "%.2f", list.sumOf { it.amount })},${list.size}\n")
+            }
+            writer.write("\n")
+
             writer.write("=== РАСХОДЫ ===\n")
-            writer.write("Дата,Категория,Сумма (₽),Пробег (км),Описание\n")
-            expenses.forEach { expense ->
+            writer.write("Дата,Категория,Сумма (₽),Пробег (км),Описание,Место,СТО/Мастерская,Тип ТО,Литры,Запчасти и работы\n")
+            expenses.sortedByDescending { it.date }.forEach { expense ->
                 writer.write(
                     "${dateOnlyFormat.format(Date(expense.date))}," +
-                            "${expense.category.name}," +
-                            "${expense.amount}," +
-                            "${expense.odometer}," +
-                            "\"${expense.description ?: "-"}\"\n"
+                    "${expense.category.name}," +
+                    "${String.format(Locale.US, "%.2f", expense.amount)}," +
+                    "${expense.odometer}," +
+                    "\"${expense.description?.replace("\"","'") ?: "-"}\"," +
+                    "\"${expense.location?.replace("\"","'") ?: "-"}\"," +
+                    "\"${expense.workshopName?.replace("\"","'") ?: "-"}\"," +
+                    "${expense.serviceType?.name ?: "-"}," +
+                    "${expense.fuelLiters ?: "-"}," +
+                    "\"${expense.maintenanceParts?.replace("\"","'") ?: "-"}\"\n"
                 )
             }
-            writer.write("\nНАПОМИНАНИЯ О ТЕХОБСЛУЖИВАНИИ\n")
+
+            writer.write("\n=== НАПОМИНАНИЯ О ТЕХОБСЛУЖИВАНИИ ===\n")
             writer.write("Тип ТО,Последняя замена (км),Интервал (км),Следующая замена (км)\n")
             reminders.forEach { reminder ->
                 writer.write(
                     "${reminder.type.displayName}," +
-                            "${reminder.lastChangeOdometer}," +
-                            "${reminder.intervalKm}," +
-                            "${reminder.nextChangeOdometer}\n"
+                    "${reminder.lastChangeOdometer}," +
+                    "${reminder.intervalKm}," +
+                    "${reminder.nextChangeOdometer}\n"
                 )
             }
         }
@@ -114,19 +137,53 @@ class ExportService(private val context: Context) {
         document.add(carInfoTable)
         document.add(Paragraph("\n"))
 
-        document.add(Paragraph("ПОСЛЕДНИЕ РАСХОДЫ").setFont(boldFont).setFontSize(14f))
-        val expensesTable = Table(UnitValue.createPercentArray(floatArrayOf(20f, 25f, 20f, 15f, 20f))).useAllAvailableWidth()
+        // Сводная статистика
+        val total = expenses.sumOf { it.amount }
+        if (expenses.isNotEmpty()) {
+            document.add(Paragraph("СВОДНАЯ СТАТИСТИКА").setFont(boldFont).setFontSize(14f))
+            val summaryTable = Table(UnitValue.createPercentArray(floatArrayOf(50f, 50f))).useAllAvailableWidth()
+            summaryTable.addCell(Cell().add(Paragraph("Всего расходов").setFont(boldFont)))
+            summaryTable.addCell(Cell().add(Paragraph(String.format(Locale.US, "%.2f ₽", total)).setFont(regularFont)))
+            summaryTable.addCell(Cell().add(Paragraph("Кол-во записей").setFont(boldFont)))
+            summaryTable.addCell(Cell().add(Paragraph(expenses.size.toString()).setFont(regularFont)))
+            summaryTable.addCell(Cell().add(Paragraph("Средний расход").setFont(boldFont)))
+            summaryTable.addCell(Cell().add(Paragraph(String.format(Locale.US, "%.2f ₽", total / expenses.size)).setFont(regularFont)))
+            document.add(summaryTable)
+            document.add(Paragraph("\n"))
+
+            // По категориям
+            document.add(Paragraph("РАСХОДЫ ПО КАТЕГОРИЯМ").setFont(boldFont).setFontSize(14f))
+            val catTable = Table(UnitValue.createPercentArray(floatArrayOf(50f, 30f, 20f))).useAllAvailableWidth()
+            catTable.addHeaderCell(Cell().add(Paragraph("Категория").setFont(boldFont)))
+            catTable.addHeaderCell(Cell().add(Paragraph("Сумма (₽)").setFont(boldFont)))
+            catTable.addHeaderCell(Cell().add(Paragraph("Кол-во").setFont(boldFont)))
+            expenses.groupBy { it.category }.entries.sortedByDescending { it.value.sumOf { e -> e.amount } }
+                .forEach { (cat, list) ->
+                    catTable.addCell(Cell().add(Paragraph(cat.name).setFont(regularFont)))
+                    catTable.addCell(Cell().add(Paragraph(String.format(Locale.US, "%.2f", list.sumOf { it.amount })).setFont(regularFont)))
+                    catTable.addCell(Cell().add(Paragraph(list.size.toString()).setFont(regularFont)))
+                }
+            document.add(catTable)
+            document.add(Paragraph("\n"))
+        }
+
+        document.add(Paragraph("РАСХОДЫ").setFont(boldFont).setFontSize(14f))
+        val expensesTable = Table(UnitValue.createPercentArray(floatArrayOf(15f, 20f, 15f, 12f, 20f, 18f))).useAllAvailableWidth()
         expensesTable.addHeaderCell(Cell().add(Paragraph("Дата").setFont(boldFont)))
         expensesTable.addHeaderCell(Cell().add(Paragraph("Категория").setFont(boldFont)))
         expensesTable.addHeaderCell(Cell().add(Paragraph("Сумма (₽)").setFont(boldFont)))
         expensesTable.addHeaderCell(Cell().add(Paragraph("Пробег").setFont(boldFont)))
         expensesTable.addHeaderCell(Cell().add(Paragraph("Описание").setFont(boldFont)))
-        expenses.sortedByDescending { it.date }.take(15).forEach { expense ->
+        expensesTable.addHeaderCell(Cell().add(Paragraph("Запчасти/Место").setFont(boldFont)))
+        expenses.sortedByDescending { it.date }.forEach { expense ->
             expensesTable.addCell(Cell().add(Paragraph(dateOnlyFormat.format(Date(expense.date))).setFont(regularFont)))
             expensesTable.addCell(Cell().add(Paragraph(expense.category.name).setFont(regularFont)))
             expensesTable.addCell(Cell().add(Paragraph(String.format(Locale.US, "%.2f", expense.amount)).setFont(regularFont)))
             expensesTable.addCell(Cell().add(Paragraph("${expense.odometer} км").setFont(regularFont)))
             expensesTable.addCell(Cell().add(Paragraph(expense.description ?: "-").setFont(regularFont)))
+            val extra = listOfNotNull(expense.maintenanceParts, expense.workshopName, expense.location)
+                .firstOrNull() ?: "-"
+            expensesTable.addCell(Cell().add(Paragraph(extra).setFont(regularFont)))
         }
         document.add(expensesTable)
         document.add(Paragraph("\n"))

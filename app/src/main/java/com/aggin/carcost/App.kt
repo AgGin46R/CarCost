@@ -12,6 +12,7 @@ import com.aggin.carcost.data.notifications.AiInsightsRefreshWorker
 import com.aggin.carcost.data.notifications.BackgroundSyncWorker
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
+import com.aggin.carcost.data.notifications.DocumentExpiryWorker
 import com.aggin.carcost.data.notifications.InsuranceExpiryWorker
 import com.aggin.carcost.data.notifications.WeeklySummaryWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
@@ -66,6 +67,7 @@ class App : Application() {
         scheduleFuelReminder()
         scheduleAiInsightsRefresh()
         scheduleInsuranceCheck()
+        scheduleDocumentExpiryCheck()
         scheduleWeeklySummary()
         BackgroundSyncWorker.schedule(this)
 
@@ -148,6 +150,16 @@ class App : Application() {
             .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             InsuranceExpiryWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    private fun scheduleDocumentExpiryCheck() {
+        val workRequest = PeriodicWorkRequestBuilder<DocumentExpiryWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            DocumentExpiryWorker.WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
         )

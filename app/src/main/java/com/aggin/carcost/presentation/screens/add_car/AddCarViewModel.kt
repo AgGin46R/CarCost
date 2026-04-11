@@ -35,6 +35,7 @@ data class AddCarUiState(
     val purchaseDate: Long? = null,
     val vin: String = "",
     val color: String = "",
+    val currency: String = "RUB",
     val photoUri: String? = null,
     val isUploadingPhoto: Boolean = false,
 
@@ -97,6 +98,10 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.value = _uiState.value.copy(color = value, showError = false)
     }
 
+    fun updateCurrency(value: String) {
+        _uiState.value = _uiState.value.copy(currency = value)
+    }
+
     fun updatePurchaseDate(value: Long) {
         _uiState.value = _uiState.value.copy(purchaseDate = value)
     }
@@ -112,14 +117,19 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                 val fileName = "car-photos/$carId.jpg"
                 val bucket = supabase.storage.from("car-photos")
                 bucket.upload(path = fileName, data = bytes, upsert = true)
-                val photoUrl = bucket.publicUrl(fileName)
+                // Добавляем версию для сброса кэша Coil при смене фото
+                val photoUrl = bucket.publicUrl(fileName) + "?v=${System.currentTimeMillis()}"
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(photoUri = photoUrl, isUploadingPhoto = false)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("AddCar", "Photo upload failed", e)
                 withContext(Dispatchers.Main) {
-                    _uiState.value = _uiState.value.copy(isUploadingPhoto = false)
+                    _uiState.value = _uiState.value.copy(
+                        isUploadingPhoto = false,
+                        showError = true,
+                        errorMessage = "Не удалось загрузить фото: ${e.localizedMessage}"
+                    )
                 }
             }
         }
@@ -127,8 +137,10 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
     private suspend fun compressImage(uri: Uri): ByteArray = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri)
+            ?: throw IllegalStateException("Не удалось открыть изображение")
         val bitmap = BitmapFactory.decodeStream(inputStream)
-        inputStream?.close()
+        inputStream.close()
+        if (bitmap == null) throw IllegalStateException("Не удалось декодировать изображение. Попробуйте выбрать другой формат (JPEG/PNG)")
         val maxSize = 1024
         val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height, 1f)
         val width = (bitmap.width * ratio).toInt()
@@ -186,6 +198,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
                 val car = Car(
                     id = state.carId,
+                    currency = state.currency,
                     brand = state.brand.trim(),
                     model = state.model.trim(),
                     year = state.year.toInt(),

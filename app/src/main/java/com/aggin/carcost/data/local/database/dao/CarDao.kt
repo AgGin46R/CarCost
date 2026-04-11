@@ -24,6 +24,9 @@ interface CarDao {
     @Query("SELECT * FROM cars WHERE isActive = 1 ORDER BY updatedAt DESC")
     fun getAllActiveCars(): Flow<List<Car>>
 
+    @Query("SELECT * FROM cars WHERE isActive = 1 ORDER BY updatedAt DESC")
+    suspend fun getAllActiveCarsSync(): List<Car>
+
     @Query("SELECT * FROM cars ORDER BY updatedAt DESC")
     fun getAllCars(): Flow<List<Car>>
 

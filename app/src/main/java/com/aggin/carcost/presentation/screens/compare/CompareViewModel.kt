@@ -7,6 +7,8 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -32,6 +34,8 @@ class CompareViewModel(application: Application) : AndroidViewModel(application)
     private val db = AppDatabase.getDatabase(application)
     private val carDao = db.carDao()
     private val expenseDao = db.expenseDao()
+    private val supabaseAuth = SupabaseAuthRepository()
+    private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
 
     private val _uiState = MutableStateFlow(CompareUiState())
     val uiState: StateFlow<CompareUiState> = _uiState.asStateFlow()
@@ -56,16 +60,24 @@ class CompareViewModel(application: Application) : AndroidViewModel(application)
 
     private fun loadStatsForSelected(carIds: Set<String>) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            // Sync expenses from Supabase for each selected car before reading local DB.
+            // Without this, the comparison shows 0 after a pull-to-refresh on HomeScreen
+            // because forceRefresh() only syncs cars — not their expenses.
+            for (carId in carIds) {
+                supabaseExpenseRepo.getExpensesByCarId(carId).onSuccess { expenses ->
+                    expenses.forEach { expense ->
+                        try { expenseDao.insertExpense(expense) } catch (_: Exception) { }
+                    }
+                }
+            }
             val allStats = mutableMapOf<String, CarCompareStats>()
             for (carId in carIds) {
                 val car = carDao.getCarById(carId) ?: continue
-                expenseDao.getExpensesByCarId(carId)
-                    .first()
-                    .let { expenses ->
-                        allStats[carId] = buildStats(car, expenses)
-                    }
+                val expenses = expenseDao.getExpensesByCarId(carId).first()
+                allStats[carId] = buildStats(car, expenses)
             }
-            _uiState.update { it.copy(carStats = allStats) }
+            _uiState.update { it.copy(carStats = allStats, isLoading = false) }
         }
     }
 

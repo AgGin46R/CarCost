@@ -124,6 +124,20 @@ object NotificationHelper {
         notify(context, CHANNEL_SOCIAL_ID, notificationId, title, reminderTypeName, intent)
     }
 
+    // ── Приглашения ────────────────────────────────────────────────────────
+
+    fun sendInvitationNotification(
+        context: Context,
+        notificationId: Int,
+        carName: String
+    ) {
+        notify(
+            context, CHANNEL_SOCIAL_ID, notificationId,
+            "Вас пригласили в автомобиль",
+            "Новое приглашение: $carName. Откройте приложение, чтобы принять."
+        )
+    }
+
     // ── FCM generic ─────────────────────────────────────────────────────────
 
     fun sendGenericNotification(

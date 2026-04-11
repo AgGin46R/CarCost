@@ -74,7 +74,8 @@ data class AddExpenseUiState(
     val showError: Boolean = false,
     val errorMessage: String = "",
     val categorySetManually: Boolean = false,
-    val suggestedOdometer: Int? = null
+    val suggestedOdometer: Int? = null,
+    val lockedCategory: Boolean = false  // механик не может сменить категорию
 )
 
 class AddExpenseViewModel(
@@ -87,6 +88,7 @@ class AddExpenseViewModel(
     private val carId: String = savedStateHandle.get<String>("carId") ?: "" // ✅ String UUID
     private val plannedId: String? = savedStateHandle.get<String>("plannedId")
     private val initialCategory: String? = savedStateHandle.get<String>("category")
+    private val lockedCategory: Boolean = savedStateHandle.get<Boolean>("lockedCategory") ?: false
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
@@ -113,6 +115,10 @@ class AddExpenseViewModel(
                 runCatching { ExpenseCategory.valueOf(cat) }.getOrNull()?.let { category ->
                     _uiState.value = _uiState.value.copy(category = category)
                 }
+            }
+            // Если lockedCategory=true (механик) — фиксируем флаг в state
+            if (lockedCategory) {
+                _uiState.value = _uiState.value.copy(lockedCategory = true)
             }
 
             // Загружаем текущий пробег автомобиля
@@ -259,8 +265,10 @@ class AddExpenseViewModel(
             }
             try {
                 val inputStream = (getApplication() as android.app.Application).contentResolver.openInputStream(uri)
+                    ?: throw IllegalStateException("Не удалось открыть изображение")
                 val bitmap = BitmapFactory.decodeStream(inputStream)
-                inputStream?.close()
+                inputStream.close()
+                if (bitmap == null) throw IllegalStateException("Не удалось декодировать изображение")
                 val maxSize = 1024
                 val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height, 1f)
                 val scaled = Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)

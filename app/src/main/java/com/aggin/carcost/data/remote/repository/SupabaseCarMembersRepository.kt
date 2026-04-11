@@ -202,6 +202,44 @@ class SupabaseCarMembersRepository(private val auth: SupabaseAuthRepository) {
         }
     }
 
+    /** Returns all memberships (with roles) for the current user across all cars. */
+    suspend fun getMyMemberships(): Result<List<CarMember>> = withContext(Dispatchers.IO) {
+        try {
+            val userId = auth.getUserId() ?: return@withContext Result.success(emptyList())
+            val dtos = supabase.from("car_members")
+                .select { filter { eq("user_id", userId) } }
+                .decodeList<CarMemberDto>()
+            Result.success(dtos.map {
+                CarMember(
+                    id = it.id,
+                    carId = it.carId,
+                    userId = it.userId,
+                    email = it.email,
+                    role = MemberRole.valueOf(it.role),
+                    joinedAt = it.joinedAt
+                )
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "getMyMemberships failed", e)
+            Result.failure(e)
+        }
+    }
+
+    /** Get the current user's role for a specific car directly from Supabase. */
+    suspend fun getMyRoleForCar(carId: String): Result<MemberRole?> = withContext(Dispatchers.IO) {
+        try {
+            val userId = auth.getUserId() ?: return@withContext Result.success(null)
+            val dtos = supabase.from("car_members")
+                .select { filter { eq("car_id", carId); eq("user_id", userId) } }
+                .decodeList<CarMemberDto>()
+            val role = dtos.firstOrNull()?.let { MemberRole.valueOf(it.role) }
+            Result.success(role)
+        } catch (e: Exception) {
+            Log.e(TAG, "getMyRoleForCar failed", e)
+            Result.failure(e)
+        }
+    }
+
     /** Remove a member from Supabase. */
     suspend fun removeMember(carId: String, userId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {

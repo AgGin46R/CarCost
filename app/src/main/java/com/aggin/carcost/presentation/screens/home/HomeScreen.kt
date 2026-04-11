@@ -141,7 +141,8 @@ fun HomeScreen(
                             onCarClick = { car ->
                                 navController.navigate(Screen.CarDetail.createRoute(car.id))
                             },
-                            monthlyExpensePerCar = uiState.monthlyExpensePerCar
+                            monthlyExpensePerCar = uiState.monthlyExpensePerCar,
+                            unreadChatCountPerCar = uiState.unreadChatCountPerCar
                         )
                     } else {
                         EmptyState(modifier = Modifier.weight(1f))
@@ -235,7 +236,8 @@ fun CarsList(
     reminders: Map<String, List<MaintenanceReminder>>,
     modifier: Modifier = Modifier,
     onCarClick: (Car) -> Unit,
-    monthlyExpensePerCar: Map<String, Double> = emptyMap()
+    monthlyExpensePerCar: Map<String, Double> = emptyMap(),
+    unreadChatCountPerCar: Map<String, Int> = emptyMap()
 ) {
     var expandedCarId by remember { mutableStateOf<String?>(null) }
 
@@ -253,7 +255,8 @@ fun CarsList(
                 onExpandToggle = {
                     expandedCarId = if (expandedCarId == car.id) null else car.id
                 },
-                monthlyExpense = monthlyExpensePerCar[car.id]
+                monthlyExpense = monthlyExpensePerCar[car.id],
+                unreadChatCount = unreadChatCountPerCar[car.id] ?: 0
             )
         }
     }
@@ -267,7 +270,8 @@ fun CarCard(
     isExpanded: Boolean,
     onClick: () -> Unit,
     onExpandToggle: () -> Unit,
-    monthlyExpense: Double? = null
+    monthlyExpense: Double? = null,
+    unreadChatCount: Int = 0
 ) {
     Card(
         onClick = onClick,
@@ -293,22 +297,41 @@ fun CarCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
-                if (car.photoUri != null) {
-                    AsyncImage(
-                        model = car.photoUri,
-                        contentDescription = "Фото автомобиля",
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsCar,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                Box {
+                    if (car.photoUri != null) {
+                        AsyncImage(
+                            model = car.photoUri,
+                            contentDescription = "Фото автомобиля",
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.DirectionsCar,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (unreadChatCount > 0) {
+                        BadgedBox(
+                            badge = {
+                                Badge {
+                                    Text(if (unreadChatCount > 99) "99+" else unreadChatCount.toString())
+                                }
+                            },
+                            modifier = Modifier.align(Alignment.TopEnd)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = "Непрочитанные сообщения",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
             }
 
