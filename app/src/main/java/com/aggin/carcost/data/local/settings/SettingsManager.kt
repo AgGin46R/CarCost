@@ -15,10 +15,13 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 class SettingsManager(private val context: Context) {
 
-    // Ключ для хранения нашей настройки
     companion object {
         val THEME_KEY = stringPreferencesKey("app_theme")
         val ONBOARDING_DONE_KEY = booleanPreferencesKey("onboarding_done")
+        val NOTIF_MAINTENANCE_KEY = booleanPreferencesKey("notif_maintenance")
+        val NOTIF_INSURANCE_KEY = booleanPreferencesKey("notif_insurance")
+        val NOTIF_DIGEST_KEY = booleanPreferencesKey("notif_digest")
+        val NOTIF_FUEL_KEY = booleanPreferencesKey("notif_fuel")
     }
 
     val themeFlow: Flow<String> = context.dataStore.data
@@ -27,11 +30,39 @@ class SettingsManager(private val context: Context) {
     val onboardingDoneFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[ONBOARDING_DONE_KEY] ?: false }
 
+    val notifMaintenanceFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences -> preferences[NOTIF_MAINTENANCE_KEY] ?: true }
+
+    val notifInsuranceFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences -> preferences[NOTIF_INSURANCE_KEY] ?: true }
+
+    val notifDigestFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences -> preferences[NOTIF_DIGEST_KEY] ?: true }
+
+    val notifFuelFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences -> preferences[NOTIF_FUEL_KEY] ?: true }
+
     suspend fun saveTheme(theme: String) {
         context.dataStore.edit { settings -> settings[THEME_KEY] = theme }
     }
 
     suspend fun setOnboardingDone() {
         context.dataStore.edit { settings -> settings[ONBOARDING_DONE_KEY] = true }
+    }
+
+    suspend fun setNotifMaintenance(enabled: Boolean) {
+        context.dataStore.edit { it[NOTIF_MAINTENANCE_KEY] = enabled }
+    }
+
+    suspend fun setNotifInsurance(enabled: Boolean) {
+        context.dataStore.edit { it[NOTIF_INSURANCE_KEY] = enabled }
+    }
+
+    suspend fun setNotifDigest(enabled: Boolean) {
+        context.dataStore.edit { it[NOTIF_DIGEST_KEY] = enabled }
+    }
+
+    suspend fun setNotifFuel(enabled: Boolean) {
+        context.dataStore.edit { it[NOTIF_FUEL_KEY] = enabled }
     }
 }

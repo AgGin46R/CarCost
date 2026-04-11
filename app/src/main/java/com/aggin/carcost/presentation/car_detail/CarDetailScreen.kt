@@ -79,29 +79,24 @@ fun CarDetailScreen(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
                         ) {
+                            // Only owners can edit car data
+                            if (uiState.isOwner) {
+                                DropdownMenuItem(
+                                    text = { Text("Редактировать") },
+                                    onClick = {
+                                        showMenu = false
+                                        navController.navigate(Screen.EditCar.createRoute(carId))
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Edit, null) }
+                                )
+                            }
                             DropdownMenuItem(
-                                text = { Text("Редактировать") },
-                                onClick = {
-                                    showMenu = false
-                                    navController.navigate(Screen.EditCar.createRoute(carId))
-                                },
-                                leadingIcon = { Icon(Icons.Default.Edit, null) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Документы") },
+                                text = { Text("Документы и страховки") },
                                 onClick = {
                                     showMenu = false
                                     navController.navigate(Screen.Documents.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Folder, null) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Страховка") },
-                                onClick = {
-                                    showMenu = false
-                                    navController.navigate(Screen.Insurance.createRoute(carId))
-                                },
-                                leadingIcon = { Icon(Icons.Default.Security, null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Бюджет") },
@@ -158,14 +153,6 @@ fun CarDetailScreen(
                                     navController.navigate(Screen.Goals.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Savings, null) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("VIN-декодер") },
-                                onClick = {
-                                    showMenu = false
-                                    navController.navigate(Screen.VinDecoder.createRoute(carId))
-                                },
-                                leadingIcon = { Icon(Icons.Default.DirectionsCar, null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Экспорт данных") },

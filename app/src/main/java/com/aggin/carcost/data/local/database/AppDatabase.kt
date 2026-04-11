@@ -402,6 +402,12 @@ val MIGRATION_24_25 = object : Migration(24, 25) {
     }
 }
 
+val MIGRATION_26_27 = object : Migration(26, 27) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE expenses ADD COLUMN maintenanceParts TEXT")
+    }
+}
+
 val MIGRATION_25_26 = object : Migration(25, 26) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("""
@@ -461,7 +467,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         ChatMessage::class,
         InsurancePolicy::class
     ],
-    version = 26,
+    version = 27,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -513,7 +519,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_22_23,
                         MIGRATION_23_24,
                         MIGRATION_24_25,
-                        MIGRATION_25_26
+                        MIGRATION_25_26,
+                        MIGRATION_26_27
                     )
                     .build()
                 INSTANCE = instance

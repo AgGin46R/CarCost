@@ -1,6 +1,9 @@
 package com.aggin.carcost.presentation.screens.add_car
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
@@ -10,12 +13,18 @@ import com.aggin.carcost.data.local.database.entities.OdometerUnit
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
+import com.aggin.carcost.supabase
+import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
 data class AddCarUiState(
+    val carId: String = java.util.UUID.randomUUID().toString(),
     val brand: String = "",
     val model: String = "",
     val year: String = "",
@@ -23,8 +32,11 @@ data class AddCarUiState(
     val currentOdometer: String = "",
     val fuelType: FuelType = FuelType.GASOLINE,
     val purchasePrice: String = "",
+    val purchaseDate: Long? = null,
     val vin: String = "",
     val color: String = "",
+    val photoUri: String? = null,
+    val isUploadingPhoto: Boolean = false,
 
     val isSaving: Boolean = false,
     val showError: Boolean = false,
@@ -35,8 +47,8 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
+    private val context = application.applicationContext
 
-    // Supabase репозитории
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
 
@@ -85,6 +97,50 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.value = _uiState.value.copy(color = value, showError = false)
     }
 
+    fun updatePurchaseDate(value: Long) {
+        _uiState.value = _uiState.value.copy(purchaseDate = value)
+    }
+
+    fun updateCarPhoto(uri: Uri) {
+        val carId = _uiState.value.carId
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                _uiState.value = _uiState.value.copy(isUploadingPhoto = true, showError = false)
+            }
+            try {
+                val bytes = compressImage(uri)
+                val fileName = "car-photos/$carId.jpg"
+                val bucket = supabase.storage.from("car-photos")
+                bucket.upload(path = fileName, data = bytes, upsert = true)
+                val photoUrl = bucket.publicUrl(fileName)
+                withContext(Dispatchers.Main) {
+                    _uiState.value = _uiState.value.copy(photoUri = photoUrl, isUploadingPhoto = false)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AddCar", "Photo upload failed", e)
+                withContext(Dispatchers.Main) {
+                    _uiState.value = _uiState.value.copy(isUploadingPhoto = false)
+                }
+            }
+        }
+    }
+
+    private suspend fun compressImage(uri: Uri): ByteArray = withContext(Dispatchers.IO) {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val bitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream?.close()
+        val maxSize = 1024
+        val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height, 1f)
+        val width = (bitmap.width * ratio).toInt()
+        val height = (bitmap.height * ratio).toInt()
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true)
+        val outputStream = ByteArrayOutputStream()
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+        bitmap.recycle()
+        scaledBitmap.recycle()
+        outputStream.toByteArray()
+    }
+
     fun saveCar(onSuccess: () -> Unit) {
         val state = _uiState.value
 
@@ -129,19 +185,20 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                 android.util.Log.d("AddCar", "Creating car for user: $userId")
 
                 val car = Car(
+                    id = state.carId,
                     brand = state.brand.trim(),
                     model = state.model.trim(),
                     year = state.year.toInt(),
                     licensePlate = state.licensePlate.trim(),
                     currentOdometer = state.currentOdometer.toInt(),
                     fuelType = state.fuelType,
-                    purchaseDate = System.currentTimeMillis(),
+                    purchaseDate = state.purchaseDate ?: System.currentTimeMillis(),
                     purchasePrice = state.purchasePrice.toDoubleOrNull(),
                     purchaseOdometer = state.currentOdometer.toIntOrNull(),
                     vin = state.vin.ifBlank { null },
                     color = state.color.ifBlank { null },
+                    photoUri = state.photoUri,
                     odometerUnit = OdometerUnit.KM
-                    // userId будет добавлен автоматически в SupabaseCarRepository
                 )
 
                 // 1. Сохраняем локально

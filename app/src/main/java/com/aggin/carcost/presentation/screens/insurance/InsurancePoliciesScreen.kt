@@ -154,7 +154,7 @@ fun InsurancePoliciesScreen(
 }
 
 @Composable
-private fun InsurancePolicyCard(policy: InsurancePolicy, onDelete: () -> Unit) {
+fun InsurancePolicyCard(policy: InsurancePolicy, onDelete: () -> Unit) {
     val fmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
     val now = System.currentTimeMillis()
     val daysLeft = ((policy.endDate - now) / (1000L * 60 * 60 * 24)).toInt().coerceAtLeast(0)
@@ -243,7 +243,7 @@ private fun InsurancePolicyCard(policy: InsurancePolicy, onDelete: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddInsurancePolicyDialog(
+fun AddInsurancePolicyDialog(
     onDismiss: () -> Unit,
     onConfirm: (type: String, company: String, number: String, start: Long, end: Long, cost: Double, notes: String?) -> Unit
 ) {

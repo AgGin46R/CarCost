@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.documents
 
+import android.app.Application
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,6 +23,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.CarDocument
 import com.aggin.carcost.data.local.database.entities.DocumentType
+import com.aggin.carcost.presentation.screens.insurance.AddInsurancePolicyDialog
+import com.aggin.carcost.presentation.screens.insurance.InsurancePoliciesViewModel
+import com.aggin.carcost.presentation.screens.insurance.InsurancePoliciesViewModelFactory
+import com.aggin.carcost.presentation.screens.insurance.InsurancePolicyCard
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -32,9 +37,20 @@ fun DocumentsScreen(
     navController: NavController,
     viewModel: DocumentsViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddDocDialog by remember { mutableStateOf(false) }
     var editingDocument by remember { mutableStateOf<CarDocument?>(null) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    // Insurance ViewModel
+    val insuranceViewModel: InsurancePoliciesViewModel = viewModel(
+        factory = InsurancePoliciesViewModelFactory(
+            context.applicationContext as Application, carId
+        )
+    )
+    val policies by insuranceViewModel.policies.collectAsState()
+    var showAddPolicyDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(carId) {
         viewModel.loadDocuments(carId)
@@ -56,63 +72,129 @@ fun DocumentsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, "Добавить документ")
+            FloatingActionButton(
+                onClick = {
+                    if (selectedTab == 0) showAddDocDialog = true
+                    else showAddPolicyDialog = true
+                }
+            ) {
+                Icon(Icons.Default.Add, "Добавить")
             }
         }
     ) { padding ->
-        if (uiState.isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            TabRow(selectedTabIndex = selectedTab) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Документы") },
+                    icon = { Icon(Icons.Default.Folder, null, modifier = Modifier.size(18.dp)) }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Страховки") },
+                    icon = { Icon(Icons.Default.Security, null, modifier = Modifier.size(18.dp)) }
+                )
             }
-        } else if (uiState.documents.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.FolderOpen,
-                        null,
-                        modifier = Modifier.size(80.dp),
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text("Нет документов", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Добавьте страховку, ПТС, СТС и другие документы",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+
+            when (selectedTab) {
+                0 -> {
+                    // Documents tab
+                    if (uiState.isLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else if (uiState.documents.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.FolderOpen,
+                                    null,
+                                    modifier = Modifier.size(80.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Text("Нет документов", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "Добавьте ПТС, СТС и другие документы",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(uiState.documents, key = { it.id }) { doc ->
+                                DocumentCard(
+                                    document = doc,
+                                    onEdit = { editingDocument = doc },
+                                    onDelete = { viewModel.deleteDocument(doc.id) }
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(uiState.documents, key = { it.id }) { doc ->
-                    DocumentCard(
-                        document = doc,
-                        onEdit = { editingDocument = doc },
-                        onDelete = { viewModel.deleteDocument(doc.id) }
-                    )
+                1 -> {
+                    // Insurance tab
+                    if (policies.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Security,
+                                    null,
+                                    modifier = Modifier.size(80.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Text("Нет полисов", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "Нажмите + чтобы добавить ОСАГО или КАСКО",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(policies, key = { it.id }) { policy ->
+                                InsurancePolicyCard(
+                                    policy = policy,
+                                    onDelete = { insuranceViewModel.deletePolicy(policy) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Диалог добавления
-    if (showAddDialog) {
+    // Диалог добавления документа
+    if (showAddDocDialog) {
         DocumentFormDialog(
             title = "Добавить документ",
-            onDismiss = { showAddDialog = false },
+            onDismiss = { showAddDocDialog = false },
             onSave = { type, title, fileUri, expiryDate, notes ->
                 viewModel.addDocument(carId, type, title, fileUri, expiryDate, notes)
-                showAddDialog = false
+                showAddDocDialog = false
             }
         )
     }
 
-    // Диалог редактирования
+    // Диалог редактирования документа
     editingDocument?.let { doc ->
         DocumentFormDialog(
             title = "Редактировать документ",
@@ -121,6 +203,17 @@ fun DocumentsScreen(
             onSave = { type, title, fileUri, expiryDate, notes ->
                 viewModel.updateDocument(doc, type, title, fileUri, expiryDate, notes)
                 editingDocument = null
+            }
+        )
+    }
+
+    // Диалог добавления страхового полиса
+    if (showAddPolicyDialog) {
+        AddInsurancePolicyDialog(
+            onDismiss = { showAddPolicyDialog = false },
+            onConfirm = { type, company, number, start, end, cost, notes ->
+                insuranceViewModel.addPolicy(type, company, number, start, end, cost, notes)
+                showAddPolicyDialog = false
             }
         )
     }

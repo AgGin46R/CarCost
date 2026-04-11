@@ -55,6 +55,7 @@ data class Expense(
     val nextServiceOdometer: Int? = null,
     val nextServiceDate: Long? = null,
     val workshopName: String? = null,
+    val maintenanceParts: String? = null, // список запчастей/работ
 
     // Мета-информация
     val createdAt: Long = System.currentTimeMillis(),

@@ -8,6 +8,7 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
 import com.aggin.carcost.data.local.repository.CarRepository
+import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 data class HomeUiState(
     val cars: List<Car> = emptyList(),
     val remindersByCarId: Map<String, List<MaintenanceReminder>> = emptyMap(),
+    val monthlyExpensePerCar: Map<String, Double> = emptyMap(),
     val isLoading: Boolean = true,
     val isSyncing: Boolean = false,
     val syncError: String? = null,
@@ -31,6 +33,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
     private val reminderRepository = MaintenanceReminderRepository(database.maintenanceReminderDao())
+    private val expenseRepository = ExpenseRepository(database.expenseDao())
 
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
@@ -146,13 +149,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 flowOf(HomeUiState(cars = emptyList(), isLoading = false))
             } else {
                 combine(cars.map { car ->
-                    reminderRepository.getActiveReminders(car.id).map { reminders ->
-                        car.id to reminders
+                    combine(
+                        reminderRepository.getActiveReminders(car.id),
+                        expenseRepository.getMonthlyExpenses(car.id)
+                    ) { reminders, monthly ->
+                        Triple(car.id, reminders, monthly)
                     }
-                }) { remindersArray ->
+                }) { triples ->
                     HomeUiState(
                         cars = cars,
-                        remindersByCarId = remindersArray.toMap(),
+                        remindersByCarId = triples.associate { it.first to it.second },
+                        monthlyExpensePerCar = triples.associate { it.first to it.third },
                         isLoading = false
                     )
                 }

@@ -1,15 +1,23 @@
 package com.aggin.carcost.presentation.screens.add_expense
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,6 +46,12 @@ fun AddExpenseScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+
+    val receiptLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.updateReceiptPhoto(it) }
+    }
 
     // --- НОВЫЙ БЛОК: ЛОГИКА ПОЛУЧЕНИЯ ДАННЫХ СО СКАНЕРА ---
     // Получаем доступ к savedStateHandle, чтобы читать данные, переданные с другого экрана
@@ -334,6 +348,17 @@ fun AddExpenseScreen(
                         singleLine = true,
                         enabled = !uiState.isSaving
                     )
+
+                    OutlinedTextField(
+                        value = uiState.maintenanceParts,
+                        onValueChange = { viewModel.updateMaintenanceParts(it) },
+                        label = { Text("Запчасти и работы") },
+                        placeholder = { Text("Масло 5W-40, фильтр масляный, прокладка") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4,
+                        enabled = !uiState.isSaving
+                    )
                 }
 
                 ExpenseCategory.REPAIR -> {
@@ -355,6 +380,42 @@ fun AddExpenseScreen(
                 }
 
                 else -> { /* Нет специфичных полей */ }
+            }
+
+            Divider()
+
+            // Фото чека
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Фото чека", style = MaterialTheme.typography.titleSmall)
+                OutlinedButton(
+                    onClick = { if (!uiState.isUploadingReceipt) receiptLauncher.launch("image/*") },
+                    enabled = !uiState.isSaving
+                ) {
+                    if (uiState.isUploadingReceipt) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Загрузка...")
+                    } else {
+                        Icon(Icons.Default.CameraAlt, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (uiState.receiptPhotoUri != null) "Изменить" else "Прикрепить")
+                    }
+                }
+            }
+            if (uiState.receiptPhotoUri != null) {
+                AsyncImage(
+                    model = uiState.receiptPhotoUri,
+                    contentDescription = "Фото чека",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

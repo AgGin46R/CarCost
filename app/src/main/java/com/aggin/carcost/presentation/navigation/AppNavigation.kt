@@ -13,7 +13,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.aggin.carcost.data.local.settings.SettingsManager
-import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.supabase
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.SessionStatus
 import com.aggin.carcost.presentation.screens.onboarding.OnboardingScreen
 import com.aggin.carcost.presentation.screens.add_car.AddCarScreen
 import com.aggin.carcost.presentation.screens.add_expense.AddExpenseScreen
@@ -35,14 +37,12 @@ import com.aggin.carcost.presentation.screens.planned_expenses.AddPlannedExpense
 import com.aggin.carcost.presentation.screens.planned_expenses.EditPlannedExpenseScreen
 import com.aggin.carcost.presentation.screens.documents.DocumentsScreen
 import com.aggin.carcost.presentation.screens.compare.CompareScreen
-import com.aggin.carcost.presentation.screens.search.SearchScreen
 import com.aggin.carcost.presentation.screens.budget.BudgetScreen
 import com.aggin.carcost.presentation.screens.maintenance_dashboard.MaintenanceDashboardScreen
 import com.aggin.carcost.presentation.screens.tco.TcoScreen
 import com.aggin.carcost.presentation.screens.service_timeline.ServiceTimelineScreen
 import com.aggin.carcost.presentation.screens.ai_insights.AiInsightsScreen
 import com.aggin.carcost.presentation.screens.fuel_prices.FuelPricesScreen
-import com.aggin.carcost.presentation.screens.vin_decoder.VinDecoderScreen
 import com.aggin.carcost.presentation.screens.achievements.AchievementsScreen
 import com.aggin.carcost.presentation.screens.goals.GoalsScreen
 import com.aggin.carcost.presentation.screens.car_members.CarMembersScreen
@@ -50,7 +50,6 @@ import com.aggin.carcost.presentation.screens.car_members.AcceptInviteScreen
 import com.aggin.carcost.presentation.screens.chat.ChatScreen
 import com.aggin.carcost.presentation.screens.chat.ChatsListScreen
 import com.aggin.carcost.presentation.screens.gps_trip.GpsTripScreen
-import com.aggin.carcost.presentation.screens.insurance.InsurancePoliciesScreen
 import com.aggin.carcost.presentation.screens.parking.ParkingTimerScreen
 import com.aggin.carcost.presentation.screens.gps_trip.TripMapScreen
 
@@ -105,7 +104,6 @@ sealed class Screen(val route: String) {
 
     object BugReport : Screen("bug_report")
 
-    // ✅ НОВЫЕ МАРШРУТЫ ДЛЯ ПЛАНОВ ПОКУПОК
     object PlannedExpenses : Screen("planned_expenses/{carId}") {
         fun createRoute(carId: String) = "planned_expenses/$carId"
     }
@@ -123,8 +121,6 @@ sealed class Screen(val route: String) {
     }
 
     object Compare : Screen("compare")
-
-    object Search : Screen("search")
 
     object Onboarding : Screen("onboarding")
 
@@ -147,10 +143,6 @@ sealed class Screen(val route: String) {
     }
 
     object FuelPrices : Screen("fuel_prices")
-
-    object VinDecoder : Screen("vin_decoder/{carId}") {
-        fun createRoute(carId: String) = "vin_decoder/$carId"
-    }
 
     object Achievements : Screen("achievements")
 
@@ -180,10 +172,6 @@ sealed class Screen(val route: String) {
 
     object ChatsList : Screen("chats_list")
 
-    object Insurance : Screen("insurance/{carId}") {
-        fun createRoute(carId: String) = "insurance/$carId"
-    }
-
     object ParkingTimer : Screen("parking_timer")
 }
 
@@ -196,14 +184,21 @@ fun AppNavigation(
 ) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
-    // null = ещё не прочитано, true/false = прочитано
     val onboardingDone by settingsManager.onboardingDoneFlow.collectAsState(initial = null)
 
-    val supabaseAuth = SupabaseAuthRepository()
-    val isLoggedIn = supabaseAuth.isUserLoggedIn()
+    // Use sessionStatus flow instead of isUserLoggedIn() to avoid race conditions
+    // and prevent false logouts on network errors
+    val sessionStatus by supabase.auth.sessionStatus.collectAsState()
 
-    // Ждём пока DataStore вернёт значение
+    // Wait for onboarding DataStore value
     val done = onboardingDone ?: return
+
+    // Wait for session to finish loading from storage before deciding
+    if (sessionStatus is SessionStatus.LoadingFromStorage) return
+
+    // Authenticated = logged in; NotAuthenticated = not logged in
+    // Any other status (e.g. NetworkError) = keep the user logged in
+    val isLoggedIn = sessionStatus is SessionStatus.Authenticated
 
     // Если пришёл deep link с токеном и пользователь залогинен — сразу на экран принятия
     val startDestination = when {
@@ -365,8 +360,6 @@ fun AppNavigation(
             BugReportScreen(navController = navController)
         }
 
-        // ✅ НОВЫЕ МАРШРУТЫ ДЛЯ ПЛАНОВ ПОКУПОК
-
         // Список запланированных покупок
         composable(
             route = Screen.PlannedExpenses.route,
@@ -388,11 +381,6 @@ fun AppNavigation(
         // Сравнение авто
         composable(Screen.Compare.route) {
             CompareScreen(navController = navController)
-        }
-
-        // Глобальный поиск
-        composable(Screen.Search.route) {
-            SearchScreen(navController = navController)
         }
 
         // Дашборд ТО
@@ -427,7 +415,7 @@ fun AppNavigation(
             BudgetScreen(carId = carId, navController = navController)
         }
 
-        // Хранилище документов
+        // Хранилище документов (включает страховки во вкладке)
         composable(
             route = Screen.Documents.route,
             arguments = listOf(navArgument("carId") { type = NavType.StringType })
@@ -444,15 +432,6 @@ fun AppNavigation(
         // Таймер парковки
         composable(Screen.ParkingTimer.route) {
             ParkingTimerScreen(navController = navController)
-        }
-
-        // Страховые полисы
-        composable(
-            route = Screen.Insurance.route,
-            arguments = listOf(navArgument("carId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: ""
-            InsurancePoliciesScreen(carId = carId, navController = navController)
         }
 
         // GPS Поездки
@@ -485,15 +464,6 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             GoalsScreen(carId = carId, navController = navController)
-        }
-
-        // VIN-декодер
-        composable(
-            route = Screen.VinDecoder.route,
-            arguments = listOf(navArgument("carId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: ""
-            VinDecoderScreen(carId = carId, navController = navController)
         }
 
         // AI-советы

@@ -63,10 +63,6 @@ fun HomeScreen(
                     IconButton(onClick = { navController.navigate(Screen.ParkingTimer.route) }) {
                         Icon(Icons.Default.LocalParking, contentDescription = "Таймер парковки")
                     }
-                    // Кнопка поиска
-                    IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
-                        Icon(Icons.Default.Search, contentDescription = "Поиск")
-                    }
                     // Цены топлива
                     IconButton(onClick = { navController.navigate(Screen.FuelPrices.route) }) {
                         Icon(Icons.Default.LocalGasStation, contentDescription = "Цены топлива")
@@ -144,7 +140,8 @@ fun HomeScreen(
                             modifier = Modifier.weight(1f),
                             onCarClick = { car ->
                                 navController.navigate(Screen.CarDetail.createRoute(car.id))
-                            }
+                            },
+                            monthlyExpensePerCar = uiState.monthlyExpensePerCar
                         )
                     } else {
                         EmptyState(modifier = Modifier.weight(1f))
@@ -235,11 +232,12 @@ fun EmptyState(modifier: Modifier = Modifier) {
 @Composable
 fun CarsList(
     cars: List<Car>,
-    reminders: Map<String, List<MaintenanceReminder>>, // ✅ String UUID
+    reminders: Map<String, List<MaintenanceReminder>>,
     modifier: Modifier = Modifier,
-    onCarClick: (Car) -> Unit
+    onCarClick: (Car) -> Unit,
+    monthlyExpensePerCar: Map<String, Double> = emptyMap()
 ) {
-    var expandedCarId by remember { mutableStateOf<String?>(null) } // ✅ String UUID
+    var expandedCarId by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -254,7 +252,8 @@ fun CarsList(
                 onClick = { onCarClick(car) },
                 onExpandToggle = {
                     expandedCarId = if (expandedCarId == car.id) null else car.id
-                }
+                },
+                monthlyExpense = monthlyExpensePerCar[car.id]
             )
         }
     }
@@ -267,7 +266,8 @@ fun CarCard(
     reminders: List<MaintenanceReminder>,
     isExpanded: Boolean,
     onClick: () -> Unit,
-    onExpandToggle: () -> Unit
+    onExpandToggle: () -> Unit,
+    monthlyExpense: Double? = null
 ) {
     Card(
         onClick = onClick,
@@ -332,6 +332,12 @@ fun CarCard(
                         FuelType.GAS -> "Газ"
                         else -> "Другое"
                     }
+                )
+                InfoChip(
+                    label = "За месяц",
+                    value = if (monthlyExpense != null && monthlyExpense > 0)
+                        "${"%.0f".format(monthlyExpense)} ₽"
+                    else "—"
                 )
             }
 

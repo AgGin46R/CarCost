@@ -3,7 +3,10 @@ package com.aggin.carcost.presentation.screens.add_expense
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.location.Location
+import android.net.Uri
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -16,22 +19,29 @@ import com.aggin.carcost.domain.gamification.AchievementChecker
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
+import com.aggin.carcost.data.notifications.NotificationHelper
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
+import com.aggin.carcost.supabase
+import io.github.jan.supabase.storage.storage
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.ByteArrayOutputStream
 
 data class AddExpenseUiState(
+    val expenseId: String = java.util.UUID.randomUUID().toString(),
     val category: ExpenseCategory = ExpenseCategory.FUEL,
     val amount: String = "",
     val odometer: String = "",
@@ -46,6 +56,11 @@ data class AddExpenseUiState(
     // Для обслуживания
     val serviceType: ServiceType? = null,
     val workshopName: String = "",
+    val maintenanceParts: String = "",
+
+    // Чек
+    val receiptPhotoUri: String? = null,
+    val isUploadingReceipt: Boolean = false,
 
     // Теги
     val availableTags: List<ExpenseTag> = emptyList(),
@@ -232,6 +247,43 @@ class AddExpenseViewModel(
         _uiState.value = _uiState.value.copy(workshopName = value)
     }
 
+    fun updateMaintenanceParts(value: String) {
+        _uiState.value = _uiState.value.copy(maintenanceParts = value)
+    }
+
+    fun updateReceiptPhoto(uri: Uri) {
+        val expenseId = _uiState.value.expenseId
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                _uiState.value = _uiState.value.copy(isUploadingReceipt = true)
+            }
+            try {
+                val inputStream = (getApplication() as android.app.Application).contentResolver.openInputStream(uri)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+                val maxSize = 1024
+                val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height, 1f)
+                val scaled = Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
+                val out = ByteArrayOutputStream()
+                scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                bitmap.recycle(); scaled.recycle()
+
+                val bucket = supabase.storage.from("receipts")
+                val fileName = "$expenseId.jpg"
+                bucket.upload(path = fileName, data = out.toByteArray(), upsert = true)
+                val url = bucket.publicUrl(fileName)
+                withContext(Dispatchers.Main) {
+                    _uiState.value = _uiState.value.copy(receiptPhotoUri = url, isUploadingReceipt = false)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AddExpense", "Receipt upload failed", e)
+                withContext(Dispatchers.Main) {
+                    _uiState.value = _uiState.value.copy(isUploadingReceipt = false)
+                }
+            }
+        }
+    }
+
     fun addTag(tag: ExpenseTag) {
         val currentTags = _uiState.value.selectedTags
         if (currentTags.none { it.id == tag.id }) {
@@ -363,6 +415,7 @@ class AddExpenseViewModel(
     ) {
         try {
             val expense = Expense(
+                id = state.expenseId,
                 carId = carId,
                 category = state.category,
                 amount = state.amount.toDouble(),
@@ -383,7 +436,11 @@ class AddExpenseViewModel(
                 workshopName = if (state.category == ExpenseCategory.MAINTENANCE ||
                     state.category == ExpenseCategory.REPAIR) {
                     state.workshopName.ifBlank { null }
-                } else null
+                } else null,
+                maintenanceParts = if (state.category == ExpenseCategory.MAINTENANCE) {
+                    state.maintenanceParts.ifBlank { null }
+                } else null,
+                receiptPhotoUri = state.receiptPhotoUri
             )
 
             // 1. Сохраняем локально
@@ -440,20 +497,19 @@ class AddExpenseViewModel(
                 if (userId == null) {
                     android.util.Log.e("AddExpense", "User not authenticated!")
                 } else {
-                    val expenseWithId = expense.copy(id = expenseId)
                     // Try direct insert first — works for both owners and members (RLS allows any car member).
                     // If it fails (e.g. car was never synced to Supabase by the owner), fall back to
                     // syncing the car first, then retry.
-                    val result = supabaseExpenseRepo.insertExpense(expenseWithId)
+                    val result = supabaseExpenseRepo.insertExpense(expense)
                     result.fold(
                         onSuccess = {
-                            android.util.Log.d("AddExpense", "✅ Expense synced to Supabase: $expenseId")
+                            android.util.Log.d("AddExpense", "✅ Expense synced to Supabase: ${expense.id}")
                         },
                         onFailure = { error ->
                             android.util.Log.w("AddExpense", "Direct expense sync failed (${error.message}), trying to ensure car exists first")
                             val carSynced = ensureCarSyncedToSupabase(carId)
                             if (carSynced) {
-                                supabaseExpenseRepo.insertExpense(expenseWithId).fold(
+                                supabaseExpenseRepo.insertExpense(expense).fold(
                                     onSuccess = { android.util.Log.d("AddExpense", "✅ Expense synced after car sync") },
                                     onFailure = { e -> android.util.Log.e("AddExpense", "❌ Expense sync failed after car sync: ${e.message}") }
                                 )
@@ -494,7 +550,7 @@ class AddExpenseViewModel(
 
                     // Теперь безопасно создаем связи
                     val tagIds = state.selectedTags.map { it.id }
-                    val result = supabaseTagRepo.setTagsForExpense(expenseId, tagIds)
+                    val result = supabaseTagRepo.setTagsForExpense(state.expenseId, tagIds)
 
                     result.fold(
                         onSuccess = {
@@ -540,6 +596,41 @@ class AddExpenseViewModel(
                 }
             }
 
+
+            // ✅ Проверка бюджета — немедленное уведомление при превышении
+            viewModelScope.launch {
+                try {
+                    val cal = java.util.Calendar.getInstance()
+                    val month = cal.get(java.util.Calendar.MONTH) + 1
+                    val year = cal.get(java.util.Calendar.YEAR)
+                    val budget = database.categoryBudgetDao().getBudget(carId, state.category, month, year)
+                    if (budget != null) {
+                        cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        cal.set(java.util.Calendar.MILLISECOND, 0)
+                        val startOfMonth = cal.timeInMillis
+                        val monthlyTotal = expenseRepository
+                            .getExpensesInDateRange(carId, startOfMonth, System.currentTimeMillis())
+                            .firstOrNull()
+                            ?.filter { it.category == state.category }
+                            ?.sumOf { it.amount } ?: 0.0
+                        if (monthlyTotal > budget.monthlyLimit) {
+                            val over = monthlyTotal - budget.monthlyLimit
+                            val catName = NotificationHelper.categoryDisplayName(state.category.name)
+                            NotificationHelper.sendGenericNotification(
+                                context = getApplication(),
+                                notificationId = state.category.ordinal + 3000,
+                                title = "Превышен бюджет: $catName",
+                                body = "Перерасход: +${"%.0f".format(over)} ₽ (лимит ${"%.0f".format(budget.monthlyLimit)} ₽)"
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AddExpense", "Budget check failed", e)
+                }
+            }
 
             // ✅ НОВОЕ: Если расход создан из плана - обновить статус на COMPLETED
             if (state.plannedExpenseId != null) {

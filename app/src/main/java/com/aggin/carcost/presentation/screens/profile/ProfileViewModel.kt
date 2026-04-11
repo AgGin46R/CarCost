@@ -333,6 +333,22 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setNotifMaintenance(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setNotifMaintenance(enabled) }
+    }
+
+    fun setNotifInsurance(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setNotifInsurance(enabled) }
+    }
+
+    fun setNotifDigest(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setNotifDigest(enabled) }
+    }
+
+    fun setNotifFuel(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setNotifFuel(enabled) }
+    }
+
     fun updateDisplayName(newName: String) {
         viewModelScope.launch {
             try {

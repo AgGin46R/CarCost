@@ -82,6 +82,11 @@ data class GpsTripStats(
     val longestTripKm: Double
 )
 
+data class OdometerPoint(
+    val label: String,   // "Янв 25"
+    val odometer: Int
+)
+
 data class AnalyticsUiState(
     val car: Car? = null,
     val expenses: List<Expense> = emptyList(),
@@ -100,6 +105,7 @@ data class AnalyticsUiState(
     val yearComparison: YearComparison? = null,
     val categoryTrends: List<CategoryTrend> = emptyList(),
     val gpsTripStats: GpsTripStats? = null,
+    val odometerHistory: List<OdometerPoint> = emptyList(),
     val isLoading: Boolean = true
 )
 

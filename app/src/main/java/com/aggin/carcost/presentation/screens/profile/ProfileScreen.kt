@@ -52,6 +52,11 @@ fun ProfileScreen(
     val currentTheme by settingsManager.themeFlow.collectAsState(initial = "System")
     var showThemeDialog by remember { mutableStateOf(false) }
 
+    val notifMaintenance by settingsManager.notifMaintenanceFlow.collectAsState(initial = true)
+    val notifInsurance by settingsManager.notifInsuranceFlow.collectAsState(initial = true)
+    val notifDigest by settingsManager.notifDigestFlow.collectAsState(initial = true)
+    val notifFuel by settingsManager.notifFuelFlow.collectAsState(initial = true)
+
     // Разрешение на камеру
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
 
@@ -117,6 +122,19 @@ fun ProfileScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            NotificationSection(
+                notifMaintenance = notifMaintenance,
+                notifInsurance = notifInsurance,
+                notifDigest = notifDigest,
+                notifFuel = notifFuel,
+                onToggleMaintenance = { viewModel.setNotifMaintenance(it) },
+                onToggleInsurance = { viewModel.setNotifInsurance(it) },
+                onToggleDigest = { viewModel.setNotifDigest(it) },
+                onToggleFuel = { viewModel.setNotifFuel(it) }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             ActionsSection(
                 navController = navController,
@@ -623,6 +641,52 @@ fun ActionItem(
                 color = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
         }
+    }
+}
+
+@Composable
+fun NotificationSection(
+    notifMaintenance: Boolean,
+    notifInsurance: Boolean,
+    notifDigest: Boolean,
+    notifFuel: Boolean,
+    onToggleMaintenance: (Boolean) -> Unit,
+    onToggleInsurance: (Boolean) -> Unit,
+    onToggleDigest: (Boolean) -> Unit,
+    onToggleFuel: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Уведомления",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            NotifToggleRow("Напоминания о ТО", notifMaintenance, onToggleMaintenance)
+            NotifToggleRow("Страховка", notifInsurance, onToggleInsurance)
+            NotifToggleRow("Еженедельный дайджест", notifDigest, onToggleDigest)
+            NotifToggleRow("Низкий уровень топлива", notifFuel, onToggleFuel)
+        }
+    }
+}
+
+@Composable
+private fun NotifToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
