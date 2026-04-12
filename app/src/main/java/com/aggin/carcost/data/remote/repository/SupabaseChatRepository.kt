@@ -21,7 +21,9 @@ data class ChatMessageDto(
     @SerialName("created_at") val createdAt: Long,
     @SerialName("media_url") val mediaUrl: String? = null,
     @SerialName("media_type") val mediaType: String? = null,
-    @SerialName("file_name") val fileName: String? = null
+    @SerialName("file_name") val fileName: String? = null,
+    @SerialName("reply_to_id") val replyToId: String? = null,
+    @SerialName("reply_to_text") val replyToText: String? = null
 )
 
 fun ChatMessageDto.toChatMessage() = ChatMessage(
@@ -33,7 +35,9 @@ fun ChatMessageDto.toChatMessage() = ChatMessage(
     createdAt = createdAt,
     mediaUrl = mediaUrl,
     mediaType = mediaType,
-    fileName = fileName
+    fileName = fileName,
+    replyToId = replyToId,
+    replyToText = replyToText
 )
 
 fun ChatMessage.toDto() = ChatMessageDto(
@@ -45,7 +49,9 @@ fun ChatMessage.toDto() = ChatMessageDto(
     createdAt = createdAt,
     mediaUrl = mediaUrl,
     mediaType = mediaType,
-    fileName = fileName
+    fileName = fileName,
+    replyToId = replyToId,
+    replyToText = replyToText
 )
 
 class SupabaseChatRepository {
@@ -107,7 +113,7 @@ class SupabaseChatRepository {
             val url = bucket.publicUrl(path)
             Result.success(url)
         } catch (e: Exception) {
-            Log.e("ChatRepo", "uploadMedia failed", e)
+            Log.e("ChatRepo", "uploadMedia FAILED: ${e::class.simpleName}: ${e.message}", e)
             Result.failure(e)
         }
     }

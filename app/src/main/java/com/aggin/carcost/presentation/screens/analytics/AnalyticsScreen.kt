@@ -33,6 +33,7 @@ import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
 import com.patrykandpatrick.vico.compose.chart.column.columnChart
+import com.patrykandpatrick.vico.compose.chart.line.lineChart
 import com.patrykandpatrick.vico.core.entry.entryModelOf
 import kotlin.math.abs
 
@@ -619,7 +620,7 @@ fun MonthlyChartCard(monthlyExpenses: List<MonthlyExpense>) {
                     *monthlyExpenses.mapIndexed { index, expense -> index to expense.amount }.toTypedArray()
                 )
                 Chart(
-                    chart = columnChart(),
+                    chart = lineChart(),
                     model = chartEntryModel,
                     startAxis = rememberStartAxis(),
                     bottomAxis = rememberBottomAxis(
@@ -681,7 +682,7 @@ fun FuelStatisticsCard(fuelStats: FuelStatistics) {
                     }.toTypedArray()
                 )
                 Chart(
-                    chart = columnChart(),
+                    chart = lineChart(),
                     model = chartModel,
                     startAxis = rememberStartAxis(),
                     bottomAxis = rememberBottomAxis(

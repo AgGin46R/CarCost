@@ -30,5 +30,7 @@ data class ChatMessage(
     // "image" | "audio" | "file" | null (null = совместимость со старыми записями = image)
     val mediaType: String? = null,
     // Оригинальное имя файла/длительность голосового (напр. "voice_12s.m4a", "document.pdf")
-    val fileName: String? = null
+    val fileName: String? = null,
+    val replyToId: String? = null,
+    val replyToText: String? = null
 )

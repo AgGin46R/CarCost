@@ -16,13 +16,18 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -41,13 +46,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -72,9 +86,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -90,9 +104,11 @@ import com.aggin.carcost.data.remote.repository.SupabaseChatRepository
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URL
@@ -112,7 +128,8 @@ data class ChatUiState(
     // message.id → playback progress 0f..1f
     val playbackProgress: Map<String, Float> = emptyMap(),
     // currently playing message id
-    val playingMessageId: String? = null
+    val playingMessageId: String? = null,
+    val replyingTo: ChatMessage? = null
 )
 
 class ChatViewModel(
@@ -164,15 +181,18 @@ class ChatViewModel(
         }
     }
 
+    fun setReplyTo(message: ChatMessage?) = _uiState.update { it.copy(replyingTo = message) }
+
     /** Send a text message, optionally with an image. */
     fun sendMessage(text: String, mediaUri: Uri? = null) {
         val trimmed = text.trim()
         if (trimmed.isBlank() && mediaUri == null) return
         val userId = auth.getUserId() ?: return
         val email = auth.getCurrentUserEmail() ?: ""
+        val replyTo = _uiState.value.replyingTo
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSending = true) }
+            _uiState.update { it.copy(isSending = true, replyingTo = null) }
             try {
                 val messageId = UUID.randomUUID().toString()
                 var mediaUrl: String? = null
@@ -191,7 +211,9 @@ class ChatViewModel(
                     userEmail = email,
                     message = trimmed,
                     mediaUrl = mediaUrl,
-                    mediaType = if (mediaUrl != null) "image" else null
+                    mediaType = if (mediaUrl != null) "image" else null,
+                    replyToId = replyTo?.id,
+                    replyToText = replyTo?.message?.take(100)?.ifBlank { replyTo.fileName }
                 )
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
@@ -331,9 +353,14 @@ class ChatViewModel(
                 val bytes = videoFile.readBytes()
                 videoFile.delete()
                 val messageId = UUID.randomUUID().toString()
-                val mediaUrl = supabaseChat.uploadMedia(
+                val uploadResult = supabaseChat.uploadMedia(
                     carId, messageId, bytes, "mp4", "video/mp4"
-                ).getOrNull()
+                )
+                val mediaUrl = uploadResult.getOrNull()
+                if (mediaUrl == null) {
+                    android.util.Log.e("VideoNote", "upload failed: ${uploadResult.exceptionOrNull()?.message}")
+                    return@launch
+                }
                 val message = ChatMessage(
                     id = messageId,
                     carId = carId,
@@ -575,10 +602,12 @@ fun ChatScreen(carId: String, navController: NavController) {
                 recordingDurationSeconds = uiState.recordingDurationSeconds,
                 pendingMediaUri = pendingMediaUri,
                 pendingFileName = pendingFileName,
+                replyingTo = uiState.replyingTo,
                 onTextChange = { inputText = it },
                 onAttachClick = { showAttachSheet = true },
                 onRemoveImage = { pendingMediaUri = null },
                 onRemoveFile = { pendingFileUri = null; pendingFileName = null },
+                onCancelReply = { viewModel.setReplyTo(null) },
                 onMicClick = {
                     if (audioPermission.status.isGranted) {
                         viewModel.startRecording(context)
@@ -644,6 +673,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                             isPlaying = uiState.playingMessageId == message.id,
                             playbackProgress = uiState.playbackProgress[message.id] ?: 0f,
                             onDelete = if (isMe) ({ viewModel.deleteMessage(message) }) else null,
+                            onReply = { viewModel.setReplyTo(message) },
                             onImageClick = { url -> fullscreenImageUrl = url },
                             onPlayPause = { viewModel.togglePlayback(message) },
                             onOpenFile = { url, name -> openFile(context, url, name) }
@@ -733,10 +763,12 @@ private fun ChatInputBar(
     recordingDurationSeconds: Int,
     pendingMediaUri: Uri?,
     pendingFileName: String?,
+    replyingTo: ChatMessage?,
     onTextChange: (String) -> Unit,
     onAttachClick: () -> Unit,
     onRemoveImage: () -> Unit,
     onRemoveFile: () -> Unit,
+    onCancelReply: () -> Unit,
     onMicClick: () -> Unit,
     onVideoNoteClick: () -> Unit,
     onCancelRecording: () -> Unit,
@@ -758,6 +790,28 @@ private fun ChatInputBar(
                     onStop = onStopAndSend
                 )
             } else {
+                // ── Reply preview ──────────────────────────────────────────────
+                if (replyingTo != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Reply, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            replyingTo.message.take(80),
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        IconButton(onClick = onCancelReply, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    HorizontalDivider()
+                }
+
                 // ── Pending image preview ──────────────────────────────────────
                 if (pendingMediaUri != null) {
                     Row(
@@ -895,12 +949,20 @@ private fun ChatBubble(
     isPlaying: Boolean,
     playbackProgress: Float,
     onDelete: (() -> Unit)?,
+    onReply: () -> Unit,
     onImageClick: (String) -> Unit,
     onPlayPause: () -> Unit,
     onOpenFile: (String, String) -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showContextMenu by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val clipboard = LocalClipboardManager.current
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val offsetX = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val swipeThresholdPx = with(density) { 64.dp.toPx() }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -917,164 +979,233 @@ private fun ChatBubble(
         )
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
-    ) {
-        if (!isMe) {
-            Box(
-                modifier = Modifier.size(32.dp).clip(CircleShape).background(avatarColor(message.userEmail)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(message.userEmail.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-            Spacer(Modifier.width(6.dp))
-        }
-
-        Column(
-            modifier = Modifier.widthIn(max = 280.dp),
-            horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
-        ) {
-            if (!isMe) {
-                Text(
-                    message.userEmail.substringBefore("@"),
-                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+    if (showContextMenu) {
+        ModalBottomSheet(onDismissRequest = { showContextMenu = false }) {
+            Column(modifier = Modifier.padding(bottom = 32.dp)) {
+                ListItem(
+                    headlineContent = { Text("Ответить") },
+                    leadingContent = { Icon(Icons.Default.Reply, null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable { showContextMenu = false; onReply() }
                 )
-            }
-
-            val bubbleShape = RoundedCornerShape(
-                topStart = if (isMe) 16.dp else 4.dp,
-                topEnd = if (isMe) 4.dp else 16.dp,
-                bottomStart = 16.dp, bottomEnd = 16.dp
-            )
-            val bubbleBg = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-
-            when (message.mediaType) {
-                "audio" -> {
-                    // Voice message bubble
-                    Box(
-                        modifier = Modifier.clip(bubbleShape).background(bubbleBg).padding(horizontal = 12.dp, vertical = 8.dp).widthIn(min = 180.dp)
-                    ) {
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = onPlayPause, modifier = Modifier.size(40.dp)) {
-                                    Icon(
-                                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        null,
-                                        tint = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                Spacer(Modifier.width(6.dp))
-                                WaveformDecoration(isMe = isMe, modifier = Modifier.weight(1f))
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    parseDurationFromFileName(message.fileName),
-                                    fontSize = 12.sp,
-                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (isPlaying) {
-                                LinearProgressIndicator(
-                                    progress = { playbackProgress },
-                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                }
-
-                "file" -> {
-                    // File card bubble
-                    Card(
-                        shape = bubbleShape,
-                        colors = CardDefaults.cardColors(containerColor = bubbleBg),
+                if (message.message.isNotBlank()) {
+                    ListItem(
+                        headlineContent = { Text("Копировать") },
+                        leadingContent = { Icon(Icons.Default.ContentCopy, null) },
                         modifier = Modifier.clickable {
-                            message.mediaUrl?.let { url -> onOpenFile(url, message.fileName ?: "file") }
+                            showContextMenu = false
+                            clipboard.setText(AnnotatedString(message.message))
                         }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).widthIn(min = 160.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                fileIcon(message.fileName ?: ""),
-                                null,
-                                tint = if (isMe) MaterialTheme.colorScheme.onPrimary else fileColor(message.fileName ?: ""),
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    message.fileName ?: "Файл",
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    "Нажмите, чтобы открыть",
-                                    fontSize = 11.sp,
-                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                "video_note" -> {
-                    VideoNoteBubble(
-                        url = message.mediaUrl ?: "",
-                        durationLabel = parseDurationFromFileName(message.fileName)
                     )
                 }
+                if (onDelete != null) {
+                    ListItem(
+                        headlineContent = { Text("Удалить", color = MaterialTheme.colorScheme.error) },
+                        leadingContent = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                        modifier = Modifier.clickable { showContextMenu = false; showDeleteDialog = true }
+                    )
+                }
+            }
+        }
+    }
 
-                else -> {
-                    // Image (existing) and text bubbles
-                    message.mediaUrl?.let { url ->
-                        if (message.mediaType == null || message.mediaType == "image") {
-                            AsyncImage(
-                                model = url,
-                                contentDescription = "Фото",
-                                modifier = Modifier.widthIn(max = 240.dp).clip(bubbleShape).clickable { onImageClick(url) },
-                                contentScale = ContentScale.FillWidth
+    // Swipe-to-reply container
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Reply icon appears as user swipes
+        if (offsetX.value > 8f) {
+            Icon(
+                Icons.Default.Reply,
+                contentDescription = null,
+                modifier = Modifier
+                    .align(if (isMe) Alignment.CenterStart else Alignment.CenterEnd)
+                    .padding(horizontal = 12.dp)
+                    .alpha((offsetX.value / swipeThresholdPx).coerceIn(0f, 1f))
+                    .size(24.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(if (isMe) -offsetX.value.roundToInt() else offsetX.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    coroutineScope {
+                        launch {
+                            detectHorizontalDragGestures(
+                                onDragEnd = {
+                                    scope.launch {
+                                        if (offsetX.value >= swipeThresholdPx) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onReply()
+                                        }
+                                        offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                    }
+                                },
+                                onHorizontalDrag = { _, dragAmount ->
+                                    val delta = if (isMe) -dragAmount else dragAmount
+                                    scope.launch {
+                                        offsetX.snapTo((offsetX.value + delta).coerceIn(0f, swipeThresholdPx * 1.3f))
+                                    }
+                                }
                             )
-                            if (message.message.isNotBlank()) Spacer(Modifier.height(4.dp))
                         }
-                    }
-                    if (message.message.isNotBlank()) {
-                        Box(
-                            modifier = Modifier.clip(bubbleShape).background(bubbleBg).padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                message.message,
-                                color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 15.sp
+                        launch {
+                            detectTapGestures(
+                                onLongPress = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showContextMenu = true
+                                }
                             )
                         }
                     }
                 }
-            }
-
+        ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
             ) {
-                Text(timeFmt.format(Date(message.createdAt)), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (onDelete != null) {
-                    AnimatedVisibility(visible = true, enter = fadeIn(), exit = fadeOut()) {
-                        IconButton(onClick = { showDeleteDialog = true }, modifier = Modifier.size(16.dp)) {
-                            Icon(Icons.Default.Delete, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!isMe) {
+                    Box(
+                        modifier = Modifier.size(32.dp).clip(CircleShape).background(avatarColor(message.userEmail)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(message.userEmail.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
+
+                Column(
+                    modifier = Modifier.widthIn(max = 280.dp),
+                    horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
+                ) {
+                    if (!isMe) {
+                        Text(
+                            message.userEmail.substringBefore("@"),
+                            fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                        )
+                    }
+
+                    val bubbleShape = RoundedCornerShape(
+                        topStart = if (isMe) 16.dp else 4.dp,
+                        topEnd = if (isMe) 4.dp else 16.dp,
+                        bottomStart = 16.dp, bottomEnd = 16.dp
+                    )
+                    val bubbleBg = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                    val onBubble = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+
+                    when (message.mediaType) {
+                        "audio" -> {
+                            Box(
+                                modifier = Modifier.clip(bubbleShape).background(bubbleBg).padding(horizontal = 12.dp, vertical = 8.dp).widthIn(min = 180.dp)
+                            ) {
+                                Column {
+                                    // Reply quote
+                                    if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = onPlayPause, modifier = Modifier.size(40.dp)) {
+                                            Icon(
+                                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                null, tint = onBubble
+                                            )
+                                        }
+                                        Spacer(Modifier.width(6.dp))
+                                        WaveformDecoration(isMe = isMe, modifier = Modifier.weight(1f))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(parseDurationFromFileName(message.fileName), fontSize = 12.sp, color = onBubble)
+                                    }
+                                    if (isPlaying) {
+                                        LinearProgressIndicator(
+                                            progress = { playbackProgress },
+                                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                            color = onBubble.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
                         }
+
+                        "file" -> {
+                            Card(
+                                shape = bubbleShape,
+                                colors = CardDefaults.cardColors(containerColor = bubbleBg),
+                                modifier = Modifier.clickable {
+                                    message.mediaUrl?.let { url -> onOpenFile(url, message.fileName ?: "file") }
+                                }
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).widthIn(min = 160.dp)) {
+                                    if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(fileIcon(message.fileName ?: ""), null, tint = if (isMe) onBubble else fileColor(message.fileName ?: ""), modifier = Modifier.size(32.dp))
+                                        Spacer(Modifier.width(10.dp))
+                                        Column {
+                                            Text(message.fileName ?: "Файл", maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = onBubble)
+                                            Text("Нажмите, чтобы открыть", fontSize = 11.sp, color = onBubble.copy(alpha = 0.7f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        "video_note" -> {
+                            VideoNoteBubble(
+                                url = message.mediaUrl ?: "",
+                                durationLabel = parseDurationFromFileName(message.fileName)
+                            )
+                        }
+
+                        else -> {
+                            message.mediaUrl?.let { url ->
+                                if (message.mediaType == null || message.mediaType == "image") {
+                                    AsyncImage(
+                                        model = url,
+                                        contentDescription = "Фото",
+                                        modifier = Modifier.widthIn(max = 240.dp).clip(bubbleShape).clickable { onImageClick(url) },
+                                        contentScale = ContentScale.FillWidth
+                                    )
+                                    if (message.message.isNotBlank()) Spacer(Modifier.height(4.dp))
+                                }
+                            }
+                            if (message.message.isNotBlank() || message.replyToId != null) {
+                                Box(modifier = Modifier.clip(bubbleShape).background(bubbleBg).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                    Column {
+                                        if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble)
+                                        if (message.message.isNotBlank()) {
+                                            Text(message.message, color = onBubble, fontSize = 15.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
+                    ) {
+                        Text(timeFmt.format(Date(message.createdAt)), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ReplyQuote(text: String?, contentColor: androidx.compose.ui.graphics.Color) {
+    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        Box(modifier = Modifier.width(3.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text ?: "Сообщение",
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall,
+            color = contentColor.copy(alpha = 0.75f)
+        )
+    }
+    Spacer(Modifier.height(4.dp))
 }
 
 @Composable
@@ -1336,53 +1467,59 @@ fun VideoNoteRecorderSheet(
 
             Spacer(Modifier.height(24.dp))
 
-            // Record / Stop button — disabled until camera is bound
-            FilledIconButton(
-                onClick = {
-                    if (isRecording) {
-                        recording?.stop()
-                    } else {
-                        val vc = videoCapture ?: return@FilledIconButton
-                        elapsedSec = 0
-                        val file = File(context.cacheDir, "video_note_${System.currentTimeMillis()}.mp4")
-                        val outputOptions = FileOutputOptions.Builder(file).build()
-                        recording = vc.output
-                            .prepareRecording(context, outputOptions)
-                            .withAudioEnabled()
-                            .start(ContextCompat.getMainExecutor(context)) { event ->
-                                when (event) {
-                                    is VideoRecordEvent.Start -> isRecording = true
-                                    is VideoRecordEvent.Finalize -> {
-                                        isRecording = false
-                                        if (!event.hasError()) {
-                                            onVideoRecorded(file, elapsedSec)
-                                        } else {
-                                            file.delete()
-                                            onDismiss()
+            // Record / Stop button with circular progress ring (60 sec limit)
+            Box(contentAlignment = Alignment.Center) {
+                if (isRecording) {
+                    CircularProgressIndicator(
+                        progress = { elapsedSec / 60f },
+                        modifier = Modifier.size(88.dp),
+                        strokeWidth = 5.dp,
+                        color = MaterialTheme.colorScheme.error,
+                        trackColor = MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+                    )
+                }
+                FilledIconButton(
+                    onClick = {
+                        if (isRecording) {
+                            recording?.stop()
+                        } else {
+                            val vc = videoCapture ?: return@FilledIconButton
+                            elapsedSec = 0
+                            val file = File(context.cacheDir, "video_note_${System.currentTimeMillis()}.mp4")
+                            val outputOptions = FileOutputOptions.Builder(file).build()
+                            recording = vc.output
+                                .prepareRecording(context, outputOptions)
+                                .withAudioEnabled()
+                                .start(ContextCompat.getMainExecutor(context)) { event ->
+                                    when (event) {
+                                        is VideoRecordEvent.Start -> isRecording = true
+                                        is VideoRecordEvent.Finalize -> {
+                                            isRecording = false
+                                            if (!event.hasError()) {
+                                                onVideoRecorded(file, elapsedSec)
+                                            } else {
+                                                file.delete()
+                                                onDismiss()
+                                            }
                                         }
+                                        else -> Unit
                                     }
-                                    else -> Unit
                                 }
-                            }
-                    }
-                },
-                enabled = isCameraReady,
-                modifier = Modifier.size(72.dp),
-                colors = if (isRecording)
-                    IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error)
-                else
-                    IconButtonDefaults.filledIconButtonColors()
-            ) {
-                Icon(
-                    if (isRecording) Icons.Default.Stop else Icons.Default.FiberManualRecord,
-                    contentDescription = if (isRecording) "Остановить" else "Записать",
-                    modifier = Modifier.size(36.dp)
-                )
-            }
-
-            if (isRecording) {
-                Spacer(Modifier.height(8.dp))
-                Text("Макс. 60 сек", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                    enabled = isCameraReady,
+                    modifier = Modifier.size(72.dp),
+                    colors = if (isRecording)
+                        IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error)
+                    else
+                        IconButtonDefaults.filledIconButtonColors()
+                ) {
+                    Icon(
+                        if (isRecording) Icons.Default.Stop else Icons.Default.FiberManualRecord,
+                        contentDescription = if (isRecording) "Остановить" else "Записать",
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
             }
         }
     }
@@ -1390,11 +1527,15 @@ fun VideoNoteRecorderSheet(
 
 // ── Video Note Bubble ─────────────────────────────────────────────────────────
 
-@OptIn(UnstableApi::class)
 @Composable
 fun VideoNoteBubble(url: String, durationLabel: String) {
+    if (url.isBlank()) return
+
     val context = LocalContext.current
     var isPlaying by remember { mutableStateOf(false) }
+    var firstFrameReady by remember { mutableStateOf(false) }
+    var thumbnail by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
@@ -1403,8 +1544,37 @@ fun VideoNoteBubble(url: String, durationLabel: String) {
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
+    // Extract first frame as thumbnail so there's no black screen while buffering
+    LaunchedEffect(url) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val retriever = android.media.MediaMetadataRetriever()
+                retriever.setDataSource(url, emptyMap())
+                thumbnail = retriever.getFrameAtTime(
+                    0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                )
+                retriever.release()
+            } catch (_: Exception) { }
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_ENDED) isPlaying = false
+            }
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+            override fun onRenderedFirstFrame() {
+                firstFrameReady = true
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
     }
 
     Box(
@@ -1413,27 +1583,54 @@ fun VideoNoteBubble(url: String, durationLabel: String) {
     ) {
         AndroidView(
             factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
+                android.view.TextureView(ctx).apply {
+                    surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                        override fun onSurfaceTextureAvailable(
+                            st: android.graphics.SurfaceTexture, w: Int, h: Int
+                        ) {
+                            exoPlayer.setVideoSurface(android.view.Surface(st))
+                        }
+                        override fun onSurfaceTextureDestroyed(
+                            st: android.graphics.SurfaceTexture
+                        ): Boolean {
+                            exoPlayer.clearVideoSurface()
+                            return true
+                        }
+                        override fun onSurfaceTextureSizeChanged(
+                            st: android.graphics.SurfaceTexture, w: Int, h: Int
+                        ) {}
+                        override fun onSurfaceTextureUpdated(
+                            st: android.graphics.SurfaceTexture
+                        ) {}
+                    }
                 }
             },
             modifier = Modifier
                 .size(160.dp)
                 .clip(CircleShape)
+                .background(Color.Black)
                 .clickable {
                     if (exoPlayer.isPlaying) {
                         exoPlayer.pause()
-                        isPlaying = false
                     } else {
-                        if (exoPlayer.playbackState == ExoPlayer.STATE_ENDED) {
-                            exoPlayer.seekTo(0)
-                        }
+                        if (exoPlayer.playbackState == Player.STATE_ENDED) exoPlayer.seekTo(0)
                         exoPlayer.play()
-                        isPlaying = true
                     }
                 }
         )
+
+        // Show thumbnail until ExoPlayer renders its first frame
+        if (!firstFrameReady) {
+            val bmp = thumbnail
+            if (bmp != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(160.dp).clip(CircleShape)
+                )
+            }
+        }
 
         // Play button overlay when not playing
         if (!isPlaying) {
