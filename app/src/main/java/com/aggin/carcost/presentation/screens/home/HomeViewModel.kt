@@ -13,6 +13,7 @@ import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
+import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.repository.CarInvitationDto
@@ -42,6 +43,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
     private val supabaseMembers = SupabaseCarMembersRepository(supabaseAuth)
     private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
+    private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
 
     private val _pendingInvitations = MutableStateFlow<List<CarInvitationDto>>(emptyList())
     private val _isSyncing = MutableStateFlow(false)
@@ -83,10 +85,27 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 syncCarsFromSupabase()
                 syncRemindersForAllCars()
+                syncExpensesForAllCars()
                 checkPendingInvitations()
             } finally {
                 _isSyncing.value = false
             }
+        }
+    }
+
+    private suspend fun syncExpensesForAllCars() {
+        try {
+            val cars = carRepository.getAllActiveCars().first()
+            if (cars.isEmpty()) return
+            cars.forEach { car ->
+                supabaseExpenseRepo.getExpensesByCarId(car.id).onSuccess { expenses ->
+                    expenses.forEach { expense ->
+                        try { database.expenseDao().insertExpense(expense) } catch (_: Exception) {}
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d("HomeViewModel", "Expense sync skipped: ${e.message}")
         }
     }
 

@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -129,7 +130,13 @@ data class ChatUiState(
     val playbackProgress: Map<String, Float> = emptyMap(),
     // currently playing message id
     val playingMessageId: String? = null,
-    val replyingTo: ChatMessage? = null
+    val audioSpeed: Float = 1f,
+    val replyingTo: ChatMessage? = null,
+    val editingMessage: ChatMessage? = null,
+    val searchQuery: String = "",
+    val isLoadingMore: Boolean = false,
+    val hasMoreMessages: Boolean = true,
+    val pageOffset: Int = 0
 )
 
 class ChatViewModel(
@@ -181,7 +188,48 @@ class ChatViewModel(
         }
     }
 
+    private companion object { const val PAGE_SIZE = 40 }
+
+    /** Подгрузить более старые сообщения при скролле вверх. */
+    fun loadMoreMessages() {
+        val state = _uiState.value
+        if (state.isLoadingMore || !state.hasMoreMessages) return
+        _uiState.update { it.copy(isLoadingMore = true) }
+        viewModelScope.launch {
+            val totalCount = db.chatMessageDao().getMessagesByCarId(carId).first().size
+            val offset = totalCount // skip what we already have
+            supabaseChat.getMessagesPaged(carId, PAGE_SIZE, offset).onSuccess { older ->
+                if (older.isNotEmpty()) {
+                    db.chatMessageDao().insertAll(older)
+                    _uiState.update { it.copy(hasMoreMessages = older.size == PAGE_SIZE) }
+                } else {
+                    _uiState.update { it.copy(hasMoreMessages = false) }
+                }
+            }.onFailure {
+                _uiState.update { it.copy(hasMoreMessages = false) }
+            }
+            _uiState.update { it.copy(isLoadingMore = false) }
+        }
+    }
+
     fun setReplyTo(message: ChatMessage?) = _uiState.update { it.copy(replyingTo = message) }
+
+    fun startEditing(message: ChatMessage) = _uiState.update { it.copy(editingMessage = message) }
+    fun cancelEditing() = _uiState.update { it.copy(editingMessage = null) }
+    fun setSearchQuery(query: String) = _uiState.update { it.copy(searchQuery = query) }
+
+    fun submitEdit(newText: String) {
+        val msg = _uiState.value.editingMessage ?: return
+        val trimmed = newText.trim()
+        if (trimmed.isBlank() || trimmed == msg.message) { cancelEditing(); return }
+        _uiState.update { it.copy(editingMessage = null) }
+        viewModelScope.launch {
+            supabaseChat.updateMessage(msg.id, trimmed).onSuccess {
+                val updated = msg.copy(message = trimmed, isEdited = true)
+                db.chatMessageDao().insert(updated)
+            }
+        }
+    }
 
     /** Send a text message, optionally with an image. */
     fun sendMessage(text: String, mediaUri: Uri? = null) {
@@ -248,6 +296,42 @@ class ChatViewModel(
                     mediaUrl = mediaUrl,
                     mediaType = "file",
                     fileName = fileName
+                )
+                db.chatMessageDao().insert(message)
+                supabaseChat.sendMessage(message)
+            } finally {
+                _uiState.update { it.copy(isSending = false) }
+            }
+        }
+    }
+
+    /** Send a video file from gallery. */
+    fun sendVideo(uri: Uri, context: Context) {
+        val userId = auth.getUserId() ?: return
+        val email = auth.getCurrentUserEmail() ?: ""
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSending = true) }
+            try {
+                val bytes = context.contentResolver.openInputStream(uri)?.readBytes() ?: return@launch
+                val mimeType = context.contentResolver.getType(uri) ?: "video/mp4"
+                val extension = when {
+                    mimeType.contains("webm") -> "webm"
+                    mimeType.contains("3gp") -> "3gp"
+                    else -> "mp4"
+                }
+                val messageId = UUID.randomUUID().toString()
+                val mediaUrl = supabaseChat.uploadMedia(carId, messageId, bytes, extension, mimeType).getOrNull()
+
+                val message = ChatMessage(
+                    id = messageId,
+                    carId = carId,
+                    userId = userId,
+                    userEmail = email,
+                    message = "",
+                    mediaUrl = mediaUrl,
+                    mediaType = "video",
+                    fileName = "video.$extension"
                 )
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
@@ -408,6 +492,10 @@ class ChatViewModel(
                     setDataSource(url)
                     prepareAsync()
                     setOnPreparedListener {
+                        val speed = _uiState.value.audioSpeed
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && speed != 1f) {
+                            try { it.playbackParams = it.playbackParams.setSpeed(speed) } catch (_: Exception) {}
+                        }
                         it.start()
                         _uiState.update { s -> s.copy(playingMessageId = message.id) }
                         trackPlayback(message.id, it)
@@ -429,6 +517,24 @@ class ChatViewModel(
                 mediaPlayers[message.id] = player
             } catch (_: Exception) {
                 _uiState.update { it.copy(playingMessageId = null) }
+            }
+        }
+    }
+
+    /** Cycle audio playback speed: 1× → 1.5× → 2× → 1× */
+    fun cycleAudioSpeed() {
+        val next = when (_uiState.value.audioSpeed) {
+            1f -> 1.5f
+            1.5f -> 2f
+            else -> 1f
+        }
+        _uiState.update { it.copy(audioSpeed = next) }
+        val playingId = _uiState.value.playingMessageId ?: return
+        mediaPlayers[playingId]?.let { player ->
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                try {
+                    player.playbackParams = player.playbackParams.setSpeed(next)
+                } catch (_: Exception) {}
             }
         }
     }
@@ -506,6 +612,7 @@ fun ChatScreen(carId: String, navController: NavController) {
     )
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+    val screenScope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
     var pendingMediaUri by remember { mutableStateOf<Uri?>(null) }
     var pendingFileUri by remember { mutableStateOf<Uri?>(null) }
@@ -527,6 +634,10 @@ fun ChatScreen(carId: String, navController: NavController) {
             pendingFileUri = uri
             pendingFileName = getFileName(context, uri)
         }
+    }
+
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) viewModel.sendVideo(uri, context)
     }
 
     DisposableEffect(carId) {
@@ -561,6 +672,20 @@ fun ChatScreen(carId: String, navController: NavController) {
         }
     }
 
+    // Подгрузка старых сообщений при скролле вверх
+    LaunchedEffect(listState.firstVisibleItemIndex) {
+        if (listState.firstVisibleItemIndex <= 3 && uiState.hasMoreMessages && !uiState.isLoadingMore) {
+            viewModel.loadMoreMessages()
+        }
+    }
+
+    // Pre-fill input when editing a message
+    LaunchedEffect(uiState.editingMessage) {
+        val editing = uiState.editingMessage
+        if (editing != null) inputText = editing.message
+        else if (uiState.replyingTo == null) { /* keep text when replying */ }
+    }
+
     LaunchedEffect(uiState.messages.size) {
         if (hasScrolledInitially && uiState.messages.isNotEmpty()) {
             val grouped = uiState.messages.groupByDate()
@@ -569,30 +694,72 @@ fun ChatScreen(carId: String, navController: NavController) {
         }
     }
 
+    var showSearch by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Чат", fontWeight = FontWeight.Bold)
-                        if (uiState.carName.isNotBlank()) {
-                            Text(
-                                uiState.carName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+            Column {
+                TopAppBar(
+                    title = {
+                        if (showSearch) {
+                            OutlinedTextField(
+                                value = uiState.searchQuery,
+                                onValueChange = { viewModel.setSearchQuery(it) },
+                                placeholder = { Text("Поиск по чату...") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(24.dp),
+                                modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+                                leadingIcon = { Icon(Icons.Default.Search, null) },
+                                trailingIcon = {
+                                    if (uiState.searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                            Icon(Icons.Default.Close, null)
+                                        }
+                                    }
+                                }
+                            )
+                        } else {
+                            Column {
+                                Text("Чат", fontWeight = FontWeight.Bold)
+                                if (uiState.carName.isNotBlank()) {
+                                    Text(
+                                        uiState.carName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            if (showSearch) {
+                                showSearch = false
+                                viewModel.setSearchQuery("")
+                            } else {
+                                navController.popBackStack()
+                            }
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            showSearch = !showSearch
+                            if (!showSearch) viewModel.setSearchQuery("")
+                        }) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "Поиск",
+                                tint = if (showSearch) MaterialTheme.colorScheme.primary else LocalContentColor.current
                             )
                         }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
                 )
-            )
+            }
         },
         bottomBar = {
             ChatInputBar(
@@ -603,11 +770,13 @@ fun ChatScreen(carId: String, navController: NavController) {
                 pendingMediaUri = pendingMediaUri,
                 pendingFileName = pendingFileName,
                 replyingTo = uiState.replyingTo,
+                editingMessage = uiState.editingMessage,
                 onTextChange = { inputText = it },
                 onAttachClick = { showAttachSheet = true },
                 onRemoveImage = { pendingMediaUri = null },
                 onRemoveFile = { pendingFileUri = null; pendingFileName = null },
                 onCancelReply = { viewModel.setReplyTo(null) },
+                onCancelEdit = { viewModel.cancelEditing(); inputText = "" },
                 onMicClick = {
                     if (audioPermission.status.isGranted) {
                         viewModel.startRecording(context)
@@ -626,6 +795,10 @@ fun ChatScreen(carId: String, navController: NavController) {
                 onStopAndSend = { viewModel.stopAndSendRecording() },
                 onSend = {
                     when {
+                        uiState.editingMessage != null -> {
+                            viewModel.submitEdit(inputText)
+                            inputText = ""
+                        }
                         pendingFileUri != null && pendingFileName != null -> {
                             viewModel.sendFile(pendingFileUri!!, pendingFileName!!)
                             pendingFileUri = null
@@ -662,7 +835,16 @@ fun ChatScreen(carId: String, navController: NavController) {
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                val grouped = uiState.messages.groupByDate()
+                if (uiState.isLoadingMore) {
+                    item(key = "loading_more") {
+                        Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                }
+                val filteredMessages = if (uiState.searchQuery.isBlank()) uiState.messages
+                    else uiState.messages.filter { it.message.contains(uiState.searchQuery, ignoreCase = true) }
+                val grouped = filteredMessages.groupByDate()
                 grouped.forEach { (dateLabel, msgs) ->
                     item(key = "date_$dateLabel") { DateSeparator(dateLabel) }
                     items(msgs, key = { it.id }) { message ->
@@ -674,8 +856,27 @@ fun ChatScreen(carId: String, navController: NavController) {
                             playbackProgress = uiState.playbackProgress[message.id] ?: 0f,
                             onDelete = if (isMe) ({ viewModel.deleteMessage(message) }) else null,
                             onReply = { viewModel.setReplyTo(message) },
+                            onEdit = { viewModel.startEditing(message) },
+                            onJumpToMessage = { targetId ->
+                                screenScope.launch {
+                                    val grouped = uiState.messages.groupByDate()
+                                    var flatIndex = 0
+                                    outer@ for ((_, msgs) in grouped) {
+                                        flatIndex++ // date separator item
+                                        for (msg in msgs) {
+                                            if (msg.id == targetId) {
+                                                listState.animateScrollToItem(flatIndex)
+                                                break@outer
+                                            }
+                                            flatIndex++
+                                        }
+                                    }
+                                }
+                            },
                             onImageClick = { url -> fullscreenImageUrl = url },
                             onPlayPause = { viewModel.togglePlayback(message) },
+                            onCycleSpeed = { viewModel.cycleAudioSpeed() },
+                            audioSpeed = uiState.audioSpeed,
                             onOpenFile = { url, name -> openFile(context, url, name) }
                         )
                     }
@@ -692,6 +893,15 @@ fun ChatScreen(carId: String, navController: NavController) {
                 headlineContent = { Text("Фото из галереи") },
                 modifier = Modifier.clickable {
                     imagePicker.launch("image/*")
+                    showAttachSheet = false
+                }
+            )
+            ListItem(
+                leadingContent = { Icon(Icons.Default.Videocam, null, tint = MaterialTheme.colorScheme.tertiary) },
+                headlineContent = { Text("Видео") },
+                supportingContent = { Text("MP4, MOV, WebM") },
+                modifier = Modifier.clickable {
+                    videoPicker.launch("video/*")
                     showAttachSheet = false
                 }
             )
@@ -764,11 +974,13 @@ private fun ChatInputBar(
     pendingMediaUri: Uri?,
     pendingFileName: String?,
     replyingTo: ChatMessage?,
+    editingMessage: ChatMessage?,
     onTextChange: (String) -> Unit,
     onAttachClick: () -> Unit,
     onRemoveImage: () -> Unit,
     onRemoveFile: () -> Unit,
     onCancelReply: () -> Unit,
+    onCancelEdit: () -> Unit,
     onMicClick: () -> Unit,
     onVideoNoteClick: () -> Unit,
     onCancelRecording: () -> Unit,
@@ -790,6 +1002,25 @@ private fun ChatInputBar(
                     onStop = onStopAndSend
                 )
             } else {
+                // ── Edit indicator ─────────────────────────────────────────────
+                if (editingMessage != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Редактирование", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                            Text(editingMessage.message.take(80), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                        }
+                        IconButton(onClick = onCancelEdit, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    HorizontalDivider()
+                }
+
                 // ── Reply preview ──────────────────────────────────────────────
                 if (replyingTo != null) {
                     Row(
@@ -950,8 +1181,12 @@ private fun ChatBubble(
     playbackProgress: Float,
     onDelete: (() -> Unit)?,
     onReply: () -> Unit,
+    onEdit: () -> Unit,
+    onJumpToMessage: (String) -> Unit,
     onImageClick: (String) -> Unit,
     onPlayPause: () -> Unit,
+    onCycleSpeed: () -> Unit,
+    audioSpeed: Float,
     onOpenFile: (String, String) -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -995,6 +1230,13 @@ private fun ChatBubble(
                             showContextMenu = false
                             clipboard.setText(AnnotatedString(message.message))
                         }
+                    )
+                }
+                if (onDelete != null && message.message.isNotBlank()) {
+                    ListItem(
+                        headlineContent = { Text("Редактировать") },
+                        leadingContent = { Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.secondary) },
+                        modifier = Modifier.clickable { showContextMenu = false; onEdit() }
                     )
                 }
                 if (onDelete != null) {
@@ -1102,7 +1344,7 @@ private fun ChatBubble(
                             ) {
                                 Column {
                                     // Reply quote
-                                    if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble)
+                                    if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble, onClick = { onJumpToMessage(message.replyToId) })
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         IconButton(onClick = onPlayPause, modifier = Modifier.size(40.dp)) {
                                             Icon(
@@ -1114,6 +1356,27 @@ private fun ChatBubble(
                                         WaveformDecoration(isMe = isMe, modifier = Modifier.weight(1f))
                                         Spacer(Modifier.width(6.dp))
                                         Text(parseDurationFromFileName(message.fileName), fontSize = 12.sp, color = onBubble)
+                                        if (isPlaying) {
+                                            Spacer(Modifier.width(4.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(onBubble.copy(alpha = 0.15f))
+                                                    .clickable { onCycleSpeed() }
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    when (audioSpeed) {
+                                                        1.5f -> "1.5×"
+                                                        2f -> "2×"
+                                                        else -> "1×"
+                                                    },
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = onBubble
+                                                )
+                                            }
+                                        }
                                     }
                                     if (isPlaying) {
                                         LinearProgressIndicator(
@@ -1135,7 +1398,7 @@ private fun ChatBubble(
                                 }
                             ) {
                                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).widthIn(min = 160.dp)) {
-                                    if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble)
+                                    if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble, onClick = { onJumpToMessage(message.replyToId) })
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(fileIcon(message.fileName ?: ""), null, tint = if (isMe) onBubble else fileColor(message.fileName ?: ""), modifier = Modifier.size(32.dp))
                                         Spacer(Modifier.width(10.dp))
@@ -1155,6 +1418,13 @@ private fun ChatBubble(
                             )
                         }
 
+                        "video" -> {
+                            VideoPlayerBubble(
+                                url = message.mediaUrl ?: "",
+                                bubbleShape = bubbleShape
+                            )
+                        }
+
                         else -> {
                             message.mediaUrl?.let { url ->
                                 if (message.mediaType == null || message.mediaType == "image") {
@@ -1170,7 +1440,7 @@ private fun ChatBubble(
                             if (message.message.isNotBlank() || message.replyToId != null) {
                                 Box(modifier = Modifier.clip(bubbleShape).background(bubbleBg).padding(horizontal = 12.dp, vertical = 8.dp)) {
                                     Column {
-                                        if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble)
+                                        if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble, onClick = { onJumpToMessage(message.replyToId) })
                                         if (message.message.isNotBlank()) {
                                             Text(message.message, color = onBubble, fontSize = 15.sp)
                                         }
@@ -1182,8 +1452,12 @@ private fun ChatBubble(
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
                     ) {
+                        if (message.isEdited) {
+                            Text("изменено", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                        }
                         Text(timeFmt.format(Date(message.createdAt)), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -1193,8 +1467,17 @@ private fun ChatBubble(
 }
 
 @Composable
-private fun ReplyQuote(text: String?, contentColor: androidx.compose.ui.graphics.Color) {
-    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+private fun ReplyQuote(
+    text: String?,
+    contentColor: androidx.compose.ui.graphics.Color,
+    onClick: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+    ) {
         Box(modifier = Modifier.width(3.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
         Spacer(Modifier.width(6.dp))
         Text(
@@ -1655,6 +1938,105 @@ fun VideoNoteBubble(url: String, durationLabel: String) {
                 .padding(horizontal = 6.dp, vertical = 2.dp)
         ) {
             Text(durationLabel, fontSize = 11.sp, color = Color.White)
+        }
+    }
+}
+
+// ── Video Player Bubble (regular video attachment) ────────────────────────────
+
+@Composable
+fun VideoPlayerBubble(url: String, bubbleShape: androidx.compose.ui.graphics.Shape) {
+    if (url.isBlank()) return
+
+    val context = LocalContext.current
+    var isPlaying by remember { mutableStateOf(false) }
+    var firstFrameReady by remember { mutableStateOf(false) }
+    var thumbnail by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            prepare()
+            repeatMode = ExoPlayer.REPEAT_MODE_OFF
+        }
+    }
+
+    LaunchedEffect(url) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val retriever = android.media.MediaMetadataRetriever()
+                retriever.setDataSource(url, emptyMap())
+                thumbnail = retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                retriever.release()
+            } catch (_: Exception) {}
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) { if (state == Player.STATE_ENDED) isPlaying = false }
+            override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+            override fun onRenderedFirstFrame() { firstFrameReady = true }
+        }
+        exoPlayer.addListener(listener)
+        onDispose { exoPlayer.removeListener(listener); exoPlayer.release() }
+    }
+
+    Box(
+        modifier = Modifier
+            .widthIn(max = 240.dp)
+            .aspectRatio(16f / 9f)
+            .clip(bubbleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                android.view.TextureView(ctx).apply {
+                    surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                        override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                            exoPlayer.setVideoSurface(android.view.Surface(st))
+                        }
+                        override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
+                            exoPlayer.clearVideoSurface(); return true
+                        }
+                        override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {}
+                        override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable {
+                    if (exoPlayer.isPlaying) exoPlayer.pause()
+                    else {
+                        if (exoPlayer.playbackState == Player.STATE_ENDED) exoPlayer.seekTo(0)
+                        exoPlayer.play()
+                    }
+                }
+        )
+
+        if (!firstFrameReady) {
+            val bmp = thumbnail
+            if (bmp != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+            }
+        }
+
+        if (!isPlaying) {
+            Box(
+                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(32.dp))
+            }
         }
     }
 }

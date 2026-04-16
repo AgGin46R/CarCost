@@ -32,5 +32,6 @@ data class ChatMessage(
     // Оригинальное имя файла/длительность голосового (напр. "voice_12s.m4a", "document.pdf")
     val fileName: String? = null,
     val replyToId: String? = null,
-    val replyToText: String? = null
+    val replyToText: String? = null,
+    val isEdited: Boolean = false
 )

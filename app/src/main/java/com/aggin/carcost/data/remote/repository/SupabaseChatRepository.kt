@@ -23,7 +23,8 @@ data class ChatMessageDto(
     @SerialName("media_type") val mediaType: String? = null,
     @SerialName("file_name") val fileName: String? = null,
     @SerialName("reply_to_id") val replyToId: String? = null,
-    @SerialName("reply_to_text") val replyToText: String? = null
+    @SerialName("reply_to_text") val replyToText: String? = null,
+    @SerialName("is_edited") val isEdited: Boolean = false
 )
 
 fun ChatMessageDto.toChatMessage() = ChatMessage(
@@ -37,7 +38,8 @@ fun ChatMessageDto.toChatMessage() = ChatMessage(
     mediaType = mediaType,
     fileName = fileName,
     replyToId = replyToId,
-    replyToText = replyToText
+    replyToText = replyToText,
+    isEdited = isEdited
 )
 
 fun ChatMessage.toDto() = ChatMessageDto(
@@ -51,7 +53,8 @@ fun ChatMessage.toDto() = ChatMessageDto(
     mediaType = mediaType,
     fileName = fileName,
     replyToId = replyToId,
-    replyToText = replyToText
+    replyToText = replyToText,
+    isEdited = isEdited
 )
 
 class SupabaseChatRepository {
@@ -76,6 +79,37 @@ class SupabaseChatRepository {
                 }
                 .decodeList<ChatMessageDto>()
             Result.success(dtos.map { it.toChatMessage() })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Load messages with pagination (newest first, then reversed). */
+    suspend fun getMessagesPaged(carId: String, limit: Int, offset: Int): Result<List<ChatMessage>> = withContext(Dispatchers.IO) {
+        try {
+            val dtos = supabase.from("chat_messages")
+                .select {
+                    filter { eq("car_id", carId) }
+                    order("created_at", Order.DESCENDING)
+                    limit(limit.toLong())
+                    range(offset.toLong(), (offset + limit - 1).toLong())
+                }
+                .decodeList<ChatMessageDto>()
+            Result.success(dtos.reversed().map { it.toChatMessage() })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Edit own message text in Supabase. */
+    suspend fun updateMessage(messageId: String, newText: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            supabase.from("chat_messages").update(
+                mapOf("message" to newText, "is_edited" to true)
+            ) {
+                filter { eq("id", messageId) }
+            }
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

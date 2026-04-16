@@ -404,6 +404,12 @@ val MIGRATION_24_25 = object : Migration(24, 25) {
     }
 }
 
+val MIGRATION_30_31 = object : Migration(30, 31) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN isEdited INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 val MIGRATION_29_30 = object : Migration(29, 30) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE chat_messages ADD COLUMN replyToId TEXT")
@@ -507,7 +513,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         InsurancePolicy::class,
         CarIncident::class
     ],
-    version = 30,
+    version = 31,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -564,7 +570,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_26_27,
                         MIGRATION_27_28,
                         MIGRATION_28_29,
-                        MIGRATION_29_30
+                        MIGRATION_29_30,
+                        MIGRATION_30_31
                     )
                     .build()
                 INSTANCE = instance

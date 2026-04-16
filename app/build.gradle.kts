@@ -22,8 +22,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 34
-        versionCode = 35
-        versionName = "2.8.1"
+        versionCode = 36
+        versionName = "2.8.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

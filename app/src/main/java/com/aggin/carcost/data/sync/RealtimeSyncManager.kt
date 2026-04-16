@@ -253,13 +253,25 @@ class RealtimeSyncManager(private val context: Context) {
                 } catch (e: Exception) { Log.e(TAG, "Error handling chat message", e) }
             }.catch { Log.w(TAG, "Chat insert flow error: ${it.message}") }.launchIn(scope)
 
+            ch.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
+                table = "chat_messages"
+            }.onEach { change ->
+                try {
+                    val dto = json.decodeFromJsonElement(ChatMessageDto.serializer(), change.record)
+                    db.chatMessageDao().insert(dto.toChatMessage())
+                    Log.d(TAG, "✏️ Chat message updated: ${dto.id}")
+                } catch (e: Exception) { Log.e(TAG, "Error handling chat update", e) }
+            }.catch { Log.w(TAG, "Chat update flow error: ${it.message}") }.launchIn(scope)
+
             ch.postgresChangeFlow<PostgresAction.Delete>(schema = "public") {
                 table = "chat_messages"
             }.onEach { change ->
                 try {
-                    val dto = json.decodeFromJsonElement(ChatMessageDto.serializer(), change.oldRecord)
-                    db.chatMessageDao().deleteById(dto.id)
-                    Log.d(TAG, "🗑️ Chat message deleted: ${dto.id}")
+                    // oldRecord with DEFAULT replica identity only contains PK.
+                    // Use a minimal DTO to avoid deserialization failures on other required fields.
+                    val id = change.oldRecord["id"]?.toString()?.trim('"') ?: return@onEach
+                    db.chatMessageDao().deleteById(id)
+                    Log.d(TAG, "🗑️ Chat message deleted: $id")
                 } catch (e: Exception) { Log.e(TAG, "Error handling chat delete", e) }
             }.catch { Log.w(TAG, "Chat delete flow error: ${it.message}") }.launchIn(scope)
 
