@@ -240,11 +240,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     upsert = true
                 )
 
-                // Получаем публичный URL
-                val photoUrl = bucket.publicUrl(fileName)
+                // Получаем публичный URL с cache-buster чтобы Coil не показывал старое фото
+                val photoUrl = bucket.publicUrl(fileName) + "?v=${System.currentTimeMillis()}"
 
-                // Обновляем в Supabase таблице users
-                supabaseAuth.updateProfile(photoUrl = photoUrl)
+                // Обновляем в Supabase таблице users (getOrThrow — чтобы ошибка всплыла в catch)
+                supabaseAuth.updateProfile(photoUrl = photoUrl).getOrThrow()
 
                 // Обновляем в локальной БД
                 val updatedUser = currentUser.copy(photoUrl = photoUrl)
@@ -301,7 +301,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 // Явно обнуляем photo_url в таблице users
-                supabaseAuth.updateProfile(clearPhoto = true)
+                supabaseAuth.updateProfile(clearPhoto = true).getOrThrow()
 
                 // Обновляем в локальной БД
                 val updatedUser = currentUser.copy(photoUrl = null)

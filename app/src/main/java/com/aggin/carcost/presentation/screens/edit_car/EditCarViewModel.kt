@@ -143,7 +143,7 @@ class EditCarViewModel(
             }
             try {
                 val bytes = compressImage(uri)
-                val fileName = "car-photos/$carId.jpg"
+                val fileName = "$carId.jpg"
                 val bucket = supabase.storage.from("car-photos")
                 bucket.upload(path = fileName, data = bytes, upsert = true)
                 // Добавляем версию для сброса кэша Coil при смене фото

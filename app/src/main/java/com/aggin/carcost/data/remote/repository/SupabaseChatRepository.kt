@@ -101,16 +101,21 @@ class SupabaseChatRepository {
         }
     }
 
+    @Serializable
+    private data class MessageUpdate(
+        val message: String,
+        @SerialName("is_edited") val isEdited: Boolean = true
+    )
+
     /** Edit own message text in Supabase. */
     suspend fun updateMessage(messageId: String, newText: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            supabase.from("chat_messages").update(
-                mapOf("message" to newText, "is_edited" to true)
-            ) {
+            supabase.from("chat_messages").update(MessageUpdate(newText)) {
                 filter { eq("id", messageId) }
             }
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.e("ChatRepo", "updateMessage FAILED: ${e::class.simpleName}: ${e.message}", e)
             Result.failure(e)
         }
     }

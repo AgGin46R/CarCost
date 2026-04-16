@@ -136,7 +136,8 @@ data class ChatUiState(
     val searchQuery: String = "",
     val isLoadingMore: Boolean = false,
     val hasMoreMessages: Boolean = true,
-    val pageOffset: Int = 0
+    val pageOffset: Int = 0,
+    val sendError: String? = null
 )
 
 class ChatViewModel(
@@ -231,6 +232,31 @@ class ChatViewModel(
         }
     }
 
+    /** Safely read bytes from a content:// or file:// URI into a temp cache file.
+     *  This avoids SecurityException when the ContentResolver permission expires
+     *  between the picker callback and the actual read (e.g. on config change). */
+    private fun readBytesFromUri(uri: Uri, extension: String = "tmp"): ByteArray? {
+        return try {
+            val app = getApplication<Application>()
+            // Copy to temp file first — guarantees permission is held during the read
+            val tmp = File(app.cacheDir, "upload_${System.currentTimeMillis()}.$extension")
+            app.contentResolver.openInputStream(uri)?.use { input ->
+                tmp.outputStream().use { out -> input.copyTo(out) }
+            } ?: run {
+                android.util.Log.e("ChatVM", "openInputStream returned null for $uri")
+                return null
+            }
+            val bytes = tmp.readBytes()
+            tmp.delete()
+            bytes
+        } catch (e: Exception) {
+            android.util.Log.e("ChatVM", "readBytesFromUri failed: ${e.message}", e)
+            null
+        }
+    }
+
+    fun clearSendError() = _uiState.update { it.copy(sendError = null) }
+
     /** Send a text message, optionally with an image. */
     fun sendMessage(text: String, mediaUri: Uri? = null) {
         val trimmed = text.trim()
@@ -240,16 +266,39 @@ class ChatViewModel(
         val replyTo = _uiState.value.replyingTo
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSending = true, replyingTo = null) }
+            _uiState.update { it.copy(isSending = true, replyingTo = null, sendError = null) }
             try {
                 val messageId = UUID.randomUUID().toString()
                 var mediaUrl: String? = null
 
                 if (mediaUri != null) {
-                    val bytes = compressImage(mediaUri)
-                    if (bytes != null) {
-                        mediaUrl = supabaseChat.uploadMedia(carId, messageId, bytes, "jpg", "image/jpeg").getOrNull()
+                    val raw = readBytesFromUri(mediaUri, "jpg")
+                    if (raw == null) {
+                        _uiState.update { it.copy(isSending = false, sendError = "Не удалось прочитать изображение") }
+                        return@launch
                     }
+                    // Compress the image (scale to 1200px max, JPEG 82%)
+                    val bytes = try {
+                        val original = android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.size)
+                        if (original == null) raw else {
+                            val maxDim = 1200
+                            val ratio = minOf(maxDim.toFloat() / original.width, maxDim.toFloat() / original.height, 1f)
+                            val scaled = if (ratio < 1f)
+                                android.graphics.Bitmap.createScaledBitmap(original, (original.width * ratio).toInt(), (original.height * ratio).toInt(), true)
+                            else original
+                            val out = java.io.ByteArrayOutputStream()
+                            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, out)
+                            original.recycle()
+                            if (scaled !== original) scaled.recycle()
+                            out.toByteArray()
+                        }
+                    } catch (_: Exception) { raw }
+                    val uploadResult = supabaseChat.uploadMedia(carId, messageId, bytes, "jpg", "image/jpeg")
+                    if (uploadResult.isFailure) {
+                        _uiState.update { it.copy(isSending = false, sendError = "Ошибка загрузки фото: ${uploadResult.exceptionOrNull()?.message}") }
+                        return@launch
+                    }
+                    mediaUrl = uploadResult.getOrNull()
                 }
 
                 val message = ChatMessage(
@@ -265,6 +314,9 @@ class ChatViewModel(
                 )
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatVM", "sendMessage failed", e)
+                _uiState.update { it.copy(sendError = "Ошибка отправки: ${e.message}") }
             } finally {
                 _uiState.update { it.copy(isSending = false) }
             }
@@ -277,15 +329,23 @@ class ChatViewModel(
         val email = auth.getCurrentUserEmail() ?: ""
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSending = true) }
+            _uiState.update { it.copy(isSending = true, sendError = null) }
             try {
-                val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.readBytes()
-                    ?: return@launch
                 val extension = fileName.substringAfterLast('.', "bin")
+                val bytes = readBytesFromUri(uri, extension)
+                if (bytes == null) {
+                    _uiState.update { it.copy(isSending = false, sendError = "Не удалось прочитать файл") }
+                    return@launch
+                }
                 val mimeType = mimeTypeForExtension(extension)
                 val messageId = UUID.randomUUID().toString()
 
-                val mediaUrl = supabaseChat.uploadMedia(carId, messageId, bytes, extension, mimeType).getOrNull()
+                val uploadResult = supabaseChat.uploadMedia(carId, messageId, bytes, extension, mimeType)
+                if (uploadResult.isFailure) {
+                    _uiState.update { it.copy(isSending = false, sendError = "Ошибка загрузки файла: ${uploadResult.exceptionOrNull()?.message}") }
+                    return@launch
+                }
+                val mediaUrl = uploadResult.getOrNull()
 
                 val message = ChatMessage(
                     id = messageId,
@@ -299,6 +359,9 @@ class ChatViewModel(
                 )
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatVM", "sendFile failed", e)
+                _uiState.update { it.copy(sendError = "Ошибка отправки файла: ${e.message}") }
             } finally {
                 _uiState.update { it.copy(isSending = false) }
             }
@@ -311,17 +374,31 @@ class ChatViewModel(
         val email = auth.getCurrentUserEmail() ?: ""
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSending = true) }
+            _uiState.update { it.copy(isSending = true, sendError = null) }
             try {
-                val bytes = context.contentResolver.openInputStream(uri)?.readBytes() ?: return@launch
+                // Determine MIME type first, before copying
                 val mimeType = context.contentResolver.getType(uri) ?: "video/mp4"
                 val extension = when {
                     mimeType.contains("webm") -> "webm"
                     mimeType.contains("3gp") -> "3gp"
                     else -> "mp4"
                 }
+                // Normalise to mp4 if needed — bucket only allows video/mp4
+                val uploadMime = if (extension != "mp4") "video/mp4" else mimeType
+                val uploadExt = "mp4"
+
+                val bytes = readBytesFromUri(uri, uploadExt)
+                if (bytes == null) {
+                    _uiState.update { it.copy(isSending = false, sendError = "Не удалось прочитать видео") }
+                    return@launch
+                }
                 val messageId = UUID.randomUUID().toString()
-                val mediaUrl = supabaseChat.uploadMedia(carId, messageId, bytes, extension, mimeType).getOrNull()
+                val uploadResult = supabaseChat.uploadMedia(carId, messageId, bytes, uploadExt, uploadMime)
+                if (uploadResult.isFailure) {
+                    _uiState.update { it.copy(isSending = false, sendError = "Ошибка загрузки видео: ${uploadResult.exceptionOrNull()?.message}") }
+                    return@launch
+                }
+                val mediaUrl = uploadResult.getOrNull()
 
                 val message = ChatMessage(
                     id = messageId,
@@ -331,10 +408,13 @@ class ChatViewModel(
                     message = "",
                     mediaUrl = mediaUrl,
                     mediaType = "video",
-                    fileName = "video.$extension"
+                    fileName = "video.mp4"
                 )
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatVM", "sendVideo failed", e)
+                _uiState.update { it.copy(sendError = "Ошибка отправки видео: ${e.message}") }
             } finally {
                 _uiState.update { it.copy(isSending = false) }
             }
@@ -576,19 +656,6 @@ class ChatViewModel(
         try { mediaRecorder?.release() } catch (_: Exception) { }
     }
 
-    private fun compressImage(uri: Uri): ByteArray? {
-        return try {
-            val stream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
-            val original = BitmapFactory.decodeStream(stream)
-            stream.close()
-            val maxDim = 1200
-            val scaled = if (original.width > maxDim || original.height > maxDim) {
-                val ratio = minOf(maxDim.toFloat() / original.width, maxDim.toFloat() / original.height)
-                Bitmap.createScaledBitmap(original, (original.width * ratio).toInt(), (original.height * ratio).toInt(), true)
-            } else original
-            ByteArrayOutputStream().also { out -> scaled.compress(Bitmap.CompressFormat.JPEG, 82, out) }.toByteArray()
-        } catch (_: Exception) { null }
-    }
 }
 
 class ChatViewModelFactory(
@@ -613,6 +680,7 @@ fun ChatScreen(carId: String, navController: NavController) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     val screenScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var inputText by remember { mutableStateOf("") }
     var pendingMediaUri by remember { mutableStateOf<Uri?>(null) }
     var pendingFileUri by remember { mutableStateOf<Uri?>(null) }
@@ -621,6 +689,13 @@ fun ChatScreen(carId: String, navController: NavController) {
     var showAttachSheet by remember { mutableStateOf(false) }
     var showVideoRecorder by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
+
+    // Show send errors via Snackbar
+    LaunchedEffect(uiState.sendError) {
+        val err = uiState.sendError ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(err)
+        viewModel.clearSendError()
+    }
 
     val audioPermission = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
     val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
@@ -697,6 +772,7 @@ fun ChatScreen(carId: String, navController: NavController) {
     var showSearch by remember { mutableStateOf(false) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column {
                 TopAppBar(

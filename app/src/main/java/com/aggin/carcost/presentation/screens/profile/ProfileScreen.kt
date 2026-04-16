@@ -78,7 +78,16 @@ fun ProfileScreen(
         }
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Показываем ошибки через Snackbar
+    LaunchedEffect(uiState.errorMessage) {
+        val msg = uiState.errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Профиль") },
@@ -228,12 +237,6 @@ fun ProfileScreen(
         )
     }
 
-    // Показываем ошибки
-    uiState.errorMessage?.let { error ->
-        LaunchedEffect(error) {
-            // Можно добавить Snackbar
-        }
-    }
 }
 
 @Composable
