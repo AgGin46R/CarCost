@@ -1,6 +1,8 @@
 package com.aggin.carcost.presentation.screens.edit_car
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -30,8 +32,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.util.CurrencyUtils
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun EditCarScreen(
     carId: String, // ✅ String UUID
@@ -40,6 +45,11 @@ fun EditCarScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)
+    else
+        rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -134,7 +144,13 @@ fun EditCarScreen(
                             }
                         }
                         SmallFloatingActionButton(
-                            onClick = { galleryLauncher.launch("image/*") },
+                            onClick = {
+                                if (mediaPermission.status.isGranted) {
+                                    galleryLauncher.launch("image/*")
+                                } else {
+                                    mediaPermission.launchPermissionRequest()
+                                }
+                            },
                             modifier = Modifier.size(32.dp),
                             containerColor = MaterialTheme.colorScheme.primary
                         ) {

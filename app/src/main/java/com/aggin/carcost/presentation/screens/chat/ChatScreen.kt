@@ -137,7 +137,9 @@ data class ChatUiState(
     val isLoadingMore: Boolean = false,
     val hasMoreMessages: Boolean = true,
     val pageOffset: Int = 0,
-    val sendError: String? = null
+    val sendError: String? = null,
+    // messageId → list of reactions
+    val reactions: Map<String, List<com.aggin.carcost.data.local.database.entities.ChatReaction>> = emptyMap()
 )
 
 class ChatViewModel(
@@ -148,6 +150,7 @@ class ChatViewModel(
     private val db = AppDatabase.getDatabase(application)
     private val auth = SupabaseAuthRepository()
     private val supabaseChat = SupabaseChatRepository()
+    private val supabaseReactions = com.aggin.carcost.data.remote.repository.SupabaseChatReactionsRepository()
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -166,6 +169,22 @@ class ChatViewModel(
             }
         }
 
+        // Корутина 1b: Reactions Flow — пересобирается каждый раз при изменении messages.
+        // Подписываемся на список ID и комбинируем с reactions DAO.
+        viewModelScope.launch {
+            _uiState
+                .map { it.messages.map(com.aggin.carcost.data.local.database.entities.ChatMessage::id) }
+                .distinctUntilChanged()
+                .flatMapLatest { ids ->
+                    if (ids.isEmpty()) flowOf(emptyList())
+                    else db.chatReactionDao().getReactionsForMessages(ids)
+                }
+                .collect { list ->
+                    val grouped = list.groupBy { it.messageId }
+                    _uiState.update { it.copy(reactions = grouped) }
+                }
+        }
+
         // Корутина 2: setup + первичная загрузка из Supabase (один раз при старте)
         // Далее все обновления приходят через RealtimeSyncManager WebSocket
         viewModelScope.launch {
@@ -174,6 +193,10 @@ class ChatViewModel(
             _uiState.update { it.copy(currentUserId = currentUserId, carName = carName) }
             supabaseChat.getMessages(carId).onSuccess { remote ->
                 if (remote.isNotEmpty()) db.chatMessageDao().insertAll(remote)
+            }
+            // Fetch all reactions for this car's messages
+            supabaseReactions.getReactionsForCar(carId).onSuccess { remoteReactions ->
+                remoteReactions.forEach { r -> try { db.chatReactionDao().insert(r) } catch (_: Exception) {} }
             }
         }
         // Polling удалён: Realtime WebSocket в RealtimeSyncManager обновляет chat_messages
@@ -649,6 +672,38 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Toggle a reaction: if the current user already has this emoji on this
+     * message, remove it; otherwise add it. Local DB is updated optimistically;
+     * Supabase is then called and reverted on failure.
+     */
+    fun toggleReaction(messageId: String, emoji: String) {
+        viewModelScope.launch {
+            val userId = _uiState.value.currentUserId.ifEmpty { auth.getUserId() ?: return@launch }
+            val userEmail = auth.getCurrentUserEmail() ?: return@launch
+            val existing = db.chatReactionDao().findByUserAndEmoji(messageId, userId, emoji)
+            if (existing != null) {
+                // Remove
+                db.chatReactionDao().deleteById(existing.id)
+                supabaseReactions.removeReaction(existing.id).onFailure {
+                    // revert
+                    try { db.chatReactionDao().insert(existing) } catch (_: Exception) {}
+                }
+            } else {
+                val reaction = com.aggin.carcost.data.local.database.entities.ChatReaction(
+                    messageId = messageId,
+                    userId = userId,
+                    userEmail = userEmail,
+                    emoji = emoji
+                )
+                try { db.chatReactionDao().insert(reaction) } catch (_: Exception) {}
+                supabaseReactions.addReaction(reaction).onFailure {
+                    try { db.chatReactionDao().deleteById(reaction.id) } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         mediaPlayers.values.forEach { try { it.release() } catch (_: Exception) { } }
@@ -953,7 +1008,10 @@ fun ChatScreen(carId: String, navController: NavController) {
                             onPlayPause = { viewModel.togglePlayback(message) },
                             onCycleSpeed = { viewModel.cycleAudioSpeed() },
                             audioSpeed = uiState.audioSpeed,
-                            onOpenFile = { url, name -> openFile(context, url, name) }
+                            onOpenFile = { url, name -> openFile(context, url, name) },
+                            reactions = uiState.reactions[message.id].orEmpty(),
+                            currentUserId = uiState.currentUserId,
+                            onToggleReaction = { emoji -> viewModel.toggleReaction(message.id, emoji) }
                         )
                     }
                 }
@@ -1248,6 +1306,8 @@ private fun RecordingBar(
 
 // ── Chat Bubble ───────────────────────────────────────────────────────────────
 
+private val REACTION_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "🔥")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatBubble(
@@ -1263,7 +1323,10 @@ private fun ChatBubble(
     onPlayPause: () -> Unit,
     onCycleSpeed: () -> Unit,
     audioSpeed: Float,
-    onOpenFile: (String, String) -> Unit
+    onOpenFile: (String, String) -> Unit,
+    reactions: List<com.aggin.carcost.data.local.database.entities.ChatReaction> = emptyList(),
+    currentUserId: String = "",
+    onToggleReaction: (String) -> Unit = {}
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
@@ -1293,6 +1356,34 @@ private fun ChatBubble(
     if (showContextMenu) {
         ModalBottomSheet(onDismissRequest = { showContextMenu = false }) {
             Column(modifier = Modifier.padding(bottom = 32.dp)) {
+                // Emoji picker row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    REACTION_EMOJIS.forEach { emoji ->
+                        val isSelected = reactions.any { it.emoji == emoji && it.userId == currentUserId }
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                    else Color.Transparent
+                                )
+                                .clickable {
+                                    onToggleReaction(emoji)
+                                    showContextMenu = false
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(emoji, fontSize = 26.sp)
+                        }
+                    }
+                }
+                HorizontalDivider()
                 ListItem(
                     headlineContent = { Text("Ответить") },
                     leadingContent = { Icon(Icons.Default.Reply, null, tint = MaterialTheme.colorScheme.primary) },
@@ -1535,6 +1626,56 @@ private fun ChatBubble(
                             Text("изменено", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                         }
                         Text(timeFmt.format(Date(message.createdAt)), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    // Reaction chips row — one chip per unique emoji with count.
+                    if (reactions.isNotEmpty()) {
+                        ReactionChipsRow(
+                            reactions = reactions,
+                            currentUserId = currentUserId,
+                            onToggleReaction = onToggleReaction,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReactionChipsRow(
+    reactions: List<com.aggin.carcost.data.local.database.entities.ChatReaction>,
+    currentUserId: String,
+    onToggleReaction: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val grouped = reactions.groupBy { it.emoji }
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        grouped.forEach { (emoji, items) ->
+            val iReacted = items.any { it.userId == currentUserId }
+            val bg = if (iReacted) MaterialTheme.colorScheme.primaryContainer
+                     else MaterialTheme.colorScheme.surfaceVariant
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(bg)
+                    .clickable { onToggleReaction(emoji) }
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(emoji, fontSize = 13.sp)
+                    if (items.size > 1) {
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            items.size.toString(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
                     }
                 }
             }

@@ -1,8 +1,10 @@
 package com.aggin.carcost.presentation.screens.documents
 
+import android.Manifest
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -27,6 +29,9 @@ import com.aggin.carcost.presentation.screens.insurance.AddInsurancePolicyDialog
 import com.aggin.carcost.presentation.screens.insurance.InsurancePoliciesViewModel
 import com.aggin.carcost.presentation.screens.insurance.InsurancePoliciesViewModelFactory
 import com.aggin.carcost.presentation.screens.insurance.InsurancePolicyCard
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -309,7 +314,7 @@ fun DocumentCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun DocumentFormDialog(
     title: String,
@@ -326,6 +331,11 @@ fun DocumentFormDialog(
     var typeExpanded by remember { mutableStateOf(false) }
 
     val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)
+    else
+        rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
 
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -399,7 +409,13 @@ fun DocumentFormDialog(
 
                 // Файл
                 OutlinedButton(
-                    onClick = { filePicker.launch("image/*") },
+                    onClick = {
+                        if (mediaPermission.status.isGranted) {
+                            filePicker.launch("image/*")
+                        } else {
+                            mediaPermission.launchPermissionRequest()
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(18.dp))

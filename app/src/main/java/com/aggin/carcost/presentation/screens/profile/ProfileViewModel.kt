@@ -350,6 +350,22 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { settingsManager.setNotifFuel(enabled) }
     }
 
+    fun setNotifBudgetAlert(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setNotifBudgetAlert(enabled) }
+    }
+
+    fun setQuietHoursEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setQuietHoursEnabled(enabled) }
+    }
+
+    fun setQuietHoursStart(hour: Int) {
+        viewModelScope.launch { settingsManager.setQuietHoursStart(hour) }
+    }
+
+    fun setQuietHoursEnd(hour: Int) {
+        viewModelScope.launch { settingsManager.setQuietHoursEnd(hour) }
+    }
+
     fun updateDisplayName(newName: String) {
         viewModelScope.launch {
             try {

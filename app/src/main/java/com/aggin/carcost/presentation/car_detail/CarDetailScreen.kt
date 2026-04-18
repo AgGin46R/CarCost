@@ -224,6 +224,10 @@ fun CarDetailScreen(
                 CarInfoCard(uiState = uiState)
             }
 
+            uiState.healthScore?.let { score ->
+                item { CarHealthCard(score = score) }
+            }
+
             item {
                 ExpensesHeader(
                     expenseCount = uiState.expenses.size,
@@ -876,5 +880,133 @@ private fun QuickAddRow(carId: String, navController: NavController, isMechanic:
                 label = { Text(label) }
             )
         }
+    }
+}
+
+// ── Car Health Score card ────────────────────────────────────────────────────
+
+@Composable
+fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
+    val (label, color) = when {
+        score.total >= 85 -> "Отличное" to androidx.compose.ui.graphics.Color(0xFF2E7D32)
+        score.total >= 65 -> "Хорошее" to androidx.compose.ui.graphics.Color(0xFF1565C0)
+        score.total >= 40 -> "Среднее" to androidx.compose.ui.graphics.Color(0xFFEF6C00)
+        else              -> "Требует внимания" to androidx.compose.ui.graphics.Color(0xFFC62828)
+    }
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Circular indicator
+                Box(contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = { 1f },
+                        modifier = Modifier.size(72.dp),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                        strokeWidth = 7.dp,
+                        trackColor = androidx.compose.ui.graphics.Color.Transparent,
+                    )
+                    CircularProgressIndicator(
+                        progress = { score.total / 100f },
+                        modifier = Modifier.size(72.dp),
+                        color = color,
+                        strokeWidth = 7.dp,
+                        trackColor = androidx.compose.ui.graphics.Color.Transparent,
+                    )
+                    Text(
+                        "${score.total}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = color
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Состояние авто",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = color
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    // Inline chips: overdue / insurance / incidents
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (score.overdueReminders > 0) {
+                            HealthChip("⚠ ТО: ${score.overdueReminders}", danger = true)
+                        }
+                        if (!score.activeInsurance) {
+                            HealthChip("Нет ОСАГО", danger = true)
+                        }
+                        if (score.recentIncidents > 0) {
+                            HealthChip("ДТП: ${score.recentIncidents}", danger = true)
+                        }
+                        if (score.overdueReminders == 0 && score.activeInsurance && score.recentIncidents == 0) {
+                            HealthChip("Всё в порядке", danger = false)
+                        }
+                    }
+                }
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Свернуть" else "Подробнее"
+                    )
+                }
+            }
+
+            if (expanded) {
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                score.breakdown.forEach { factor ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            factor.label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                        )
+                        val sign = if (factor.delta > 0) "+" else ""
+                        Text(
+                            "$sign${factor.delta}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (factor.positive)
+                                androidx.compose.ui.graphics.Color(0xFF2E7D32)
+                            else
+                                androidx.compose.ui.graphics.Color(0xFFC62828)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HealthChip(text: String, danger: Boolean) {
+    val bg = if (danger) androidx.compose.ui.graphics.Color(0xFFFFCDD2)
+             else androidx.compose.ui.graphics.Color(0xFFC8E6C9)
+    val fg = if (danger) androidx.compose.ui.graphics.Color(0xFFB71C1C)
+             else androidx.compose.ui.graphics.Color(0xFF1B5E20)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Text(text, style = MaterialTheme.typography.labelSmall, color = fg)
     }
 }

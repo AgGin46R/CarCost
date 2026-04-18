@@ -65,6 +65,9 @@ class ChatsListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val chatPreviews: StateFlow<List<CarChatPreview>> = db.carDao()
         .getAllActiveCars()
@@ -82,6 +85,7 @@ class ChatsListViewModel(application: Application) : AndroidViewModel(applicatio
             // Sort: cars with messages first (by message time desc), then cars without messages
             previews.sortedWith(compareByDescending { it.lastMessage?.createdAt ?: Long.MIN_VALUE })
         }
+        .onEach { _isLoading.value = false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
@@ -94,6 +98,7 @@ fun ChatsListScreen(
     viewModel: ChatsListViewModel = viewModel()
 ) {
     val previews by viewModel.chatPreviews.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     Scaffold(
         topBar = {
@@ -111,7 +116,11 @@ fun ChatsListScreen(
             )
         }
     ) { padding ->
-        if (previews.isEmpty()) {
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                com.aggin.carcost.presentation.components.SkeletonChatList(count = 6)
+            }
+        } else if (previews.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

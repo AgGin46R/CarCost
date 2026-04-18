@@ -16,6 +16,8 @@ import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.ExpenseTagRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
+import com.aggin.carcost.domain.health.CarHealthCalculator
+import com.aggin.carcost.domain.health.CarHealthScore
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarMembersRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
@@ -48,6 +50,7 @@ data class CarDetailUiState(
     val estimatedFuelLiters: Double? = null,
     val fuelLevelPct: Float? = null,
     val fuelConsumptionPerFill: Map<String, Double> = emptyMap(), // expenseId → L/100km
+    val healthScore: CarHealthScore? = null,
     val isLoading: Boolean = true,
     val isSyncing: Boolean = false,
     val isOwner: Boolean = true, // default true to avoid UI flicker while loading
@@ -79,15 +82,45 @@ class CarDetailViewModel(
     private val _userRole = MutableStateFlow<MemberRole?>(null)
     private val _isSyncing = MutableStateFlow(false)
 
+    // Sources for health score — each emits lists from local DB
+    private val _remindersFlow = database.maintenanceReminderDao().getAllRemindersByCarId(carId)
+    private val _incidentsFlow = database.carIncidentDao().getIncidentsByCarId(carId)
+    private val _policiesFlow = database.insurancePolicyDao().getPoliciesForCar(carId)
+
+    // Pack reminders / incidents / policies into a single triple so the main
+    // `combine` block doesn't exceed the 5-flow overload limit.
+    private data class HealthInputs(
+        val reminders: List<com.aggin.carcost.data.local.database.entities.MaintenanceReminder>,
+        val incidents: List<com.aggin.carcost.data.local.database.entities.CarIncident>,
+        val policies: List<com.aggin.carcost.data.local.database.entities.InsurancePolicy>
+    )
+
+    private val _healthInputsFlow: Flow<HealthInputs> = combine(
+        _remindersFlow, _incidentsFlow, _policiesFlow
+    ) { r, i, p -> HealthInputs(r, i, p) }
+
+    // Pair up the tag flows so the main combine fits the 5-flow typed overload.
+    private val _tagsBundle: Flow<Pair<Map<String, List<ExpenseTag>>, List<ExpenseTag>>> =
+        combine(_expensesWithTags, _availableTags) { m, l -> m to l }
+
     private val _baseState = combine(
         carRepository.getCarByIdFlow(carId),
         expenseRepository.getExpensesByCarId(carId),
         _currentFilter,
-        _expensesWithTags,
-        _availableTags
-    ) { car: Car?, expenses: List<Expense>, filter: ExpenseFilter, expensesWithTagsMap: Map<String, List<ExpenseTag>>, availableTags: List<ExpenseTag> ->
+        _tagsBundle,
+        _healthInputsFlow
+    ) { car, expenses, filter, tagsPair, health ->
+        val (expensesWithTagsMap, availableTags) = tagsPair
         val filteredExpenses = applyFilters(expenses, filter, expensesWithTagsMap)
         val (estimatedFuel, fuelPct) = estimateFuelLevel(car, expenses)
+        val healthScore = car?.let {
+            CarHealthCalculator.calculate(
+                currentOdometer = it.currentOdometer,
+                reminders = health.reminders,
+                incidents = health.incidents,
+                policies = health.policies
+            )
+        }
         CarDetailUiState(
             car = car,
             expenses = filteredExpenses,
@@ -100,6 +133,7 @@ class CarDetailViewModel(
             estimatedFuelLiters = estimatedFuel,
             fuelLevelPct = fuelPct,
             fuelConsumptionPerFill = calculateFuelConsumptionPerFill(expenses),
+            healthScore = healthScore,
             isLoading = false
         )
     }

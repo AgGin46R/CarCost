@@ -106,6 +106,7 @@ class MainActivity : ComponentActivity() {
             ?: return null
         return when (navType) {
             com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_CHAT -> "chat/$carId"
+            com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_ADD_EXPENSE -> "add_expense/$carId"
             else -> "car_detail/$carId"
         }
     }

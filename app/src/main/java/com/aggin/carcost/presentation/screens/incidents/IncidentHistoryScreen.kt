@@ -1,6 +1,8 @@
 package com.aggin.carcost.presentation.screens.incidents
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -28,6 +30,9 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.aggin.carcost.data.local.database.entities.CarIncident
 import com.aggin.carcost.data.local.database.entities.IncidentType
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -233,7 +238,7 @@ private fun IncidentCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 private fun IncidentFormDialog(
     uiState: IncidentHistoryUiState,
@@ -253,6 +258,11 @@ private fun IncidentFormDialog(
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showRepairDatePicker by remember { mutableStateOf(false) }
+
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)
+    else
+        rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { onUploadPhoto(it) }
@@ -387,7 +397,13 @@ private fun IncidentFormDialog(
                     )
                 }
                 OutlinedButton(
-                    onClick = { galleryLauncher.launch("image/*") },
+                    onClick = {
+                        if (mediaPermission.status.isGranted) {
+                            galleryLauncher.launch("image/*")
+                        } else {
+                            mediaPermission.launchPermissionRequest()
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !uiState.isUploadingPhoto && !uiState.isSaving
                 ) {

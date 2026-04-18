@@ -22,8 +22,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 34
-        versionCode = 37
-        versionName = "2.8.3"
+        versionCode = 38
+        versionName = "2.8.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -189,6 +189,9 @@ dependencies {
 
     // Lifecycle Service (for GPS ForegroundService)
     implementation("androidx.lifecycle:lifecycle-service:2.7.0")
+
+    // Shimmer (skeleton loading placeholders)
+    implementation("com.valentinilk.shimmer:compose-shimmer:1.3.0")
 
     // Glance (Compose App Widget)
     implementation("androidx.glance:glance-appwidget:1.0.0")

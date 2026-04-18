@@ -4,6 +4,7 @@ import android.Manifest
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -49,6 +50,11 @@ fun ReceiptScanScreen(
         permission = Manifest.permission.CAMERA
     )
     // --- КОНЕЦ БЛОКА ---
+
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)
+    else
+        rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
 
     // Launcher для выбора изображения из галереи
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -155,7 +161,13 @@ fun ReceiptScanScreen(
 
                         // Кнопка галереи
                         OutlinedButton(
-                            onClick = { galleryLauncher.launch("image/*") },
+                            onClick = {
+                                if (mediaPermission.status.isGranted) {
+                                    galleryLauncher.launch("image/*")
+                                } else {
+                                    mediaPermission.launchPermissionRequest()
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(Icons.Default.PhotoLibrary, null)
@@ -197,7 +209,13 @@ fun ReceiptScanScreen(
                                 Icon(Icons.Default.Delete, "Удалить")
                             }
 
-                            IconButton(onClick = { galleryLauncher.launch("image/*") }) {
+                            IconButton(onClick = {
+                                if (mediaPermission.status.isGranted) {
+                                    galleryLauncher.launch("image/*")
+                                } else {
+                                    mediaPermission.launchPermissionRequest()
+                                }
+                            }) {
                                 Icon(Icons.Default.Refresh, "Выбрать другое")
                             }
                         }

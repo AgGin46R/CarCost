@@ -8,6 +8,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.aggin.carcost.MainActivity
 import com.aggin.carcost.R
+import com.aggin.carcost.data.local.settings.SettingsManager
 
 object NotificationHelper {
 
@@ -16,6 +17,7 @@ object NotificationHelper {
     const val EXTRA_NAV_CAR_ID = "nav_car_id"
     const val NAV_TYPE_CHAT = "chat"
     const val NAV_TYPE_CAR = "car"
+    const val NAV_TYPE_ADD_EXPENSE = "add_expense"
 
     // ── Channels ────────────────────────────────────────────────────────────────
     const val CHANNEL_ID = "maintenance_reminders"
@@ -70,6 +72,20 @@ object NotificationHelper {
             else -> "$serviceType — через $kmLeft км"
         }
         notify(context, CHANNEL_ID, notificationId, "Техобслуживание: $carName", body)
+    }
+
+    // ── Бюджет ────────────────────────────────────────────────────────────────
+
+    fun sendBudgetAlertNotification(
+        context: Context,
+        notificationId: Int,
+        carName: String,
+        categoryName: String,
+        usedPercent: Int
+    ) {
+        val title = "Бюджет почти исчерпан: $carName"
+        val body = "$categoryName — использовано $usedPercent% месячного лимита"
+        notify(context, CHANNEL_ID, notificationId, title, body)
     }
 
     // ── Чат ─────────────────────────────────────────────────────────────────
@@ -182,6 +198,9 @@ object NotificationHelper {
         body: String,
         contentIntent: PendingIntent? = null
     ) {
+        // Не беспокоить в тихие часы (применяется только к локальным Worker-уведомлениям)
+        if (SettingsManager(context).isCurrentlyQuietHours()) return
+
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification_wrench)

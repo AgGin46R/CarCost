@@ -1,6 +1,8 @@
 package com.aggin.carcost.presentation.screens.add_car
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -30,9 +32,12 @@ import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.util.CurrencyUtils
 import java.text.SimpleDateFormat
 import java.util.Date
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun AddCarScreen(
     navController: NavController,
@@ -41,6 +46,11 @@ fun AddCarScreen(
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
     var showDatePicker by remember { mutableStateOf(false) }
+
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)
+    else
+        rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -129,7 +139,15 @@ fun AddCarScreen(
                     }
                 }
                 SmallFloatingActionButton(
-                    onClick = { if (!uiState.isUploadingPhoto) galleryLauncher.launch("image/*") },
+                    onClick = {
+                        if (!uiState.isUploadingPhoto) {
+                            if (mediaPermission.status.isGranted) {
+                                galleryLauncher.launch("image/*")
+                            } else {
+                                mediaPermission.launchPermissionRequest()
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(8.dp),

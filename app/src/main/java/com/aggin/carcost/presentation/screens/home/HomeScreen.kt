@@ -109,9 +109,7 @@ fun HomeScreen(
             modifier = Modifier.padding(paddingValues)
         ) {
             if (uiState.isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                com.aggin.carcost.presentation.components.SkeletonCardList(count = 3, cardHeight = 150.dp)
             } else if (uiState.cars.isEmpty() && uiState.pendingInvitations.isEmpty()) {
                 EmptyState()
             } else {

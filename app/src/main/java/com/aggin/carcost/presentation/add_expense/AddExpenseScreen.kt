@@ -1,6 +1,8 @@
 package com.aggin.carcost.presentation.screens.add_expense
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -34,9 +36,12 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.aggin.carcost.presentation.navigation.Screen
 import com.aggin.carcost.presentation.components.TagSelector
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun AddExpenseScreen(
     carId: String,
@@ -47,6 +52,11 @@ fun AddExpenseScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)
+    else
+        rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
 
     val receiptLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -417,7 +427,15 @@ fun AddExpenseScreen(
             ) {
                 Text("Фото чека", style = MaterialTheme.typography.titleSmall)
                 OutlinedButton(
-                    onClick = { if (!uiState.isUploadingReceipt) receiptLauncher.launch("image/*") },
+                    onClick = {
+                        if (!uiState.isUploadingReceipt) {
+                            if (mediaPermission.status.isGranted) {
+                                receiptLauncher.launch("image/*")
+                            } else {
+                                mediaPermission.launchPermissionRequest()
+                            }
+                        }
+                    },
                     enabled = !uiState.isSaving
                 ) {
                     if (uiState.isUploadingReceipt) {

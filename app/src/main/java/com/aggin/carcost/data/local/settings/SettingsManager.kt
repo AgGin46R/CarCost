@@ -5,10 +5,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 // Объявляем DataStore на уровне файла
@@ -23,6 +25,12 @@ class SettingsManager(private val context: Context) {
         val NOTIF_INSURANCE_KEY = booleanPreferencesKey("notif_insurance")
         val NOTIF_DIGEST_KEY = booleanPreferencesKey("notif_digest")
         val NOTIF_FUEL_KEY = booleanPreferencesKey("notif_fuel")
+        // Тихие часы
+        val QUIET_HOURS_ENABLED_KEY = booleanPreferencesKey("quiet_hours_enabled")
+        val QUIET_HOURS_START_KEY = intPreferencesKey("quiet_hours_start") // час 0–23
+        val QUIET_HOURS_END_KEY = intPreferencesKey("quiet_hours_end")     // час 0–23
+        // Бюджетный алерт
+        val NOTIF_BUDGET_ALERT_KEY = booleanPreferencesKey("notif_budget_alert")
     }
 
     val themeFlow: Flow<String> = context.dataStore.data
@@ -42,6 +50,18 @@ class SettingsManager(private val context: Context) {
 
     val notifFuelFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[NOTIF_FUEL_KEY] ?: true }
+
+    val quietHoursEnabledFlow: Flow<Boolean> = context.dataStore.data
+        .map { it[QUIET_HOURS_ENABLED_KEY] ?: false }
+
+    val quietHoursStartFlow: Flow<Int> = context.dataStore.data
+        .map { it[QUIET_HOURS_START_KEY] ?: 22 } // по умолчанию с 22:00
+
+    val quietHoursEndFlow: Flow<Int> = context.dataStore.data
+        .map { it[QUIET_HOURS_END_KEY] ?: 8 }   // по умолчанию до 8:00
+
+    val notifBudgetAlertFlow: Flow<Boolean> = context.dataStore.data
+        .map { it[NOTIF_BUDGET_ALERT_KEY] ?: true }
 
     suspend fun saveTheme(theme: String) {
         context.dataStore.edit { settings -> settings[THEME_KEY] = theme }
@@ -65,6 +85,38 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setNotifFuel(enabled: Boolean) {
         context.dataStore.edit { it[NOTIF_FUEL_KEY] = enabled }
+    }
+
+    suspend fun setQuietHoursEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[QUIET_HOURS_ENABLED_KEY] = enabled }
+    }
+
+    suspend fun setQuietHoursStart(hour: Int) {
+        context.dataStore.edit { it[QUIET_HOURS_START_KEY] = hour.coerceIn(0, 23) }
+    }
+
+    suspend fun setQuietHoursEnd(hour: Int) {
+        context.dataStore.edit { it[QUIET_HOURS_END_KEY] = hour.coerceIn(0, 23) }
+    }
+
+    suspend fun setNotifBudgetAlert(enabled: Boolean) {
+        context.dataStore.edit { it[NOTIF_BUDGET_ALERT_KEY] = enabled }
+    }
+
+    /** Проверяет, попадает ли текущее время в тихие часы. */
+    fun isCurrentlyQuietHours(): Boolean {
+        val prefs = runCatching {
+            // синхронное чтение через blocking call — вызывать только из Worker/background
+            kotlinx.coroutines.runBlocking {
+                context.dataStore.data.first()
+            }
+        }.getOrNull() ?: return false
+        if (prefs[QUIET_HOURS_ENABLED_KEY] != true) return false
+        val start = prefs[QUIET_HOURS_START_KEY] ?: 22
+        val end = prefs[QUIET_HOURS_END_KEY] ?: 8
+        val now = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return if (start <= end) now in start until end  // напр. 1:00–7:00
+        else now >= start || now < end                   // напр. 22:00–8:00 (через полночь)
     }
 
     fun lastChatSeenFlow(carId: String): Flow<Long> {

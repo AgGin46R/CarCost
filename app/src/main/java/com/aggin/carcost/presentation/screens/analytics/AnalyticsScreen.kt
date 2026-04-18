@@ -83,10 +83,11 @@ fun EnhancedAnalyticsScreen(
         }
     ) { paddingValues ->
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator() }
+            Column(
+                modifier = Modifier.fillMaxSize().padding(paddingValues)
+            ) {
+                com.aggin.carcost.presentation.components.SkeletonCardList(count = 4, cardHeight = 160.dp)
+            }
         } else if (uiState.expenses.isEmpty() && uiState.gpsTripStats == null) {
             EmptyAnalyticsState(Modifier.padding(paddingValues))
         } else {

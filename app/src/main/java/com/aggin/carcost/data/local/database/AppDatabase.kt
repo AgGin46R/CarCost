@@ -25,6 +25,7 @@ import com.aggin.carcost.data.local.database.dao.VinCacheDao
 import com.aggin.carcost.data.local.database.dao.ChatMessageDao
 import com.aggin.carcost.data.local.database.dao.InsurancePolicyDao
 import com.aggin.carcost.data.local.database.dao.CarIncidentDao
+import com.aggin.carcost.data.local.database.dao.ChatReactionDao
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
@@ -44,6 +45,7 @@ import com.aggin.carcost.data.local.database.entities.VinCache
 import com.aggin.carcost.data.local.database.entities.ChatMessage
 import com.aggin.carcost.data.local.database.entities.InsurancePolicy
 import com.aggin.carcost.data.local.database.entities.CarIncident
+import com.aggin.carcost.data.local.database.entities.ChatReaction
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -410,6 +412,24 @@ val MIGRATION_30_31 = object : Migration(30, 31) {
     }
 }
 
+val MIGRATION_31_32 = object : Migration(31, 32) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS chat_reactions (
+                id TEXT PRIMARY KEY NOT NULL,
+                messageId TEXT NOT NULL,
+                userId TEXT NOT NULL,
+                userEmail TEXT NOT NULL,
+                emoji TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(messageId) REFERENCES chat_messages(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_chat_reactions_messageId ON chat_reactions(messageId)")
+        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_chat_reactions_messageId_userId_emoji ON chat_reactions(messageId, userId, emoji)")
+    }
+}
+
 val MIGRATION_29_30 = object : Migration(29, 30) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE chat_messages ADD COLUMN replyToId TEXT")
@@ -511,9 +531,10 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         VinCache::class,
         ChatMessage::class,
         InsurancePolicy::class,
-        CarIncident::class
+        CarIncident::class,
+        ChatReaction::class
     ],
-    version = 31,
+    version = 32,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -537,6 +558,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun insurancePolicyDao(): InsurancePolicyDao
     abstract fun carIncidentDao(): CarIncidentDao
+    abstract fun chatReactionDao(): ChatReactionDao
 
     companion object {
         @Volatile
@@ -571,7 +593,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_27_28,
                         MIGRATION_28_29,
                         MIGRATION_29_30,
-                        MIGRATION_30_31
+                        MIGRATION_30_31,
+                        MIGRATION_31_32
                     )
                     .build()
                 INSTANCE = instance

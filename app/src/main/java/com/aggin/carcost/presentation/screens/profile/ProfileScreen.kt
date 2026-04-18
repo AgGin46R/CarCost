@@ -2,6 +2,7 @@ package com.aggin.carcost.presentation.screens.profile
 
 import android.Manifest
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -56,9 +57,19 @@ fun ProfileScreen(
     val notifInsurance by settingsManager.notifInsuranceFlow.collectAsState(initial = true)
     val notifDigest by settingsManager.notifDigestFlow.collectAsState(initial = true)
     val notifFuel by settingsManager.notifFuelFlow.collectAsState(initial = true)
+    val notifBudgetAlert by settingsManager.notifBudgetAlertFlow.collectAsState(initial = true)
+    val quietHoursEnabled by settingsManager.quietHoursEnabledFlow.collectAsState(initial = false)
+    val quietHoursStart by settingsManager.quietHoursStartFlow.collectAsState(initial = 22)
+    val quietHoursEnd by settingsManager.quietHoursEndFlow.collectAsState(initial = 8)
 
     // Разрешение на камеру
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
+
+    // Разрешение на галерею (READ_MEDIA_IMAGES на Android 13+, READ_EXTERNAL_STORAGE ниже)
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)
+    else
+        rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
 
     // Лаунчер для выбора фото из галереи
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -137,10 +148,18 @@ fun ProfileScreen(
                 notifInsurance = notifInsurance,
                 notifDigest = notifDigest,
                 notifFuel = notifFuel,
+                notifBudgetAlert = notifBudgetAlert,
+                quietHoursEnabled = quietHoursEnabled,
+                quietHoursStart = quietHoursStart,
+                quietHoursEnd = quietHoursEnd,
                 onToggleMaintenance = { viewModel.setNotifMaintenance(it) },
                 onToggleInsurance = { viewModel.setNotifInsurance(it) },
                 onToggleDigest = { viewModel.setNotifDigest(it) },
-                onToggleFuel = { viewModel.setNotifFuel(it) }
+                onToggleFuel = { viewModel.setNotifFuel(it) },
+                onToggleBudgetAlert = { viewModel.setNotifBudgetAlert(it) },
+                onToggleQuietHours = { viewModel.setQuietHoursEnabled(it) },
+                onQuietHoursStartChange = { viewModel.setQuietHoursStart(it) },
+                onQuietHoursEndChange = { viewModel.setQuietHoursEnd(it) }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -163,21 +182,25 @@ fun ProfileScreen(
         PhotoOptionsDialog(
             onDismiss = { showPhotoOptionsDialog = false },
             onGalleryClick = {
-                galleryLauncher.launch("image/*")
-                showPhotoOptionsDialog = false
+                if (mediaPermission.status.isGranted) {
+                    galleryLauncher.launch("image/*")
+                    showPhotoOptionsDialog = false
+                } else {
+                    mediaPermission.launchPermissionRequest()
+                    // Диалог остаётся открытым — пользователь выдаёт разрешение и нажимает снова
+                }
             },
             onCameraClick = {
-                // Проверяем разрешение на камеру
                 if (cameraPermissionState.status.isGranted) {
                     val uri = viewModel.createTempImageUri(context)
                     if (uri != null) {
                         cameraLauncher.launch(uri)
+                        showPhotoOptionsDialog = false
                     }
                 } else {
-                    // Запрашиваем разрешение
                     cameraPermissionState.launchPermissionRequest()
+                    // Диалог остаётся открытым — пользователь выдаёт разрешение и нажимает снова
                 }
-                showPhotoOptionsDialog = false
             },
             onRemoveClick = {
                 viewModel.removeProfilePhoto()
@@ -653,10 +676,18 @@ fun NotificationSection(
     notifInsurance: Boolean,
     notifDigest: Boolean,
     notifFuel: Boolean,
+    notifBudgetAlert: Boolean,
+    quietHoursEnabled: Boolean,
+    quietHoursStart: Int,
+    quietHoursEnd: Int,
     onToggleMaintenance: (Boolean) -> Unit,
     onToggleInsurance: (Boolean) -> Unit,
     onToggleDigest: (Boolean) -> Unit,
-    onToggleFuel: (Boolean) -> Unit
+    onToggleFuel: (Boolean) -> Unit,
+    onToggleBudgetAlert: (Boolean) -> Unit,
+    onToggleQuietHours: (Boolean) -> Unit,
+    onQuietHoursStartChange: (Int) -> Unit,
+    onQuietHoursEndChange: (Int) -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -675,6 +706,57 @@ fun NotificationSection(
             NotifToggleRow("Страховка", notifInsurance, onToggleInsurance)
             NotifToggleRow("Еженедельный дайджест", notifDigest, onToggleDigest)
             NotifToggleRow("Низкий уровень топлива", notifFuel, onToggleFuel)
+            NotifToggleRow("Превышение 80% бюджета", notifBudgetAlert, onToggleBudgetAlert)
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            // ── Тихие часы ────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Тихие часы", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Не беспокоить с ${quietHoursStart}:00 до ${quietHoursEnd}:00",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = quietHoursEnabled, onCheckedChange = onToggleQuietHours)
+            }
+
+            if (quietHoursEnabled) {
+                Spacer(Modifier.height(12.dp))
+                // Слайдер начала (0–23)
+                Text(
+                    "Начало: ${quietHoursStart}:00",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+                Slider(
+                    value = quietHoursStart.toFloat(),
+                    onValueChange = { onQuietHoursStartChange(it.toInt()) },
+                    valueRange = 0f..23f,
+                    steps = 22,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+                // Слайдер конца (0–23)
+                Text(
+                    "Конец: ${quietHoursEnd}:00",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+                Slider(
+                    value = quietHoursEnd.toFloat(),
+                    onValueChange = { onQuietHoursEndChange(it.toInt()) },
+                    valueRange = 0f..23f,
+                    steps = 22,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }

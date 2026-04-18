@@ -25,6 +25,9 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE carId = :carId ORDER BY createdAt DESC LIMIT 1")
     fun getLastMessageByCarId(carId: String): Flow<ChatMessage?>
 
+    @Query("SELECT * FROM chat_messages WHERE id = :id")
+    suspend fun getById(id: String): ChatMessage?
+
     @Query("SELECT COUNT(*) FROM chat_messages WHERE carId = :carId AND createdAt > :afterTimestamp")
     fun getUnreadCount(carId: String, afterTimestamp: Long): Flow<Int>
 }

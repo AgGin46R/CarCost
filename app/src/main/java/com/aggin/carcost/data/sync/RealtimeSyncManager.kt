@@ -275,6 +275,42 @@ class RealtimeSyncManager(private val context: Context) {
                 } catch (e: Exception) { Log.e(TAG, "Error handling chat delete", e) }
             }.catch { Log.w(TAG, "Chat delete flow error: ${it.message}") }.launchIn(scope)
 
+            // ── Chat reactions ────────────────────────────────────────────────
+            ch.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+                table = "chat_reactions"
+            }.onEach { change ->
+                try {
+                    val dto = json.decodeFromJsonElement(
+                        com.aggin.carcost.data.remote.repository.ChatReactionDto.serializer(),
+                        change.record
+                    )
+                    // Only insert if the parent message exists locally; Room FK would fail otherwise.
+                    if (db.chatMessageDao().getById(dto.messageId) != null) {
+                        db.chatReactionDao().insert(
+                            com.aggin.carcost.data.local.database.entities.ChatReaction(
+                                id = dto.id,
+                                messageId = dto.messageId,
+                                userId = dto.userId,
+                                userEmail = dto.userEmail,
+                                emoji = dto.emoji,
+                                createdAt = dto.createdAt
+                            )
+                        )
+                        Log.d(TAG, "👍 Reaction inserted: ${dto.emoji} on ${dto.messageId}")
+                    }
+                } catch (e: Exception) { Log.e(TAG, "Error handling reaction insert", e) }
+            }.catch { Log.w(TAG, "Reaction insert flow error: ${it.message}") }.launchIn(scope)
+
+            ch.postgresChangeFlow<PostgresAction.Delete>(schema = "public") {
+                table = "chat_reactions"
+            }.onEach { change ->
+                try {
+                    val id = change.oldRecord["id"]?.toString()?.trim('"') ?: return@onEach
+                    db.chatReactionDao().deleteById(id)
+                    Log.d(TAG, "👎 Reaction deleted: $id")
+                } catch (e: Exception) { Log.e(TAG, "Error handling reaction delete", e) }
+            }.catch { Log.w(TAG, "Reaction delete flow error: ${it.message}") }.launchIn(scope)
+
             // ── Car Invitations ───────────────────────────────────────────────
 
             val currentEmail = try { supabase.auth.currentUserOrNull()?.email } catch (e: Exception) { null }

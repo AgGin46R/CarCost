@@ -18,6 +18,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.presentation.screens.analytics.getCategoryName
+import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
+import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
+import com.patrykandpatrick.vico.compose.chart.Chart
+import com.patrykandpatrick.vico.compose.chart.line.lineChart
+import com.patrykandpatrick.vico.core.entry.FloatEntry
+import com.patrykandpatrick.vico.core.entry.entryModelOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,7 +56,7 @@ fun CompareScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Выбор авто
+            // ── Car selection ─────────────────────────────────────────────────
             item {
                 Text(
                     "Выберите автомобили для сравнения",
@@ -69,6 +75,31 @@ fun CompareScreen(
                                 { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
                             } else null
                         )
+                    }
+                }
+            }
+
+            // ── Period filter ─────────────────────────────────────────────────
+            if (uiState.selectedCarIds.size >= 2) {
+                item {
+                    Text(
+                        "Период",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(ComparePeriod.entries) { period ->
+                            val selected = uiState.selectedPeriod == period
+                            FilterChip(
+                                selected = selected,
+                                onClick = { viewModel.setPeriod(period) },
+                                label = { Text(period.label) },
+                                leadingIcon = if (selected) {
+                                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                                } else null
+                            )
+                        }
                     }
                 }
             }
@@ -96,17 +127,36 @@ fun CompareScreen(
                         }
                     }
                 }
-            } else {
-                // Общие расходы
+            } else if (uiState.isLoading) {
                 item {
-                    CompareCard(title = "Общие расходы", icon = Icons.Default.AccountBalanceWallet) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            } else {
+                // ── Monthly expenses line chart ────────────────────────────────
+                if (selectedStats.isNotEmpty() && uiState.periodMonthLabels.isNotEmpty()) {
+                    item {
+                        MonthlyCompareChartCard(
+                            stats = selectedStats,
+                            monthLabels = uiState.periodMonthLabels
+                        )
+                    }
+                }
+
+                // ── Total expenses ───────────────────────────────────────────
+                item {
+                    CompareCard(title = "Общие расходы за период", icon = Icons.Default.AccountBalanceWallet) {
                         CompareRow(selectedStats) { stats ->
                             String.format("%.0f ₽", stats.totalExpenses)
                         }
                     }
                 }
 
-                // Количество записей
+                // ── Records count ────────────────────────────────────────────
                 item {
                     CompareCard(title = "Записей расходов", icon = Icons.Default.Receipt) {
                         CompareRow(selectedStats) { stats ->
@@ -115,7 +165,7 @@ fun CompareScreen(
                     }
                 }
 
-                // Стоимость км
+                // ── Cost per km ──────────────────────────────────────────────
                 item {
                     CompareCard(title = "Стоимость 1 км", icon = Icons.Default.Speed) {
                         CompareRow(selectedStats) { stats ->
@@ -125,7 +175,18 @@ fun CompareScreen(
                     }
                 }
 
-                // Расход топлива
+                // ── Maintenance per 10k km ────────────────────────────────────
+                item {
+                    CompareCard(title = "ТО и ремонт на 10 000 км", icon = Icons.Default.Build) {
+                        CompareRow(selectedStats) { stats ->
+                            if (stats.maintenancePer10k > 0)
+                                String.format("%.0f ₽", stats.maintenancePer10k)
+                            else "—"
+                        }
+                    }
+                }
+
+                // ── Avg fuel consumption ─────────────────────────────────────
                 item {
                     CompareCard(title = "Средний расход топлива", icon = Icons.Default.LocalGasStation) {
                         CompareRow(selectedStats) { stats ->
@@ -134,7 +195,7 @@ fun CompareScreen(
                     }
                 }
 
-                // Топ категорий
+                // ── Top categories ────────────────────────────────────────────
                 if (selectedStats.all { it.topCategories.isNotEmpty() }) {
                     item {
                         CompareCard(title = "Топ категорий расходов", icon = Icons.Default.PieChart) {
@@ -182,6 +243,87 @@ fun CompareScreen(
         }
     }
 }
+
+// ── Monthly comparison chart ──────────────────────────────────────────────────
+
+@Composable
+fun MonthlyCompareChartCard(
+    stats: List<CarCompareStats>,
+    monthLabels: List<String>
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.ShowChart,
+                    null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Расходы по месяцам",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+
+            // Legend
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                stats.forEach { carStats ->
+                    Text(
+                        "● ${carStats.car.brand} ${carStats.car.model}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+
+            val allZero = stats.all { cs -> cs.monthlyExpenses.all { it.second == 0.0 } }
+            if (!allZero && monthLabels.isNotEmpty()) {
+                val entrySeries = stats.map { carStats ->
+                    carStats.monthlyExpenses.mapIndexed { idx, (_, amount) ->
+                        FloatEntry(idx.toFloat(), amount.toFloat())
+                    }
+                }
+                val model = if (entrySeries.size >= 2)
+                    entryModelOf(entrySeries[0], entrySeries[1])
+                else
+                    entryModelOf(entrySeries[0])
+                Chart(
+                    chart = lineChart(),
+                    model = model,
+                    startAxis = rememberStartAxis(),
+                    bottomAxis = rememberBottomAxis(
+                        valueFormatter = { value, _ ->
+                            monthLabels.getOrElse(value.toInt()) { "" }
+                        },
+                        labelRotationDegrees = -45f
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(200.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Нет данных за выбранный период",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Reusable card / row composables ──────────────────────────────────────────
 
 @Composable
 fun CompareCard(
