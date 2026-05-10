@@ -3,17 +3,29 @@ package com.aggin.carcost.presentation.screens.tco
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.domain.DepreciationCalculator
+import com.aggin.carcost.presentation.components.SkeletonCardList
+import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
+import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
+import com.patrykandpatrick.vico.compose.chart.Chart
+import com.patrykandpatrick.vico.compose.chart.line.lineChart
+import com.patrykandpatrick.vico.core.entry.FloatEntry
+import com.patrykandpatrick.vico.core.entry.entryModelOf
 import java.text.NumberFormat
 import java.util.*
 
@@ -55,9 +67,7 @@ fun TcoScreen(
         }
     ) { padding ->
         if (uiState.isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            SkeletonCardList(count = 4, cardHeight = 120.dp)
             return@Scaffold
         }
 
@@ -71,6 +81,16 @@ fun TcoScreen(
 
             // Показатели эффективности
             item { TcoMetricsCard(uiState) }
+
+            // Калькулятор амортизации
+            if (uiState.purchasePrice > 0) {
+                item {
+                    DepreciationCard(
+                        uiState = uiState,
+                        onMarketValueChange = { viewModel.updateMarketValue(it) }
+                    )
+                }
+            }
 
             // Разбивка по категориям
             if (uiState.categoryBreakdown.isNotEmpty()) {
@@ -251,6 +271,96 @@ private fun CategoryBreakdownRow(item: TcoCategoryBreakdown, totalExpenses: Doub
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun DepreciationCard(
+    uiState: TcoUiState,
+    onMarketValueChange: (String) -> Unit
+) {
+    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "Амортизация автомобиля",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+
+            // Market value input
+            OutlinedTextField(
+                value = uiState.marketValueInput,
+                onValueChange = onMarketValueChange,
+                label = { Text("Текущая рыночная стоимость") },
+                placeholder = { Text("Оставьте пустым для авторасчёта") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                suffix = { Text("₽") }
+            )
+
+            // Summary row
+            if (uiState.estimatedCurrentValue > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Текущая стоимость", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        Text(
+                            "${fmt.format(uiState.estimatedCurrentValue)} ₽",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Обесценивание", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        Text(
+                            "−${fmt.format(uiState.totalDepreciation)} ₽",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+
+            // Vico LineChart
+            if (uiState.depreciationPoints.size >= 2) {
+                Text(
+                    "Прогноз стоимости на 10 лет",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+
+                val entries = remember(uiState.depreciationPoints) {
+                    uiState.depreciationPoints.mapIndexed { idx, pt ->
+                        FloatEntry(idx.toFloat(), pt.value.toFloat())
+                    }
+                }
+                val chartModel = remember(entries) { entryModelOf(entries) }
+
+                Chart(
+                    chart = lineChart(),
+                    model = chartModel,
+                    startAxis = rememberStartAxis(),
+                    bottomAxis = rememberBottomAxis(
+                        valueFormatter = { value, _ ->
+                            uiState.depreciationPoints.getOrNull(value.toInt())
+                                ?.year?.toString()?.takeLast(2) ?: ""
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                )
+            }
         }
     }
 }

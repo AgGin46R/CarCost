@@ -74,6 +74,7 @@ data class AddExpenseUiState(
     val showError: Boolean = false,
     val errorMessage: String = "",
     val categorySetManually: Boolean = false,
+    val autoDetectedCategory: ExpenseCategory? = null,
     val suggestedOdometer: Int? = null,
     val lockedCategory: Boolean = false  // механик не может сменить категорию
 )
@@ -196,7 +197,12 @@ class AddExpenseViewModel(
     }
 
     fun updateCategory(value: ExpenseCategory) {
-        _uiState.value = _uiState.value.copy(category = value, showError = false, categorySetManually = true)
+        _uiState.value = _uiState.value.copy(
+            category = value,
+            showError = false,
+            categorySetManually = true,
+            autoDetectedCategory = null
+        )
     }
 
     fun updateAmount(value: String) {
@@ -227,8 +233,22 @@ class AddExpenseViewModel(
         } else null
         _uiState.value = current.copy(
             description = value,
-            category = suggested ?: current.category
+            category = suggested ?: current.category,
+            autoDetectedCategory = suggested
         )
+    }
+
+    /** Called from UI when the user taps "Изменить категорию" on the auto-detect hint. */
+    fun clearAutoDetectedCategory() {
+        _uiState.value = _uiState.value.copy(
+            autoDetectedCategory = null,
+            categorySetManually = false
+        )
+    }
+
+    /** Fill amount from a quick-preset chip. */
+    fun applyQuickAmount(value: String) {
+        _uiState.value = _uiState.value.copy(amount = value, showError = false)
     }
 
     fun updateLocation(value: String) {

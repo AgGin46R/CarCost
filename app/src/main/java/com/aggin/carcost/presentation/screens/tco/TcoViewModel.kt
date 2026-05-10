@@ -7,6 +7,7 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.domain.DepreciationCalculator
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -31,6 +32,11 @@ data class TcoUiState(
     val costPerYear: Double = 0.0,
     val categoryBreakdown: List<TcoCategoryBreakdown> = emptyList(),
     val monthlyAvgByCategory: List<TcoCategoryBreakdown> = emptyList(),
+    // Depreciation fields
+    val marketValueInput: String = "",                          // user-entered current market value
+    val depreciationPoints: List<DepreciationCalculator.DepreciationPoint> = emptyList(),
+    val estimatedCurrentValue: Double = 0.0,                   // from depreciation model or user override
+    val totalDepreciation: Double = 0.0,                       // purchasePrice - currentValue
     val isLoading: Boolean = true
 )
 
@@ -92,6 +98,16 @@ class TcoViewModel(application: Application) : AndroidViewModel(application) {
             .filter { it.total > 0 }
             .sortedByDescending { it.total }
 
+        // Depreciation
+        val marketValueOverride = _uiState.value.marketValueInput.toDoubleOrNull()
+        val depreciationPoints = if (purchasePrice > 0) {
+            DepreciationCalculator.calculate(purchasePrice, car.purchaseDate, yearsForward = 10)
+        } else emptyList()
+        val estimatedCurrentValue = if (purchasePrice > 0) {
+            DepreciationCalculator.currentEstimate(purchasePrice, car.purchaseDate, marketValueOverride)
+        } else 0.0
+        val totalDepreciation = (purchasePrice - estimatedCurrentValue).coerceAtLeast(0.0)
+
         _uiState.update {
             it.copy(
                 car = car,
@@ -104,8 +120,30 @@ class TcoViewModel(application: Application) : AndroidViewModel(application) {
                 costPerMonth = costPerMonth,
                 costPerYear = costPerYear,
                 categoryBreakdown = breakdown,
+                depreciationPoints = depreciationPoints,
+                estimatedCurrentValue = estimatedCurrentValue,
+                totalDepreciation = totalDepreciation,
                 isLoading = false
             )
+        }
+    }
+
+    /** Called when user types in the market value field. */
+    fun updateMarketValue(value: String) {
+        if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
+            _uiState.update { state ->
+                val mv = value.toDoubleOrNull()
+                val car = state.car ?: return@update state.copy(marketValueInput = value)
+                val purchasePrice = car.purchasePrice ?: 0.0
+                val estimated = if (purchasePrice > 0)
+                    DepreciationCalculator.currentEstimate(purchasePrice, car.purchaseDate, mv)
+                else 0.0
+                state.copy(
+                    marketValueInput = value,
+                    estimatedCurrentValue = estimated,
+                    totalDepreciation = (purchasePrice - estimated).coerceAtLeast(0.0)
+                )
+            }
         }
     }
 }

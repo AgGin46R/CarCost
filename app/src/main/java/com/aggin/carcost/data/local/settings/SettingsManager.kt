@@ -20,6 +20,7 @@ class SettingsManager(private val context: Context) {
 
     companion object {
         val THEME_KEY = stringPreferencesKey("app_theme")
+        val ACCENT_KEY = stringPreferencesKey("accent_color")
         val ONBOARDING_DONE_KEY = booleanPreferencesKey("onboarding_done")
         val NOTIF_MAINTENANCE_KEY = booleanPreferencesKey("notif_maintenance")
         val NOTIF_INSURANCE_KEY = booleanPreferencesKey("notif_insurance")
@@ -35,6 +36,9 @@ class SettingsManager(private val context: Context) {
 
     val themeFlow: Flow<String> = context.dataStore.data
         .map { preferences -> preferences[THEME_KEY] ?: "System" }
+
+    val accentFlow: Flow<String> = context.dataStore.data
+        .map { preferences -> preferences[ACCENT_KEY] ?: "Blue" }
 
     val onboardingDoneFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[ONBOARDING_DONE_KEY] ?: false }
@@ -65,6 +69,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun saveTheme(theme: String) {
         context.dataStore.edit { settings -> settings[THEME_KEY] = theme }
+    }
+
+    suspend fun saveAccent(accent: String) {
+        context.dataStore.edit { settings -> settings[ACCENT_KEY] = accent }
     }
 
     suspend fun setOnboardingDone() {

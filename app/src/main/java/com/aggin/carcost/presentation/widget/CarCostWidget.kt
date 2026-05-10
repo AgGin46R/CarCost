@@ -58,6 +58,48 @@ class CarCostWidget : GlanceAppWidget() {
         val odometer = activeCar?.currentOdometer
         val activeCarId = activeCar?.id
 
+        // Top-3 categories by amount this month (for the active car)
+        val top3Categories: List<Pair<String, String>> = try {
+            if (activeCar != null) {
+                val expenses = database.expenseDao().getExpensesInDateRangeSync(
+                    carId = activeCar.id,
+                    startDate = startOfMonth,
+                    endDate = System.currentTimeMillis()
+                )
+                expenses.groupBy { it.category }
+                    .mapValues { (_, list) -> list.sumOf { it.amount } }
+                    .entries
+                    .sortedByDescending { it.value }
+                    .take(3)
+                    .map { (cat, amount) ->
+                        val emoji = when (cat) {
+                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.FUEL -> "⛽"
+                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.MAINTENANCE -> "🔧"
+                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.REPAIR -> "🛠️"
+                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.INSURANCE -> "🛡️"
+                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.PARKING -> "🅿️"
+                            else -> "📦"
+                        }
+                        emoji to "%.0f ₽".format(amount)
+                    }
+            } else emptyList()
+        } catch (e: Exception) { emptyList() }
+
+        // Next maintenance reminder (min remaining km)
+        val nextMaintenanceLabel: String? = try {
+            if (activeCar != null) {
+                val reminders = database.maintenanceReminderDao()
+                    .getRemindersByCarIdSync(activeCar.id)
+                val nearest = reminders
+                    .filter { it.nextChangeOdometer > activeCar.currentOdometer }
+                    .minByOrNull { it.nextChangeOdometer - activeCar.currentOdometer }
+                if (nearest != null) {
+                    val remaining = nearest.nextChangeOdometer - activeCar.currentOdometer
+                    "${nearest.type.displayName}: через $remaining км"
+                } else null
+            } else null
+        } catch (e: Exception) { null }
+
         provideContent {
             CarCostWidgetContent(
                 carsCount = carsCount,
@@ -65,6 +107,8 @@ class CarCostWidget : GlanceAppWidget() {
                 carName = carName,
                 odometer = odometer,
                 activeCarId = activeCarId,
+                top3Categories = top3Categories,
+                nextMaintenanceLabel = nextMaintenanceLabel,
                 context = context
             )
         }
@@ -78,6 +122,8 @@ fun CarCostWidgetContent(
     carName: String?,
     odometer: Int?,
     activeCarId: String?,
+    top3Categories: List<Pair<String, String>> = emptyList(),
+    nextMaintenanceLabel: String? = null,
     context: Context
 ) {
     // Intent to open app (root)
@@ -191,6 +237,43 @@ fun CarCostWidgetContent(
                     color = ColorProvider(Color.White.copy(alpha = 0.75f)),
                     fontSize = 11.sp
                 )
+            )
+        }
+
+        // ── Top-3 expense categories ──────────────────────────────────────────
+        if (top3Categories.isNotEmpty()) {
+            Spacer(GlanceModifier.height(6.dp))
+            top3Categories.forEach { (emoji, amount) ->
+                Row(
+                    modifier = GlanceModifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = emoji,
+                        style = TextStyle(fontSize = 11.sp),
+                        modifier = GlanceModifier.width(20.dp)
+                    )
+                    Text(
+                        text = amount,
+                        style = TextStyle(
+                            color = ColorProvider(Color.White.copy(alpha = 0.85f)),
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+        }
+
+        // ── Next maintenance ──────────────────────────────────────────────────
+        if (nextMaintenanceLabel != null) {
+            Spacer(GlanceModifier.height(6.dp))
+            Text(
+                text = "🔧 $nextMaintenanceLabel",
+                style = TextStyle(
+                    color = ColorProvider(Color(0xFFFFD54F)),
+                    fontSize = 10.sp
+                ),
+                modifier = GlanceModifier.fillMaxWidth()
             )
         }
     }

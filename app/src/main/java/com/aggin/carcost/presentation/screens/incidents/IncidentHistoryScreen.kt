@@ -30,6 +30,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.aggin.carcost.data.local.database.entities.CarIncident
 import com.aggin.carcost.data.local.database.entities.IncidentType
+import com.aggin.carcost.presentation.components.SkeletonCardList
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -69,10 +70,7 @@ fun IncidentHistoryScreen(
         }
     ) { paddingValues ->
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator() }
+            SkeletonCardList(count = 4, cardHeight = 110.dp)
         } else if (uiState.incidents.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(paddingValues),

@@ -124,14 +124,6 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Timeline, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("AI-советы") },
-                                onClick = {
-                                    showMenu = false
-                                    navController.navigate(Screen.AiInsights.createRoute(carId))
-                                },
-                                leadingIcon = { Icon(Icons.Default.AutoAwesome, null) }
-                            )
-                            DropdownMenuItem(
                                 text = { Text("GPS Поездка") },
                                 onClick = {
                                     showMenu = false

@@ -1,6 +1,8 @@
 package com.aggin.carcost.data.auth
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
@@ -17,13 +19,24 @@ object GoogleSignInHelper {
 
     private val WEB_CLIENT_ID get() = com.aggin.carcost.BuildConfig.GOOGLE_WEB_CLIENT_ID
 
-    /**
-     * Запрашивает Google ID Token через Credential Manager.
-     * Должен вызываться на Main-потоке (нужен Activity контекст для UI).
-     */
+    private fun Context.findActivity(): Activity {
+        var ctx = this
+        while (ctx is ContextWrapper) {
+            if (ctx is Activity) return ctx
+            ctx = ctx.baseContext
+        }
+        error("Activity не найдена в контексте")
+    }
+
     suspend fun getIdToken(context: Context): Result<String> {
-        // ⚠️ НЕ используем withContext(IO) — CredentialManager должен работать на Main
-        val credentialManager = CredentialManager.create(context)
+        val activity = try {
+            context.findActivity()
+        } catch (e: Exception) {
+            Log.e(TAG, "Не удалось получить Activity", e)
+            return Result.failure(Exception("Внутренняя ошибка: нет Activity"))
+        }
+
+        val credentialManager = CredentialManager.create(activity)
 
         return try {
             val signInOption = GetSignInWithGoogleOption.Builder(WEB_CLIENT_ID).build()
@@ -31,41 +44,37 @@ object GoogleSignInHelper {
                 .addCredentialOption(signInOption)
                 .build()
 
-            Log.d(TAG, "Requesting credential with clientId: $WEB_CLIENT_ID")
-            val result = credentialManager.getCredential(context = context, request = request)
+            Log.d(TAG, "Requesting credential, clientId=$WEB_CLIENT_ID")
+            // Ключевое исправление — передаём activity, а не context
+            val result = credentialManager.getCredential(context = activity, request = request)
             val credential = result.credential
 
             Log.d(TAG, "Got credential type: ${credential.type}")
 
             when {
                 credential is GoogleIdTokenCredential -> {
-                    Log.d(TAG, "Direct GoogleIdTokenCredential — success")
                     Result.success(credential.idToken)
                 }
                 credential is CustomCredential &&
                         credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL -> {
                     try {
                         val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                        Log.d(TAG, "Parsed GoogleIdTokenCredential from CustomCredential — success")
                         Result.success(googleCredential.idToken)
                     } catch (e: GoogleIdTokenParsingException) {
-                        Log.e(TAG, "Failed to parse GoogleIdTokenCredential", e)
-                        Result.failure(Exception("Ошибка обработки токена Google: ${e.message}"))
+                        Result.failure(Exception("Ошибка обработки токена: ${e.message}"))
                     }
                 }
                 else -> {
-                    Log.e(TAG, "Unexpected credential type: ${credential.type}")
-                    Result.failure(Exception("Неподдерживаемый тип учётных данных: ${credential.type}"))
+                    Result.failure(Exception("Неподдерживаемый тип: ${credential.type}"))
                 }
             }
         } catch (e: GetCredentialCancellationException) {
-            Log.d(TAG, "User cancelled Google Sign-In")
             Result.failure(Exception("Отменено пользователем"))
         } catch (e: GetCredentialException) {
             Log.e(TAG, "GetCredentialException: ${e.type} — ${e.message}", e)
             Result.failure(Exception("Ошибка Google Sign-In: ${e.message}"))
         } catch (e: Exception) {
-            Log.e(TAG, "Unexpected exception during Google Sign-In", e)
+            Log.e(TAG, "Unexpected exception", e)
             Result.failure(e)
         }
     }

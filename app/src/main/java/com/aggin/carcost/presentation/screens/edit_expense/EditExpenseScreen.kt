@@ -96,7 +96,7 @@ fun EditExpenseScreen(
                     enabled = !uiState.isSaving
                 )
 
-                Divider()
+                HorizontalDivider()
 
                 // Основная информация
                 Text(
@@ -185,7 +185,7 @@ fun EditExpenseScreen(
                     enabled = !uiState.isSaving
                 )
 
-                Divider()
+                HorizontalDivider()
 
                 // Теги
                 TagSelector(
@@ -230,7 +230,7 @@ fun EditExpenseScreen(
                             )
                         }
 
-                        Divider()
+                        HorizontalDivider()
                     }
 
                     ExpenseCategory.MAINTENANCE -> {
@@ -255,7 +255,7 @@ fun EditExpenseScreen(
                             enabled = !uiState.isSaving
                         )
 
-                        Divider()
+                        HorizontalDivider()
                     }
 
                     ExpenseCategory.REPAIR -> {
@@ -274,7 +274,7 @@ fun EditExpenseScreen(
                             enabled = !uiState.isSaving
                         )
 
-                        Divider()
+                        HorizontalDivider()
                     }
 
                     else -> { /* Нет специфичных полей */ }

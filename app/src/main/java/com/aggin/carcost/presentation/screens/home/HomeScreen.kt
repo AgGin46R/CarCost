@@ -59,13 +59,13 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("CarCost") },
                 actions = {
+                    // Поиск расходов
+                    IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
+                        Icon(Icons.Default.Search, contentDescription = "Поиск расходов")
+                    }
                     // Таймер парковки
                     IconButton(onClick = { navController.navigate(Screen.ParkingTimer.route) }) {
                         Icon(Icons.Default.LocalParking, contentDescription = "Таймер парковки")
-                    }
-                    // Цены топлива
-                    IconButton(onClick = { navController.navigate(Screen.FuelPrices.route) }) {
-                        Icon(Icons.Default.LocalGasStation, contentDescription = "Цены топлива")
                     }
                     // Дашборд ТО
                     IconButton(onClick = { navController.navigate(Screen.MaintenanceDashboard.route) }) {

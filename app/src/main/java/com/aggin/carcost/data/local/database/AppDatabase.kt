@@ -15,8 +15,6 @@ import com.aggin.carcost.data.local.database.dao.ExpenseTagDao
 import com.aggin.carcost.data.local.database.dao.PlannedExpenseDao
 import com.aggin.carcost.data.local.database.dao.CarDocumentDao
 import com.aggin.carcost.data.local.database.dao.CategoryBudgetDao
-import com.aggin.carcost.data.local.database.dao.AiInsightDao
-import com.aggin.carcost.data.local.database.dao.FuelPriceDao
 import com.aggin.carcost.data.local.database.dao.AchievementDao
 import com.aggin.carcost.data.local.database.dao.SavingsGoalDao
 import com.aggin.carcost.data.local.database.dao.CarMemberDao
@@ -35,8 +33,6 @@ import com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef
 import com.aggin.carcost.data.local.database.entities.PlannedExpense
 import com.aggin.carcost.data.local.database.entities.CarDocument
 import com.aggin.carcost.data.local.database.entities.CategoryBudget
-import com.aggin.carcost.data.local.database.entities.AiInsight
-import com.aggin.carcost.data.local.database.entities.FuelPrice
 import com.aggin.carcost.data.local.database.entities.Achievement
 import com.aggin.carcost.data.local.database.entities.SavingsGoal
 import com.aggin.carcost.data.local.database.entities.CarMember
@@ -430,6 +426,13 @@ val MIGRATION_31_32 = object : Migration(31, 32) {
     }
 }
 
+val MIGRATION_32_33 = object : Migration(32, 33) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("DROP TABLE IF EXISTS ai_insights")
+        database.execSQL("DROP TABLE IF EXISTS fuel_prices")
+    }
+}
+
 val MIGRATION_29_30 = object : Migration(29, 30) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE chat_messages ADD COLUMN replyToId TEXT")
@@ -522,8 +525,6 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         PlannedExpense::class,
         CarDocument::class,
         CategoryBudget::class,
-        AiInsight::class,
-        FuelPrice::class,
         Achievement::class,
         SavingsGoal::class,
         CarMember::class,
@@ -534,7 +535,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         CarIncident::class,
         ChatReaction::class
     ],
-    version = 32,
+    version = 33,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -548,8 +549,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun plannedExpenseDao(): PlannedExpenseDao
     abstract fun carDocumentDao(): CarDocumentDao
     abstract fun categoryBudgetDao(): CategoryBudgetDao
-    abstract fun aiInsightDao(): AiInsightDao
-    abstract fun fuelPriceDao(): FuelPriceDao
     abstract fun achievementDao(): AchievementDao
     abstract fun savingsGoalDao(): SavingsGoalDao
     abstract fun carMemberDao(): CarMemberDao
@@ -594,7 +593,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_28_29,
                         MIGRATION_29_30,
                         MIGRATION_30_31,
-                        MIGRATION_31_32
+                        MIGRATION_31_32,
+                        MIGRATION_32_33
                     )
                     .build()
                 INSTANCE = instance

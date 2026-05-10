@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ServiceType
+import com.aggin.carcost.presentation.components.SkeletonCardList
 import com.aggin.carcost.presentation.navigation.Screen
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -59,9 +60,7 @@ fun ServiceTimelineScreen(
         }
     ) { padding ->
         if (uiState.isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            SkeletonCardList(count = 5, cardHeight = 90.dp)
             return@Scaffold
         }
 

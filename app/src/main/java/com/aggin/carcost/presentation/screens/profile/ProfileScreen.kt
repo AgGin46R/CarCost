@@ -29,9 +29,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import androidx.compose.foundation.border
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.domain.gamification.DriverScore
 import com.aggin.carcost.presentation.navigation.Screen
+import com.aggin.carcost.ui.theme.AccentScheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.isGranted
@@ -51,7 +53,9 @@ fun ProfileScreen(
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
     val currentTheme by settingsManager.themeFlow.collectAsState(initial = "System")
+    val currentAccent by settingsManager.accentFlow.collectAsState(initial = "Blue")
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showAccentDialog by remember { mutableStateOf(false) }
 
     val notifMaintenance by settingsManager.notifMaintenanceFlow.collectAsState(initial = true)
     val notifInsurance by settingsManager.notifInsuranceFlow.collectAsState(initial = true)
@@ -169,6 +173,7 @@ fun ProfileScreen(
                 onEditProfile = { showEditDialog = true },
                 onChangePassword = { showPasswordDialog = true },
                 onChangeTheme = { showThemeDialog = true },
+                onChangeAccent = { showAccentDialog = true },
                 onLogout = { showLogoutDialog = true }
             )
 
@@ -247,6 +252,14 @@ fun ProfileScreen(
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) { Text("Отмена") }
             }
+        )
+    }
+
+    if (showAccentDialog) {
+        AccentColorDialog(
+            currentAccent = currentAccent,
+            onDismiss = { showAccentDialog = false },
+            onAccentSelected = { viewModel.setAccent(it) }
         )
     }
 
@@ -582,6 +595,7 @@ fun ActionsSection(
     onEditProfile: () -> Unit,
     onChangePassword: () -> Unit,
     onChangeTheme: () -> Unit,
+    onChangeAccent: () -> Unit,
     onLogout: () -> Unit
 ) {
     Column(
@@ -603,6 +617,7 @@ fun ActionsSection(
             onClick = { navController.navigate(Screen.ChatsList.route) }
         )
         ActionItem(icon = Icons.Default.Palette, title = "Тема оформления", onClick = onChangeTheme)
+        ActionItem(icon = Icons.Default.ColorLens, title = "Акцентный цвет", onClick = onChangeAccent)
         ActionItem(icon = Icons.Default.Lock, title = "Сменить пароль", onClick = onChangePassword)
         ActionItem(
             icon = Icons.Default.Category,
@@ -887,6 +902,85 @@ fun ChangePasswordDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
+    )
+}
+
+@Composable
+fun AccentColorDialog(
+    currentAccent: String,
+    onDismiss: () -> Unit,
+    onAccentSelected: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Акцентный цвет") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    "Выберите цветовую схему приложения",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // Color swatch grid — 2 rows of ~3
+                val chunks = AccentScheme.entries.chunked(3)
+                chunks.forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        row.forEach { scheme ->
+                            val selected = currentAccent == scheme.key
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onAccentSelected(scheme.key) }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(scheme.previewColor)
+                                        .then(
+                                            if (selected) Modifier.border(
+                                                3.dp,
+                                                MaterialTheme.colorScheme.onSurface,
+                                                CircleShape
+                                            ) else Modifier
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (selected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = androidx.compose.ui.graphics.Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    scheme.displayName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (selected)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        // Filler for incomplete row
+                        repeat(3 - row.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Закрыть") }
         }
     )
 }

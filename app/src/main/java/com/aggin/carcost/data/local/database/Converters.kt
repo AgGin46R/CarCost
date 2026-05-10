@@ -114,30 +114,6 @@ class Converters {
         }
     }
 
-    // InsightType converters
-    @TypeConverter
-    fun fromInsightType(value: InsightType): String = value.name
-
-    @TypeConverter
-    fun toInsightType(value: String): InsightType =
-        try { InsightType.valueOf(value) } catch (e: IllegalArgumentException) { InsightType.GENERAL }
-
-    // InsightSeverity converters
-    @TypeConverter
-    fun fromInsightSeverity(value: InsightSeverity): String = value.name
-
-    @TypeConverter
-    fun toInsightSeverity(value: String): InsightSeverity =
-        try { InsightSeverity.valueOf(value) } catch (e: IllegalArgumentException) { InsightSeverity.INFO }
-
-    // FuelGradeType converters
-    @TypeConverter
-    fun fromFuelGradeType(value: FuelGradeType): String = value.name
-
-    @TypeConverter
-    fun toFuelGradeType(value: String): FuelGradeType =
-        try { FuelGradeType.valueOf(value) } catch (e: IllegalArgumentException) { FuelGradeType.AI95 }
-
     // AchievementType converters
     @TypeConverter
     fun fromAchievementType(value: AchievementType): String = value.name

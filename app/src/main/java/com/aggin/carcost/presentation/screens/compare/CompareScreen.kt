@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.presentation.components.SkeletonCard
 import com.aggin.carcost.presentation.screens.analytics.getCategoryName
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
@@ -128,13 +129,8 @@ fun CompareScreen(
                     }
                 }
             } else if (uiState.isLoading) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                items(3) {
+                    SkeletonCard(height = 120.dp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                 }
             } else {
                 // ── Monthly expenses line chart ────────────────────────────────
@@ -291,10 +287,7 @@ fun MonthlyCompareChartCard(
                         FloatEntry(idx.toFloat(), amount.toFloat())
                     }
                 }
-                val model = if (entrySeries.size >= 2)
-                    entryModelOf(entrySeries[0], entrySeries[1])
-                else
-                    entryModelOf(entrySeries[0])
+                val model = entryModelOf(*entrySeries.toTypedArray())
                 Chart(
                     chart = lineChart(),
                     model = model,

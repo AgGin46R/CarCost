@@ -37,4 +37,8 @@ interface MaintenanceReminderDao {
 
     @Query("DELETE FROM maintenance_reminders WHERE carId = :carId")
     suspend fun deleteRemindersByCarId(carId: String)
+
+    /** Synchronous query for use in Glance widget (runs on a background thread). */
+    @Query("SELECT * FROM maintenance_reminders WHERE carId = :carId AND isActive = 1 ORDER BY nextChangeOdometer ASC")
+    fun getRemindersByCarIdSync(carId: String): List<MaintenanceReminder>
 }

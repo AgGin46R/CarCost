@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import java.time.format.DateTimeFormatter
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.aggin.carcost.presentation.components.SkeletonCardList
 import com.aggin.carcost.presentation.navigation.Screen
 import kotlin.math.abs
 
@@ -44,12 +46,17 @@ fun MaintenanceDashboardScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { navController.navigate(Screen.EditMaintenanceReminder.createRoute()) }
+            ) {
+                Icon(Icons.Default.Add, "Добавить напоминание ТО")
+            }
         }
     ) { padding ->
         if (uiState.isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            SkeletonCardList(count = 4, cardHeight = 100.dp)
             return@Scaffold
         }
 
@@ -183,7 +190,9 @@ private fun ReminderCard(item: ReminderWithCar, navController: NavController) {
 
     Card(
         onClick = {
-            item.car?.let { navController.navigate(Screen.CarDetail.createRoute(it.id)) }
+            navController.navigate(
+                Screen.EditMaintenanceReminder.createRoute(reminderId = item.reminder.id)
+            )
         },
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = urgencyColor)

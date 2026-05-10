@@ -334,6 +334,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setAccent(accent: String) {
+        viewModelScope.launch {
+            settingsManager.saveAccent(accent)
+        }
+    }
+
     fun setNotifMaintenance(enabled: Boolean) {
         viewModelScope.launch { settingsManager.setNotifMaintenance(enabled) }
     }

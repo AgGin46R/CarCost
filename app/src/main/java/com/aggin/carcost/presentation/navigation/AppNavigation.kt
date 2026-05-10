@@ -41,8 +41,6 @@ import com.aggin.carcost.presentation.screens.budget.BudgetScreen
 import com.aggin.carcost.presentation.screens.maintenance_dashboard.MaintenanceDashboardScreen
 import com.aggin.carcost.presentation.screens.tco.TcoScreen
 import com.aggin.carcost.presentation.screens.service_timeline.ServiceTimelineScreen
-import com.aggin.carcost.presentation.screens.ai_insights.AiInsightsScreen
-import com.aggin.carcost.presentation.screens.fuel_prices.FuelPricesScreen
 import com.aggin.carcost.presentation.screens.achievements.AchievementsScreen
 import com.aggin.carcost.presentation.screens.goals.GoalsScreen
 import com.aggin.carcost.presentation.screens.car_members.CarMembersScreen
@@ -53,6 +51,9 @@ import com.aggin.carcost.presentation.screens.gps_trip.GpsTripScreen
 import com.aggin.carcost.presentation.screens.parking.ParkingTimerScreen
 import com.aggin.carcost.presentation.screens.gps_trip.TripMapScreen
 import com.aggin.carcost.presentation.screens.incidents.IncidentHistoryScreen
+import com.aggin.carcost.presentation.screens.insurance.InsurancePoliciesScreen
+import com.aggin.carcost.presentation.screens.maintenance_dashboard.EditMaintenanceReminderScreen
+import com.aggin.carcost.presentation.screens.search.SearchScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -140,12 +141,6 @@ sealed class Screen(val route: String) {
         fun createRoute(carId: String) = "service_timeline/$carId"
     }
 
-    object AiInsights : Screen("ai_insights/{carId}") {
-        fun createRoute(carId: String) = "ai_insights/$carId"
-    }
-
-    object FuelPrices : Screen("fuel_prices")
-
     object Achievements : Screen("achievements")
 
     object Goals : Screen("goals/{carId}") {
@@ -179,6 +174,23 @@ sealed class Screen(val route: String) {
     object IncidentHistory : Screen("incident_history/{carId}") {
         fun createRoute(carId: String) = "incident_history/$carId"
     }
+
+    object Search : Screen("expense_search")
+
+    object InsurancePolicies : Screen("insurance_policies/{carId}") {
+        fun createRoute(carId: String) = "insurance_policies/$carId"
+    }
+
+    object EditMaintenanceReminder : Screen("edit_maintenance_reminder?carId={carId}&reminderId={reminderId}") {
+        fun createRoute(carId: String? = null, reminderId: String? = null): String {
+            val params = listOfNotNull(
+                carId?.let { "carId=$it" },
+                reminderId?.let { "reminderId=$it" }
+            )
+            return if (params.isEmpty()) "edit_maintenance_reminder"
+            else "edit_maintenance_reminder?" + params.joinToString("&")
+        }
+    }
 }
 
 @Composable
@@ -202,9 +214,10 @@ fun AppNavigation(
     // Wait for session to finish loading from storage before deciding
     if (sessionStatus is SessionStatus.LoadingFromStorage) return
 
-    // Authenticated = logged in; NotAuthenticated = not logged in
-    // Any other status (e.g. NetworkError) = keep the user logged in
-    val isLoggedIn = sessionStatus is SessionStatus.Authenticated
+    // Only treat NotAuthenticated as definitively logged-out.
+    // NetworkError / RefreshFailure / any other state = keep the user on their current screen.
+    // This prevents false logouts when the internet is down or Supabase is temporarily unreachable.
+    val isLoggedIn = sessionStatus !is SessionStatus.NotAuthenticated
 
     // Если пришёл deep link с токеном и пользователь залогинен — сразу на экран принятия
     val startDestination = when {
@@ -436,11 +449,6 @@ fun AppNavigation(
             DocumentsScreen(carId = carId, navController = navController)
         }
 
-        // Цены топлива
-        composable(Screen.FuelPrices.route) {
-            FuelPricesScreen(navController = navController)
-        }
-
         // Таймер парковки
         composable(Screen.ParkingTimer.route) {
             ParkingTimerScreen(navController = navController)
@@ -476,15 +484,6 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             GoalsScreen(carId = carId, navController = navController)
-        }
-
-        // AI-советы
-        composable(
-            route = Screen.AiInsights.route,
-            arguments = listOf(navArgument("carId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val carId = backStackEntry.arguments?.getString("carId") ?: ""
-            AiInsightsScreen(carId = carId, navController = navController)
         }
 
         // Редактирование запланированной покупки
@@ -543,6 +542,45 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             IncidentHistoryScreen(carId = carId, navController = navController)
+        }
+
+        // Поиск расходов
+        composable(Screen.Search.route) {
+            SearchScreen(navController = navController)
+        }
+
+        // Страховые полисы
+        composable(
+            route = Screen.InsurancePolicies.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            InsurancePoliciesScreen(carId = carId, navController = navController)
+        }
+
+        // Создание/редактирование напоминания ТО
+        composable(
+            route = Screen.EditMaintenanceReminder.route,
+            arguments = listOf(
+                navArgument("carId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("reminderId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId")
+            val reminderId = backStackEntry.arguments?.getString("reminderId")
+            EditMaintenanceReminderScreen(
+                navController = navController,
+                preselectedCarId = carId,
+                reminderId = reminderId
+            )
         }
     }
 }

@@ -16,14 +16,14 @@ if (localPropsFile.exists()) localPropsFile.inputStream().use { localProps.load(
 
 android {
     namespace = "com.aggin.carcost"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.aggin.carcost"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 38
-        versionName = "2.8.5"
+        targetSdk = 35
+        versionCode = 41
+        versionName = "3.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -84,9 +84,9 @@ android {
 
 dependencies {
     // Core Android
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.9.0")
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
 
     // === SUPABASE DEPENDENCIES ===
     implementation(platform("io.github.jan-tennert.supabase:bom:2.6.0"))
@@ -109,7 +109,7 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging-ktx")
 
     // Compose
-    implementation(platform("androidx.compose:compose-bom:2024.09.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
@@ -118,17 +118,17 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.7.6")
+    implementation("androidx.navigation:navigation-compose:2.8.5")
 
     // ViewModel Compose
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
     // Yandex MapKit
     implementation("com.yandex.android:maps.mobile:4.33.1-full")
 
     implementation("com.google.android.gms:play-services-location:21.0.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     // Room Database (можно оставить для офлайн кэша)
     val roomVersion = "2.6.1"
@@ -137,16 +137,16 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // DataStore
-    implementation("androidx.datastore:datastore-preferences:1.0.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // WorkManager
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     // Coil
-    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
     // Charts
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
@@ -188,7 +188,7 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Lifecycle Service (for GPS ForegroundService)
-    implementation("androidx.lifecycle:lifecycle-service:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-service:2.8.7")
 
     // Shimmer (skeleton loading placeholders)
     implementation("com.valentinilk.shimmer:compose-shimmer:1.3.0")

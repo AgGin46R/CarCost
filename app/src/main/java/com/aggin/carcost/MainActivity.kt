@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settingsManager = SettingsManager(LocalContext.current)
             val theme by settingsManager.themeFlow.collectAsState(initial = "System")
+            val accent by settingsManager.accentFlow.collectAsState(initial = "Blue")
             var pendingUpdate by remember { mutableStateOf<VersionInfo?>(null) }
             val updateManager = remember { AppUpdateManager(this) }
 
@@ -47,7 +48,7 @@ class MainActivity : ComponentActivity() {
                 pendingUpdate = updateManager.checkForUpdate()
             }
 
-            CarCostTheme(themeSetting = theme) {
+            CarCostTheme(themeSetting = theme, accentSetting = accent) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

@@ -5,9 +5,12 @@ import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -146,18 +149,46 @@ fun MapScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    if (uiState.expenses.isNotEmpty()) {
-                        Card(
+                    // Category filter chips — top overlay
+                    if (uiState.availableCategories.isNotEmpty()) {
+                        Row(
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp)
+                                .align(Alignment.TopStart)
+                                .padding(8.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = "Найдено мест: ${uiState.expenses.size}",
-                                modifier = Modifier.padding(16.dp),
-                                style = MaterialTheme.typography.bodyMedium
+                            // "All" chip
+                            FilterChip(
+                                selected = uiState.selectedCategories.isEmpty(),
+                                onClick = { viewModel.clearFilter() },
+                                label = { Text("Все") },
+                                leadingIcon = { Icon(Icons.Default.FilterAlt, null, Modifier.size(14.dp)) }
                             )
+                            uiState.availableCategories.sortedBy { it.name }.forEach { cat ->
+                                FilterChip(
+                                    selected = cat in uiState.selectedCategories,
+                                    onClick = { viewModel.toggleCategory(cat) },
+                                    label = { Text(getCategoryShortName(cat)) }
+                                )
+                            }
                         }
+                    }
+
+                    // Bottom count badge
+                    Card(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = if (uiState.selectedCategories.isEmpty())
+                                "Точек на карте: ${uiState.expenses.size}"
+                            else
+                                "Отфильтровано: ${uiState.expenses.size} из ${uiState.allExpenses.size}",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
             }

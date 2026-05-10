@@ -13,6 +13,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState as rememberHScrollState
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -204,6 +207,14 @@ fun AddExpenseScreen(
                     onCategorySelected = { viewModel.updateCategory(it) },
                     enabled = !uiState.isSaving
                 )
+                // Подсказка автоопределения категории
+                val detectedCat = uiState.autoDetectedCategory
+                if (detectedCat != null) {
+                    AutoCategoryHint(
+                        category = detectedCat,
+                        onDismiss = { viewModel.clearAutoDetectedCategory() }
+                    )
+                }
             }
 
             // --- НОВАЯ КНОПКА "СКАНИРОВАТЬ ЧЕК" ---
@@ -217,7 +228,7 @@ fun AddExpenseScreen(
             }
             // --- КОНЕЦ НОВОЙ КНОПКИ ---
 
-            Divider()
+            HorizontalDivider()
 
             // Основная информация
             Text(
@@ -236,6 +247,12 @@ fun AddExpenseScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 enabled = !uiState.isSaving,
                 suffix = { Text("₽") }
+            )
+
+            // Быстрый выбор суммы
+            QuickAmountRow(
+                onAmountSelected = { viewModel.applyQuickAmount(it) },
+                enabled = !uiState.isSaving
             )
 
             // Пробег
@@ -314,7 +331,7 @@ fun AddExpenseScreen(
                 enabled = !uiState.isSaving
             )
 
-            Divider()
+            HorizontalDivider()
 
             // Теги
             TagSelector(
@@ -329,7 +346,7 @@ fun AddExpenseScreen(
             // Специфичные поля для категорий
             when (uiState.category) {
                 ExpenseCategory.FUEL -> {
-                    Divider()
+                    HorizontalDivider()
                     Text(
                         text = "Детали заправки",
                         style = MaterialTheme.typography.titleMedium
@@ -362,7 +379,7 @@ fun AddExpenseScreen(
                 }
 
                 ExpenseCategory.MAINTENANCE -> {
-                    Divider()
+                    HorizontalDivider()
                     Text(
                         text = "Детали обслуживания",
                         style = MaterialTheme.typography.titleMedium
@@ -397,7 +414,7 @@ fun AddExpenseScreen(
                 }
 
                 ExpenseCategory.REPAIR -> {
-                    Divider()
+                    HorizontalDivider()
                     Text(
                         text = "Детали ремонта",
                         style = MaterialTheme.typography.titleMedium
@@ -417,7 +434,7 @@ fun AddExpenseScreen(
                 else -> { /* Нет специфичных полей */ }
             }
 
-            Divider()
+            HorizontalDivider()
 
             // Фото чека
             Row(
@@ -688,6 +705,83 @@ fun getServiceTypeName(serviceType: ServiceType) = when (serviceType) {
     ServiceType.INSPECTION -> "Техосмотр"
     ServiceType.FULL_SERVICE -> "Полное ТО"
     ServiceType.OTHER -> "Другое"
+}
+
+/** Row of quick-preset amount chips for fast input. */
+@Composable
+fun QuickAmountRow(
+    onAmountSelected: (String) -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val presets = listOf("500", "1000", "1500", "2000", "3000", "5000")
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberHScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        presets.forEach { amount ->
+            SuggestionChip(
+                onClick = { onAmountSelected(amount) },
+                label = { Text("$amount ₽", style = MaterialTheme.typography.labelMedium) },
+                enabled = enabled
+            )
+        }
+    }
+}
+
+/** Small hint card shown when the category was auto-detected from the description. */
+@Composable
+fun AutoCategoryHint(
+    category: ExpenseCategory,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val categoryLabel = when (category) {
+        ExpenseCategory.FUEL -> "⛽ Топливо"
+        ExpenseCategory.MAINTENANCE -> "🔧 ТО"
+        ExpenseCategory.REPAIR -> "🛠️ Ремонт"
+        ExpenseCategory.INSURANCE -> "🛡️ Страховка"
+        ExpenseCategory.TAX -> "🧾 Налог"
+        ExpenseCategory.PARKING -> "🅿️ Парковка"
+        ExpenseCategory.TOLL -> "🛣️ Дорога"
+        ExpenseCategory.WASH -> "💧 Мойка"
+        ExpenseCategory.FINE -> "⚠️ Штраф"
+        ExpenseCategory.ACCESSORIES -> "🛒 Аксессуары"
+        else -> "Другое"
+    }
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Text(
+                text = "Определено автоматически: $categoryLabel",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                onClick = onDismiss,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text("Изменить", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
 }
 
 fun formatDate(timestamp: Long): String {

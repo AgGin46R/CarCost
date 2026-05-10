@@ -13,7 +13,8 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 data class ReceiptData(
     val amount: Double? = null,
@@ -34,199 +35,291 @@ class ReceiptScannerService(private val context: Context) {
     /**
      * Сканировать чек из Uri изображения
      */
-    suspend fun scanReceipt(imageUri: Uri): ReceiptData = suspendCoroutine { continuation ->
+    suspend fun scanReceipt(imageUri: Uri): ReceiptData = suspendCancellableCoroutine { continuation ->
         try {
             val image = InputImage.fromFilePath(context, imageUri)
 
-            recognizer.process(image)
+            val task = recognizer.process(image)
                 .addOnSuccessListener { visionText ->
                     val fullText = visionText.text
-                    continuation.resume(
-                        ReceiptData(
-                            amount = extractAmount(fullText),
-                            date = extractDate(fullText),
-                            text = fullText,
-                            photoUri = imageUri.toString(),
-                            fuelLiters = extractFuelLiters(fullText),
-                            odometer = extractOdometer(fullText),
-                            stationName = extractStationName(fullText),
-                            fuelType = extractFuelType(fullText)
-                        )
-                    )
+                    if (continuation.isActive) {
+                        continuation.resume(parseReceiptText(fullText, imageUri.toString()))
+                    }
                 }
                 .addOnFailureListener { e ->
-                    continuation.resume(
-                        ReceiptData(
-                            text = "Ошибка распознавания: ${e.message}",
-                            photoUri = imageUri.toString()
+                    if (continuation.isActive) {
+                        continuation.resume(
+                            ReceiptData(
+                                text = "Ошибка распознавания: ${e.message}",
+                                photoUri = imageUri.toString()
+                            )
                         )
-                    )
+                    }
                 }
+
+            continuation.invokeOnCancellation { task.addOnCanceledListener { } }
         } catch (e: Exception) {
-            continuation.resume(
-                ReceiptData(
-                    text = "Ошибка: ${e.message}"
-                )
-            )
+            if (continuation.isActive) {
+                continuation.resume(ReceiptData(text = "Ошибка: ${e.message}"))
+            }
         }
     }
 
     /**
      * Сканировать чек из Bitmap
      */
-    suspend fun scanReceipt(bitmap: Bitmap): ReceiptData = suspendCoroutine { continuation ->
+    suspend fun scanReceipt(bitmap: Bitmap): ReceiptData = suspendCancellableCoroutine { continuation ->
         try {
             val image = InputImage.fromBitmap(bitmap, 0)
 
-            recognizer.process(image)
+            val task = recognizer.process(image)
                 .addOnSuccessListener { visionText ->
                     val fullText = visionText.text
-                    continuation.resume(
-                        ReceiptData(
-                            amount = extractAmount(fullText),
-                            date = extractDate(fullText),
-                            text = fullText,
-                            fuelLiters = extractFuelLiters(fullText),
-                            odometer = extractOdometer(fullText),
-                            stationName = extractStationName(fullText),
-                            fuelType = extractFuelType(fullText)
-                        )
-                    )
+                    if (continuation.isActive) {
+                        continuation.resume(parseReceiptText(fullText, null))
+                    }
                 }
                 .addOnFailureListener { e ->
-                    continuation.resume(
-                        ReceiptData(text = "Ошибка распознавания: ${e.message}")
-                    )
+                    if (continuation.isActive) {
+                        continuation.resume(ReceiptData(text = "Ошибка распознавания: ${e.message}"))
+                    }
                 }
+
+            continuation.invokeOnCancellation { task.addOnCanceledListener { } }
         } catch (e: Exception) {
-            continuation.resume(
-                ReceiptData(text = "Ошибка: ${e.message}")
-            )
-        }
-    }
-
-    /**
-     * Извлечение суммы из текста чека
-     * Ищет паттерны: "ИТОГО", "TOTAL", "СУММА", за которыми следует число
-     */
-    private fun extractAmount(text: String): Double? {
-        // Паттерны для поиска суммы
-        val patterns = listOf(
-            // ИТОГО: 1234.56 или ИТОГО 1234.56
-            Regex("""(?:ИТОГО|ИТОГ|TOTAL|СУММА|СУМ|К ОПЛАТЕ)\s*:?\s*(\d+[.,]\d+)""", RegexOption.IGNORE_CASE),
-            // Просто числа с руб или ₽
-            Regex("""(\d+[.,]\d{2})\s*(?:руб|₽|RUB)""", RegexOption.IGNORE_CASE),
-            // Любое число с двумя десятичными знаками в конце строки
-            Regex("""(\d+[.,]\d{2})$""", RegexOption.MULTILINE)
-        )
-
-        // Ищем все суммы
-        val amounts = mutableListOf<Double>()
-
-        patterns.forEach { pattern ->
-            pattern.findAll(text).forEach { match ->
-                val amountStr = match.groupValues[1].replace(',', '.')
-                amountStr.toDoubleOrNull()?.let { amounts.add(it) }
+            if (continuation.isActive) {
+                continuation.resume(ReceiptData(text = "Ошибка: ${e.message}"))
             }
         }
-
-        // Возвращаем максимальную сумму (обычно это итоговая сумма)
-        return amounts.maxOrNull()
     }
 
-    /**
-     * Извлечение даты из текста чека
-     */
+    // ---------------------------------------------------------------------------
+    //  Central parse entry point
+    // ---------------------------------------------------------------------------
+
+    private fun parseReceiptText(text: String, photoUri: String?): ReceiptData {
+        return ReceiptData(
+            amount = extractAmount(text),
+            date = extractDate(text),
+            text = text,
+            photoUri = photoUri,
+            fuelLiters = extractFuelLiters(text),
+            odometer = extractOdometer(text),
+            stationName = extractStationName(text),
+            fuelType = extractFuelType(text)
+        )
+    }
+
+    // ---------------------------------------------------------------------------
+    //  Amount extraction
+    //  Strategy: prefer explicitly labelled totals; fall back to largest value.
+    // ---------------------------------------------------------------------------
+
+    private fun extractAmount(text: String): Double? {
+        val lines = text.lines()
+
+        // 1. Find a line that contains a known total keyword, then extract number from it
+        val totalKeywords = Regex(
+            """^.*(ИТОГО|ИТОГ|TOTAL|СУММА|К\s*ОПЛАТЕ|К\s*ВЫДАЧЕ|ОПЛАЧЕНО|ЧЕКОМ|НАЛИЧНЫМИ|КАРТОЙ|БЕЗНАЛ).*$""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)
+        )
+        for (match in totalKeywords.findAll(text)) {
+            val lineText = match.value
+            // Extract the last number on that line
+            val num = extractLastNumber(lineText)
+            if (num != null && num > 0.5) return num
+        }
+
+        // 2. Look for number followed by currency sign on any line
+        val currencyPattern = Regex("""(\d[\d\s]*[.,]\d{2})\s*(?:руб\.?|₽|RUB)""", RegexOption.IGNORE_CASE)
+        val currencyMatches = currencyPattern.findAll(text).mapNotNull { m ->
+            m.groupValues[1].replace(Regex("""\s"""), "").replace(',', '.').toDoubleOrNull()
+        }.filter { it > 0.5 }.toList()
+        if (currencyMatches.isNotEmpty()) return currencyMatches.max()
+
+        // 3. Collect all decimal numbers and return the maximum (safest fallback)
+        val allNumbers = Regex("""(\d[\d\s]*[.,]\d{2})""").findAll(text).mapNotNull { m ->
+            m.groupValues[1].replace(Regex("""\s"""), "").replace(',', '.').toDoubleOrNull()
+        }.filter { it > 0.5 }.toList()
+        return allNumbers.maxOrNull()
+    }
+
+    /** Extract the last number (possibly with spaces as thousands-sep) from a string. */
+    private fun extractLastNumber(line: String): Double? {
+        val pattern = Regex("""(\d[\d\s]*[.,]\d{1,2}|\d{3,})""")
+        val matches = pattern.findAll(line).toList()
+        if (matches.isEmpty()) return null
+        val last = matches.last().value.replace(Regex("""\s"""), "").replace(',', '.')
+        return last.toDoubleOrNull()
+    }
+
+    // ---------------------------------------------------------------------------
+    //  Date extraction
+    // ---------------------------------------------------------------------------
+
     private fun extractDate(text: String): Long? {
-        // Паттерны дат: DD.MM.YYYY, DD/MM/YYYY, DD-MM-YYYY
-        val datePatterns = listOf(
-            SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) to Regex("""(\d{2}\.\d{2}\.\d{4})"""),
-            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) to Regex("""(\d{2}/\d{2}/\d{4})"""),
-            SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()) to Regex("""(\d{2}-\d{2}-\d{4})"""),
-            SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()) to Regex("""(\d{4}\.\d{2}\.\d{2})"""),
-            SimpleDateFormat("dd.MM.yy", Locale.getDefault()) to Regex("""(\d{2}\.\d{2}\.\d{2})""")
+        data class DateFormat(val sdf: SimpleDateFormat, val regex: Regex)
+
+        val formats = listOf(
+            // Prefer full 4-digit year formats first
+            DateFormat(SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()), Regex("""(\d{2}\.\d{2}\.\d{4})""")),
+            DateFormat(SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()), Regex("""(\d{2}/\d{2}/\d{4})""")),
+            DateFormat(SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()), Regex("""(\d{2}-\d{2}-\d{4})""")),
+            DateFormat(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()), Regex("""(\d{4}-\d{2}-\d{2})""")),
+            DateFormat(SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()), Regex("""(\d{4}\.\d{2}\.\d{2})""")),
+            // 2-digit year as last resort
+            DateFormat(SimpleDateFormat("dd.MM.yy", Locale.getDefault()), Regex("""(\d{2}\.\d{2}\.\d{2})(?!\d)"""))
         )
 
-        datePatterns.forEach { (format, pattern) ->
-            pattern.find(text)?.let { match ->
+        for (df in formats) {
+            df.regex.find(text)?.let { match ->
                 try {
-                    return format.parse(match.value)?.time
-                } catch (e: Exception) {
-                    // Продолжаем поиск
-                }
+                    val parsed = df.sdf.parse(match.groupValues[1])
+                    if (parsed != null) return parsed.time
+                } catch (_: Exception) { /* try next */ }
             }
         }
 
         return null
     }
 
-    /**
-     * Извлечение количества литров топлива из текста чека АЗС
-     */
+    // ---------------------------------------------------------------------------
+    //  Fuel liters extraction
+    // ---------------------------------------------------------------------------
+
     private fun extractFuelLiters(text: String): Double? {
         val patterns = listOf(
-            Regex("""(\d+[.,]\d{1,3})\s*(?:л|L|лит|ltr|litr)""", RegexOption.IGNORE_CASE),
-            Regex("""(?:объём|объем|кол-во|количество|литры?|Litres?)\s*:?\s*(\d+[.,]\d{1,3})""", RegexOption.IGNORE_CASE),
-            Regex("""(\d+[.,]\d{3})\s*(?:л|L)""")  // e.g. 42,350 л
+            // "Отпущено: 42.350 л" / "Кол-во: 33,55 л"
+            Regex("""(?:отпущено|объём|объем|кол-во|количество|литры?|litres?|volume)\s*:?\s*(\d+[.,]\d{1,3})\s*(?:л|l|ltr)?""", RegexOption.IGNORE_CASE),
+            // "42.350 л" / "33,55 л" — number directly before unit
+            Regex("""(\d+[.,]\d{1,3})\s*(?:л|л\.|ltr|litr)(?:\b|$)""", RegexOption.IGNORE_CASE),
+            // "Топливо ХХ.ХХХ" line pattern without explicit unit
+            Regex("""(?:топливо|бензин|дизель|заправлено)\s+(\d+[.,]\d{2,3})""", RegexOption.IGNORE_CASE)
         )
         for (pattern in patterns) {
             val match = pattern.find(text) ?: continue
             val value = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: continue
-            if (value in 1.0..200.0) return value  // sanity check
+            if (value in 0.5..500.0) return value  // sanity range: 0.5 … 500 litres
         }
         return null
     }
 
-    /**
-     * Извлечение показаний одометра
-     */
+    // ---------------------------------------------------------------------------
+    //  Odometer extraction
+    // ---------------------------------------------------------------------------
+
     private fun extractOdometer(text: String): Int? {
         val patterns = listOf(
+            // Explicit label
             Regex("""(?:пробег|одометр|км пути|odometer)\s*:?\s*(\d{4,6})""", RegexOption.IGNORE_CASE),
-            Regex("""(\d{5,6})\s*(?:км|km)""", RegexOption.IGNORE_CASE)
+            // Number followed by unit: "125840 км"
+            Regex("""(\d{5,6})\s*(?:км|km)\b""", RegexOption.IGNORE_CASE),
+            // 6-digit standalone number that looks like an odometer
+            Regex("""(?<!\d)(\d{6})(?!\d)""")
         )
         for (pattern in patterns) {
             val match = pattern.find(text) ?: continue
             val value = match.groupValues[1].toIntOrNull() ?: continue
-            if (value in 100..999999) return value
+            if (value in 100..999_999) return value
         }
         return null
     }
 
-    /**
-     * Извлечение названия АЗС
-     */
+    // ---------------------------------------------------------------------------
+    //  Station name extraction
+    //  Strategy: check known brand list first; then look for "АЗС" context; then
+    //  fallback to the first non-trivial line of the receipt (station name is
+    //  usually printed at the top).
+    // ---------------------------------------------------------------------------
+
+    private val knownStations = listOf(
+        "Лукойл", "LUKOIL",
+        "Газпромнефть", "Газпром",
+        "Роснефть", "Rosneft",
+        "BP",
+        "Shell",
+        "Татнефть",
+        "Башнефть",
+        "Сургутнефтегаз",
+        "ЕКА", "EKA",
+        "Neste",
+        "Трасса",
+        "Магна",
+        "RusНефть", "Русснефть",
+        "Опти",
+        "Лавр",
+        "G-Drive",
+        "ПТК",
+        "Eni",
+        "Total",
+        "Sunoco",
+        "Сибнефть",
+        "Альфа",
+        "Феникс",
+        "Кедр"
+    )
+
     private fun extractStationName(text: String): String? {
-        val knownStations = listOf("Лукойл", "Газпром", "Роснефть", "BP", "Shell",
-            "Татнефть", "Башнефть", "Сургутнефтегаз", "ЕКА", "Neste",
-            "Трасса", "Магна", "Rusнефть", "Опти", "Лавр", "G-Drive")
         val upperText = text.uppercase()
-        return knownStations.firstOrNull { upperText.contains(it.uppercase()) }
-    }
 
-    /**
-     * Определение типа топлива из текста чека
-     */
-    private fun extractFuelType(text: String): String? {
-        val upperText = text.uppercase()
-        return when {
-            upperText.contains("АИ-98") || upperText.contains("AI-98") || upperText.contains("98") -> "АИ-98"
-            upperText.contains("АИ-95") || upperText.contains("AI-95") || upperText.contains("95") -> "АИ-95"
-            upperText.contains("АИ-92") || upperText.contains("AI-92") || upperText.contains("92") -> "АИ-92"
-            upperText.contains("ДИЗЕЛ") || upperText.contains("ДТ") || upperText.contains("DIESEL") -> "Дизель"
-            upperText.contains("ГАЗ") || upperText.contains("LPG") || upperText.contains("CNG") -> "Газ"
-            else -> null
+        // 1. Known brand list (case-insensitive substring)
+        knownStations.firstOrNull { upperText.contains(it.uppercase()) }?.let { return it }
+
+        // 2. Look for pattern "АЗС №<N>" or "АЗС <Name>"
+        val azsPattern = Regex("""АЗС\s+(?:№\s*\d+|[«"'"]?([А-ЯЁA-Z][А-ЯЁа-яёA-Za-z\s]{2,20})[»"'"]?)""")
+        azsPattern.find(text)?.let { match ->
+            val captured = match.groupValues[1].trim()
+            if (captured.isNotBlank()) return "АЗС $captured"
+            return match.value.trim().take(30)
         }
+
+        // 3. First non-trivial line (likely the header / company name)
+        val trivialLine = Regex("""^\s*(?:\d+|кассовый чек|фискальный|чек|receipt|кассир|итого|сумма)""", RegexOption.IGNORE_CASE)
+        val firstMeaningfulLine = text.lines()
+            .map { it.trim() }
+            .firstOrNull { line ->
+                line.length in 3..40 &&
+                !trivialLine.containsMatchIn(line) &&
+                line.any { it.isLetter() }
+            }
+        return firstMeaningfulLine
     }
 
+    // ---------------------------------------------------------------------------
+    //  Fuel type extraction
+    //  Use more specific patterns to avoid false positives from years / prices.
+    // ---------------------------------------------------------------------------
+
+    private fun extractFuelType(text: String): String? {
+        // Ordered from most-specific to least-specific
+        val patterns = listOf(
+            Regex("""АИ[-–\s]?100""", RegexOption.IGNORE_CASE) to "АИ-100",
+            Regex("""АИ[-–\s]?98|AI[-–\s]?98|Бензин[-–\s]98""", RegexOption.IGNORE_CASE) to "АИ-98",
+            Regex("""АИ[-–\s]?95|AI[-–\s]?95|Бензин[-–\s]95|Премиум[-–\s]95""", RegexOption.IGNORE_CASE) to "АИ-95",
+            Regex("""АИ[-–\s]?92|AI[-–\s]?92|Бензин[-–\s]92|Регуляр[-–\s]92""", RegexOption.IGNORE_CASE) to "АИ-92",
+            Regex("""АИ[-–\s]?80|AI[-–\s]?80""", RegexOption.IGNORE_CASE) to "АИ-80",
+            Regex("""дизел(?:ь|ьное)|ДТ\b|diesel|дт\b""", RegexOption.IGNORE_CASE) to "Дизель",
+            Regex("""газ\b|LPG\b|CNG\b|метан|пропан""", RegexOption.IGNORE_CASE) to "Газ",
+            // Generic "Бензин" fallback if no grade found
+            Regex("""бензин""", RegexOption.IGNORE_CASE) to "Бензин"
+        )
+
+        for ((pattern, label) in patterns) {
+            if (pattern.containsMatchIn(text)) return label
+        }
+        return null
+    }
+
+    // ---------------------------------------------------------------------------
+    //  Photo helpers
+    // ---------------------------------------------------------------------------
+
     /**
-     * Сохранить фото чека
+     * Сохранить фото чека из Bitmap
      */
     fun saveReceiptPhoto(bitmap: Bitmap, expenseId: Long): String {
         val receiptsDir = File(context.filesDir, "receipts")
-        if (!receiptsDir.exists()) {
-            receiptsDir.mkdirs()
-        }
+        if (!receiptsDir.exists()) receiptsDir.mkdirs()
 
         val fileName = "receipt_${expenseId}_${System.currentTimeMillis()}.jpg"
         val file = File(receiptsDir, fileName)
@@ -241,6 +334,7 @@ class ReceiptScannerService(private val context: Context) {
     /**
      * Сохранить фото чека из Uri
      */
+    @Suppress("DEPRECATION")
     fun saveReceiptPhoto(uri: Uri, expenseId: Long): String {
         val bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
         return saveReceiptPhoto(bitmap, expenseId)
@@ -252,9 +346,7 @@ class ReceiptScannerService(private val context: Context) {
     fun getReceiptPhoto(photoPath: String): Bitmap? {
         return try {
             val file = File(photoPath)
-            if (file.exists()) {
-                BitmapFactory.decodeFile(photoPath)
-            } else null
+            if (file.exists()) BitmapFactory.decodeFile(photoPath) else null
         } catch (e: Exception) {
             null
         }

@@ -32,6 +32,7 @@ import com.aggin.carcost.presentation.screens.insurance.InsurancePolicyCard
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.aggin.carcost.presentation.components.SkeletonCardList
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -111,9 +112,7 @@ fun DocumentsScreen(
                 0 -> {
                     // Documents tab
                     if (uiState.isLoading) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
+                        SkeletonCardList(count = 4, cardHeight = 90.dp)
                     } else if (uiState.documents.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {

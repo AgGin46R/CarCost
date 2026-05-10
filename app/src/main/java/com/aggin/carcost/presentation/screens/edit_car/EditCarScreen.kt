@@ -257,7 +257,7 @@ fun EditCarScreen(
                     enabled = !uiState.isSaving
                 )
 
-                Divider()
+                HorizontalDivider()
 
                 Text(
                     text = "Дополнительно",

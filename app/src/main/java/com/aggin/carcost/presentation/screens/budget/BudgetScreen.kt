@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.presentation.components.SkeletonCardList
 import java.text.NumberFormat
 import java.util.*
 
@@ -65,9 +66,7 @@ fun BudgetScreen(
         }
     ) { padding ->
         if (uiState.isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            SkeletonCardList(count = 5, cardHeight = 80.dp)
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(12.dp),
