@@ -31,6 +31,9 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE carId = :carId AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
     fun getExpensesInDateRange(carId: String, startDate: Long, endDate: Long): Flow<List<Expense>>
 
+    @Query("SELECT * FROM expenses WHERE carId = :carId ORDER BY date DESC")
+    suspend fun getExpensesByCarIdSync(carId: String): List<Expense>
+
     @Query("SELECT * FROM expenses WHERE carId = :carId AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
     suspend fun getExpensesInDateRangeSync(carId: String, startDate: Long, endDate: Long): List<Expense>
 

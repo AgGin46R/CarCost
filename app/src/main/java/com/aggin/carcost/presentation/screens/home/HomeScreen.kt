@@ -1,11 +1,18 @@
 package com.aggin.carcost.presentation.screens.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import com.aggin.carcost.presentation.screens.home.SmartHint
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
@@ -59,6 +66,10 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("CarCost") },
                 actions = {
+                    // Навигатор
+                    IconButton(onClick = { navController.navigate(Screen.Navigator.route) }) {
+                        Icon(Icons.Default.Navigation, contentDescription = "Навигатор")
+                    }
                     // Поиск расходов
                     IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
                         Icon(Icons.Default.Search, contentDescription = "Поиск расходов")
@@ -120,6 +131,13 @@ fun HomeScreen(
                     }
                     // Баннер отсутствия сети
                     OfflineBanner()
+                    // Smart hints strip
+                    if (uiState.smartHints.isNotEmpty()) {
+                        SmartHintsStrip(
+                            hints = uiState.smartHints,
+                            onDismiss = { viewModel.dismissHint(it) }
+                        )
+                    }
                     // Incoming invitations banner
                     uiState.pendingInvitations.forEach { inv ->
                         InvitationBanner(
@@ -201,6 +219,53 @@ private fun InvitationBanner(
 }
 
 @Composable
+fun SmartHintsStrip(
+    hints: List<SmartHint>,
+    onDismiss: (SmartHint) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        hints.forEach { hint ->
+            var visible by remember(hint) { mutableStateOf(true) }
+            AnimatedVisibility(
+                visible = visible,
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .background(
+                            MaterialTheme.colorScheme.secondaryContainer,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        hint.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { visible = false; onDismiss(hint) },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Скрыть",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun EmptyState(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxSize(),
@@ -271,13 +336,28 @@ fun CarCard(
     monthlyExpense: Double? = null,
     unreadChatCount: Int = 0
 ) {
+    // Parse car.color as hex for accent stripe
+    val carAccentColor: Color? = car.color?.let { hex ->
+        try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { null }
+    }
+
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            // Color stripe on left edge
+            if (carAccentColor != null) {
+                Box(
+                    modifier = Modifier
+                        .width(6.dp)
+                        .height(IntrinsicSize.Max)
+                        .background(carAccentColor, RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f).padding(16.dp)
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -398,7 +478,8 @@ fun CarCard(
                     }
                 }
             }
-        }
+            } // end inner Column (color-stripe wrapper)
+        } // end outer Row (color stripe + content)
     }
 }
 

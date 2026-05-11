@@ -246,6 +246,28 @@ fun AddPlannedExpenseScreen(
                 singleLine = true
             )
 
+            // Повторение (Recurrence)
+            Text(
+                "Повторение",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(null to "Нет", "MONTHLY" to "Мес.", "WEEKLY" to "Нед.", "YEARLY" to "Год").forEach { (type, label) ->
+                    FilterChip(
+                        selected = uiState.recurrenceType == type,
+                        onClick = { viewModel.updateRecurrenceType(type) },
+                        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Кнопка сохранения
             Button(
                 onClick = { viewModel.savePlannedExpense() },

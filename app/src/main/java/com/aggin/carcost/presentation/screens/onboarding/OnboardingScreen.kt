@@ -32,7 +32,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import com.aggin.carcost.data.demo.DemoDataSeeder
+import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.settings.SettingsManager
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.presentation.navigation.Screen
 import kotlinx.coroutines.launch
 
@@ -103,6 +106,8 @@ fun OnboardingScreen(navController: NavController) {
     val settingsManager = remember { SettingsManager(context) }
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { pages.size })
+    var loadDemoData by remember { mutableStateOf(false) }
+    var isSeedingDemo by remember { mutableStateOf(false) }
 
     // Request POST_NOTIFICATIONS when the user reaches the last (Notifications) page
     val notificationPermLauncher = rememberLauncherForActivityResult(
@@ -172,11 +177,44 @@ fun OnboardingScreen(navController: NavController) {
 
                 val isLastPage = pagerState.currentPage == pages.lastIndex
 
+                // Demo data toggle (only on last page)
+                if (isLastPage) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = loadDemoData,
+                            onCheckedChange = { loadDemoData = it },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = Green,
+                                uncheckedColor = TextSecondary
+                            )
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Загрузить демо-данные (Toyota Camry с примерами расходов)",
+                            color = TextSecondary,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+
                 // Основная кнопка
                 Button(
                     onClick = {
                         if (isLastPage) {
                             scope.launch {
+                                if (loadDemoData) {
+                                    isSeedingDemo = true
+                                    try {
+                                        val db = AppDatabase.getDatabase(context)
+                                        val userId = SupabaseAuthRepository().getUserId() ?: "demo"
+                                        DemoDataSeeder.seed(db, userId)
+                                    } catch (_: Exception) { }
+                                    isSeedingDemo = false
+                                }
                                 settingsManager.setOnboardingDone()
                                 navController.navigate(Screen.Home.route) {
                                     popUpTo(Screen.Onboarding.route) { inclusive = true }
@@ -188,6 +226,7 @@ fun OnboardingScreen(navController: NavController) {
                             }
                         }
                     },
+                    enabled = !isSeedingDemo,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
@@ -197,11 +236,19 @@ fun OnboardingScreen(navController: NavController) {
                     ),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text(
-                        if (isLastPage) "Начать" else "Далее",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (isSeedingDemo) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            if (isLastPage) "Начать" else "Далее",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 // Пропустить

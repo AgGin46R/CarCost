@@ -41,6 +41,11 @@ data class MaintenanceReminder(
     // Активность напоминания
     val isActive: Boolean = true,
 
+    // Интервал по дням (опционально, для напоминаний по дате)
+    val intervalDays: Int? = null,
+    // Дата следующего ТО (null = только пробег)
+    val nextChangeDate: Long? = null,
+
     // Дополнительная информация
     val notes: String? = null,
 

@@ -27,6 +27,7 @@ data class AddPlannedExpenseUiState(
     val targetOdometer: String = "",
     val notes: String = "",
     val shopUrl: String = "",
+    val recurrenceType: String? = null,   // null | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"
 
     val titleError: String? = null,
     val isSaving: Boolean = false,
@@ -89,6 +90,10 @@ class AddPlannedExpenseViewModel(
         _uiState.value = _uiState.value.copy(shopUrl = url)
     }
 
+    fun updateRecurrenceType(type: String?) {
+        _uiState.value = _uiState.value.copy(recurrenceType = type)
+    }
+
     fun savePlannedExpense() {
         val state = _uiState.value
 
@@ -117,7 +122,9 @@ class AddPlannedExpenseViewModel(
                     targetOdometer = state.targetOdometer.toIntOrNull(),
                     notes = state.notes.trim().takeIf { it.isNotBlank() },
                     shopUrl = state.shopUrl.trim().takeIf { it.isNotBlank() },
-                    status = PlannedExpenseStatus.PLANNED
+                    status = PlannedExpenseStatus.PLANNED,
+                    recurrenceType = state.recurrenceType,
+                    recurrenceAnchorDate = if (state.recurrenceType != null) state.targetDate else null
                 )
 
                 // 1. Сохраняем локально

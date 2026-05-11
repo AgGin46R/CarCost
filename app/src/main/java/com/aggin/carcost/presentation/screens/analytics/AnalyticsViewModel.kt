@@ -107,7 +107,21 @@ data class AnalyticsUiState(
     val categoryTrends: List<CategoryTrend> = emptyList(),
     val gpsTripStats: GpsTripStats? = null,
     val odometerHistory: List<OdometerPoint> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
+    val anomalies: List<ExpenseAnomaly> = emptyList()
+)
+
+/**
+ * An anomalous expense spike or category increase detected by the engine.
+ * [changePercent] is > 0 for increase, < 0 for decrease vs baseline.
+ */
+data class ExpenseAnomaly(
+    val category: ExpenseCategory,
+    val changePercent: Float,       // e.g. +43 means +43%
+    val currentMonthAmount: Double,
+    val baselineAmount: Double,     // average of previous N months
+    val message: String             // human-readable explanation
 )
 
 class EnhancedAnalyticsViewModel(
@@ -127,6 +141,15 @@ class EnhancedAnalyticsViewModel(
 
     init {
         loadAnalytics()
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true) }
+            // Re-trigger by reloading (Flow will emit fresh data)
+            kotlinx.coroutines.delay(500)
+            _uiState.update { it.copy(isRefreshing = false) }
+        }
     }
 
     private fun loadAnalytics() {
@@ -191,6 +214,7 @@ class EnhancedAnalyticsViewModel(
         val yearComparison = calculateYearComparison(expenses)
         val categoryTrends = calculateCategoryTrends(expenses)
         val odometerHistory = calculateOdometerHistory(expenses)
+        val anomalies = detectAnomalies(expenses)
 
         return AnalyticsUiState(
             car = car,
@@ -211,7 +235,8 @@ class EnhancedAnalyticsViewModel(
             categoryTrends = categoryTrends,
             gpsTripStats = gpsTripStats,
             odometerHistory = odometerHistory,
-            isLoading = false
+            isLoading = false,
+            anomalies = anomalies
         )
     }
 
@@ -296,6 +321,77 @@ class EnhancedAnalyticsViewModel(
             kmDriven = effectiveKmDriven,
             consumptionHistory = consumptionHistory
         )
+    }
+
+    /**
+     * Detects per-category anomalies: current month's spending vs 3-month average.
+     * Returns categories where the change exceeds ±30% and the absolute value is notable.
+     */
+    private fun detectAnomalies(expenses: List<Expense>): List<ExpenseAnomaly> {
+        if (expenses.size < 5) return emptyList()
+        val calendar = Calendar.getInstance()
+        val now = Calendar.getInstance()
+
+        // Bucket by "YYYY-MM" per category
+        data class MonthKey(val year: Int, val month: Int)
+        val byCategory = expenses.groupBy { it.category }
+
+        val anomalies = mutableListOf<ExpenseAnomaly>()
+        val curYear = now.get(Calendar.YEAR)
+        val curMonth = now.get(Calendar.MONTH)
+
+        for ((category, catExpenses) in byCategory) {
+            val byMonth = catExpenses.groupBy { exp ->
+                calendar.timeInMillis = exp.date
+                MonthKey(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH))
+            }.mapValues { it.value.sumOf { e -> e.amount } }
+
+            val currentAmount = byMonth[MonthKey(curYear, curMonth)] ?: continue
+            // Baseline: average of previous 3 months
+            val prevMonths = (1..3).mapNotNull { offset ->
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, curYear)
+                    set(Calendar.MONTH, curMonth - offset)
+                    set(Calendar.DAY_OF_MONTH, 1)
+                }
+                val key = MonthKey(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+                byMonth[key]
+            }
+            if (prevMonths.isEmpty()) continue
+            val baseline = prevMonths.average()
+            if (baseline < 100.0) continue // ignore tiny amounts
+
+            val changePct = ((currentAmount - baseline) / baseline * 100).toFloat()
+            if (kotlin.math.abs(changePct) < 30f) continue
+
+            val direction = if (changePct > 0) "вырос" else "снизился"
+            val pctFormatted = "%.0f".format(kotlin.math.abs(changePct))
+            val categoryName = when (category) {
+                ExpenseCategory.FUEL -> "Топливо"
+                ExpenseCategory.MAINTENANCE -> "Обслуживание"
+                ExpenseCategory.REPAIR -> "Ремонт"
+                ExpenseCategory.INSURANCE -> "Страховка"
+                ExpenseCategory.TAX -> "Налоги"
+                ExpenseCategory.PARKING -> "Парковка"
+                ExpenseCategory.TOLL -> "Платная дорога"
+                ExpenseCategory.WASH -> "Мойка"
+                ExpenseCategory.FINE -> "Штраф"
+                ExpenseCategory.ACCESSORIES -> "Аксессуары"
+                else -> "Прочее"
+            }
+            anomalies.add(
+                ExpenseAnomaly(
+                    category = category,
+                    changePercent = changePct,
+                    currentMonthAmount = currentAmount,
+                    baselineAmount = baseline,
+                    message = "$categoryName $direction на $pctFormatted% по сравнению со средним за 3 мес."
+                )
+            )
+        }
+
+        // Sort by absolute change magnitude descending
+        return anomalies.sortedByDescending { kotlin.math.abs(it.changePercent) }
     }
 
     private fun calculateForecast(expenses: List<Expense>, averagePerMonth: Double): ExpenseForecast {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.MaintenanceType
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +42,7 @@ fun EditMaintenanceReminderScreen(
     }
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
     var carExpanded by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
 
@@ -200,6 +204,63 @@ fun EditMaintenanceReminderScreen(
                     )
                 }
             )
+
+            // ── Интервал по дням (опционально) ───────────────────────────────
+            OutlinedTextField(
+                value = uiState.intervalDays,
+                onValueChange = viewModel::updateIntervalDays,
+                label = { Text("Интервал по времени (дней, необязательно)") },
+                placeholder = { Text("например, 180 (полгода)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = { Text("Напоминание сработает раньше — по пробегу или по дате") }
+            )
+
+            // ── Дата следующего ТО ────────────────────────────────────────────
+            val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+            OutlinedTextField(
+                value = uiState.nextChangeDateMs?.let { dateFormat.format(Date(it)) } ?: "",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Дата следующего ТО (необязательно)") },
+                placeholder = { Text("Нажмите для выбора даты") },
+                trailingIcon = {
+                    Row {
+                        if (uiState.nextChangeDateMs != null) {
+                            IconButton(onClick = { viewModel.updateNextChangeDateMs(null) }) {
+                                Icon(Icons.Default.Delete, "Сбросить дату", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(Icons.Default.CalendarMonth, "Выбрать дату")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Date picker dialog
+            if (showDatePicker) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = uiState.nextChangeDateMs
+                        ?: (System.currentTimeMillis() + 90L * 24 * 3600 * 1000)
+                )
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            datePickerState.selectedDateMillis?.let { viewModel.updateNextChangeDateMs(it) }
+                            showDatePicker = false
+                        }) { Text("Выбрать") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDatePicker = false }) { Text("Отмена") }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
+                }
+            }
 
             // ── Предпросмотр следующего ТО ────────────────────────────────────
             if (uiState.lastChangeOdometer.isNotBlank() && uiState.intervalKm.isNotBlank()) {

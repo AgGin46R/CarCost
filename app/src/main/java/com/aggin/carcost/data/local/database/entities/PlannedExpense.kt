@@ -65,5 +65,12 @@ data class PlannedExpense(
     val updatedAt: Long = System.currentTimeMillis(),
 
     // Синхронизация
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+
+    // Порядок (drag-and-drop)
+    val sortOrder: Int = 0,
+
+    // Повторяющиеся расходы
+    val recurrenceType: String? = null,        // "DAILY"|"WEEKLY"|"MONTHLY"|"YEARLY"|null
+    val recurrenceAnchorDate: Long? = null     // дата первого повторения
 )

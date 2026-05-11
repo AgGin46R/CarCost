@@ -54,6 +54,8 @@ import com.aggin.carcost.presentation.screens.incidents.IncidentHistoryScreen
 import com.aggin.carcost.presentation.screens.insurance.InsurancePoliciesScreen
 import com.aggin.carcost.presentation.screens.maintenance_dashboard.EditMaintenanceReminderScreen
 import com.aggin.carcost.presentation.screens.search.SearchScreen
+import com.aggin.carcost.presentation.screens.navigator.NavigatorScreen
+import com.aggin.carcost.presentation.screens.fuel_calculator.FuelCalculatorScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -190,6 +192,16 @@ sealed class Screen(val route: String) {
             return if (params.isEmpty()) "edit_maintenance_reminder"
             else "edit_maintenance_reminder?" + params.joinToString("&")
         }
+    }
+
+    object Navigator : Screen("navigator")
+
+    object FuelCalculator : Screen("fuel_calculator?distance={distance}&avgL100={avgL100}&pricePerL={pricePerL}") {
+        fun createRoute(
+            distanceKm: Double = 0.0,
+            avgL100: Double = 0.0,
+            pricePerL: Double = 0.0
+        ) = "fuel_calculator?distance=$distanceKm&avgL100=$avgL100&pricePerL=$pricePerL"
     }
 }
 
@@ -556,6 +568,27 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             InsurancePoliciesScreen(carId = carId, navController = navController)
+        }
+
+        // Навигатор (Яндекс.Карты)
+        composable(Screen.Navigator.route) {
+            NavigatorScreen(navController = navController)
+        }
+
+        composable(
+            route = Screen.FuelCalculator.route,
+            arguments = listOf(
+                navArgument("distance") { type = NavType.FloatType; defaultValue = 0f },
+                navArgument("avgL100")  { type = NavType.FloatType; defaultValue = 0f },
+                navArgument("pricePerL") { type = NavType.FloatType; defaultValue = 0f }
+            )
+        ) { back ->
+            FuelCalculatorScreen(
+                navController = navController,
+                initialDistanceKm = back.arguments?.getFloat("distance")?.toDouble() ?: 0.0,
+                initialAvgL100    = back.arguments?.getFloat("avgL100")?.toDouble() ?: 0.0,
+                initialPricePerL  = back.arguments?.getFloat("pricePerL")?.toDouble() ?: 0.0
+            )
         }
 
         // Создание/редактирование напоминания ТО

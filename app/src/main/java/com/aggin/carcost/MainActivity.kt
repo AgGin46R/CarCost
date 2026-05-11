@@ -108,6 +108,8 @@ class MainActivity : ComponentActivity() {
         return when (navType) {
             com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_CHAT -> "chat/$carId"
             com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_ADD_EXPENSE -> "add_expense/$carId"
+            com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_GPS_TRIP -> "gps_trip/$carId"
+            com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_NAVIGATOR -> "navigator"
             else -> "car_detail/$carId"
         }
     }

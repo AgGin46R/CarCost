@@ -35,6 +35,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.aggin.carcost.domain.tco.CarValueEstimator
+import com.aggin.carcost.util.rememberHapticClick
+import com.aggin.carcost.util.rememberHapticLongPress
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -456,6 +458,8 @@ fun SwipeableExpenseCard(
     var showDeleteDialog by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val hapticLong = rememberHapticLongPress()
+    val hapticClick = rememberHapticClick()
 
     // Максимальный свайп (ширина кнопок)
     val maxSwipeDistance = with(density) { 120.dp.toPx() }
@@ -491,6 +495,7 @@ fun SwipeableExpenseCard(
                             scope.launch {
                                 // Если свайп больше половины максимального, открываем
                                 if (offsetX.value < -maxSwipeDistance / 2) {
+                                    hapticLong()
                                     offsetX.animateTo(-maxSwipeDistance, animationSpec = tween(300))
                                 } else {
                                     offsetX.animateTo(0f, animationSpec = tween(300))
@@ -518,6 +523,7 @@ fun SwipeableExpenseCard(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        hapticLong()
                         onDelete()
                         showDeleteDialog = false
                     }
@@ -526,7 +532,7 @@ fun SwipeableExpenseCard(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
+                TextButton(onClick = { hapticClick(); showDeleteDialog = false }) {
                     Text("Отмена")
                 }
             }

@@ -40,8 +40,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Calendar
+import kotlin.math.asin
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 enum class NavigatorMode { IDLE, SEARCHING, ROUTE_READY, NAVIGATING, ARRIVED }
+
+data class TripStats(
+    val todayKm: Double = 0.0,
+    val weekKm: Double = 0.0,
+    val monthKm: Double = 0.0,
+    val todayCount: Int = 0,
+    val weekCount: Int = 0
+)
 
 /** A resolved search result used for the suggestions dropdown */
 data class PlaceSuggestion(
@@ -70,20 +84,25 @@ data class NavigatorUiState(
     val destinationPoint: Point? = null,
     val destinationName: String = "",
     val currentRoute: DrivingRoute? = null,
+    val allRoutes: List<DrivingRoute> = emptyList(),
+    val selectedRouteIndex: Int = 0,
     val routeDistanceKm: Double? = null,
     val routeTimeMin: Int? = null,
+    val etaString: String = "",               // e.g. "14:38"
     val fuelCostEstimate: Double? = null,
     val currentSpeedKmh: Int = 0,
     val currentLat: Double? = null,
     val currentLon: Double? = null,
     val currentBearing: Float = 0f,
+    val isCameraLocked: Boolean = true,       // false = user panned away
     val favorites: List<FavoritePlace> = emptyList(),
     val cars: List<Car> = emptyList(),
     val selectedCarId: String = "",
     val poiItems: List<PoiItem> = emptyList(),
     val activePoiCategory: PoiCategory? = null,
     val isLoadingRoute: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val tripStats: TripStats? = null
 )
 
 class NavigatorViewModel(application: Application) : AndroidViewModel(application) {
@@ -92,6 +111,11 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     private val favoritePlaceDao = db.favoritePlaceDao()
     private val carDao = db.carDao()
     private val expenseDao = db.expenseDao()
+    private val gpsTripDao = db.gpsTripDao()
+
+    private var lastDeviationCheckMs = 0L
+    private val DEVIATION_CHECK_INTERVAL = 10_000L
+    private val DEVIATION_THRESHOLD_M = 150.0
 
     private val searchManager by lazy {
         SearchFactory.getInstance().createSearchManager(SearchManagerType.COMBINED)
@@ -101,6 +125,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private var suggestSearchSession: Session? = null
+    private var reverseGeoSession: Session? = null
     private var drivingSession: DrivingSession? = null
     private var poiSearchSession: Session? = null
     private var debounceJob: Job? = null
@@ -108,7 +133,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     private val _uiState = MutableStateFlow(NavigatorUiState())
     val uiState: StateFlow<NavigatorUiState> = _uiState.asStateFlow()
 
-    // Continuous GPS tracking — used for search bias, camera follow, and speed display
+    // Continuous GPS tracking
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(application)
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
@@ -121,6 +146,10 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                         currentBearing = loc.bearing,
                         currentSpeedKmh = speedKmh
                     )
+                }
+                // Check route deviation while navigating
+                if (_uiState.value.mode == NavigatorMode.NAVIGATING) {
+                    checkRouteDeviation(loc.latitude, loc.longitude)
                 }
             }
         }
@@ -135,12 +164,44 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             carDao.getAllCars().collect { cars ->
                 val primaryCar = cars.firstOrNull { it.isActive } ?: cars.firstOrNull()
-                _uiState.update { it.copy(cars = cars, selectedCarId = primaryCar?.id ?: "") }
+                val carId = primaryCar?.id ?: ""
+                _uiState.update { it.copy(cars = cars, selectedCarId = carId) }
+                if (carId.isNotBlank()) loadTripStats(carId)
             }
         }
         viewModelScope.launch {
             favoritePlaceDao.getAllFavoritePlaces().collect { places ->
                 _uiState.update { it.copy(favorites = places) }
+            }
+        }
+    }
+
+    private fun loadTripStats(carId: String) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val startOfDay = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val startOfWeek = now - 7 * 86_400_000L
+            val startOfMonth = now - 30 * 86_400_000L
+
+            val todayTrips = gpsTripDao.getTripsSince(carId, startOfDay).firstOrNull() ?: emptyList()
+            val weekTrips = gpsTripDao.getTripsSince(carId, startOfWeek).firstOrNull() ?: emptyList()
+            val monthTrips = gpsTripDao.getTripsSince(carId, startOfMonth).firstOrNull() ?: emptyList()
+
+            _uiState.update {
+                it.copy(
+                    tripStats = TripStats(
+                        todayKm = todayTrips.sumOf { t -> t.distanceKm },
+                        weekKm = weekTrips.sumOf { t -> t.distanceKm },
+                        monthKm = monthTrips.sumOf { t -> t.distanceKm },
+                        todayCount = todayTrips.size,
+                        weekCount = weekTrips.size
+                    )
+                )
             }
         }
     }
@@ -152,11 +213,18 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
             .build()
         try {
             fusedLocationClient.requestLocationUpdates(req, locationCallback, Looper.getMainLooper())
-        } catch (_: SecurityException) { /* permission not granted yet */ }
+        } catch (_: SecurityException) {}
     }
 
+    // ── Search ───────────────────────────────────────────────────────────────
+
     fun onQueryChanged(query: String) {
-        _uiState.update { it.copy(query = query, mode = if (query.isBlank()) NavigatorMode.IDLE else NavigatorMode.SEARCHING) }
+        _uiState.update {
+            it.copy(
+                query = query,
+                mode = if (query.isBlank()) NavigatorMode.IDLE else NavigatorMode.SEARCHING
+            )
+        }
         debounceJob?.cancel()
         if (query.isBlank()) {
             _uiState.update { it.copy(suggestions = emptyList()) }
@@ -170,14 +238,12 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun requestSuggestions(query: String) {
         suggestSearchSession?.cancel()
-        // Use user's actual position for local search bias (~150 km radius).
-        // Fallback to Krasnoyarsk when GPS not yet acquired.
-        val userLat = _uiState.value.currentLat ?: 56.0097
+        val userLat = _uiState.value.currentLat ?: 56.0097  // Krasnoyarsk fallback
         val userLon = _uiState.value.currentLon ?: 92.8664
-        val delta = 1.5  // ≈ 150 km
+        val delta = 1.5
         val localBbox = com.yandex.mapkit.geometry.BoundingBox(
             Point((userLat - delta).coerceAtLeast(-90.0), (userLon - delta).coerceAtLeast(-180.0)),
-            Point((userLat + delta).coerceAtMost(90.0),  (userLon + delta).coerceAtMost(180.0))
+            Point((userLat + delta).coerceAtMost(90.0), (userLon + delta).coerceAtMost(180.0))
         )
         val searchOpts = SearchOptions().apply {
             searchTypes = SearchType.GEO.value or SearchType.BIZ.value
@@ -193,7 +259,9 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                         val obj = child.obj ?: return@mapNotNull null
                         val name = obj.name ?: return@mapNotNull null
                         val point = obj.geometry.firstOrNull()?.point
-                        PlaceSuggestion(name = name, point = point)
+                        // Try to get a readable subtitle from metadata
+                        val address = obj.descriptionText ?: ""
+                        PlaceSuggestion(name = name, address = address, point = point)
                     }
                     _uiState.update { it.copy(suggestions = items) }
                 }
@@ -210,25 +278,69 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         if (point != null) {
             setDestination(point, item.name)
         } else {
-            // Rare: result had no point — do a second resolve search
             val searchOpts = SearchOptions().apply {
                 searchTypes = SearchType.GEO.value or SearchType.BIZ.value
                 resultPageSize = 1
             }
-            searchManager.submit(item.name, com.yandex.mapkit.geometry.Geometry.fromBoundingBox(
-                com.yandex.mapkit.geometry.BoundingBox(Point(41.2, 19.6), Point(82.0, 190.0))
-            ), searchOpts, object : Session.SearchListener {
-                override fun onSearchResponse(response: Response) {
-                    val geo = response.collection.children.firstOrNull()?.obj?.geometry?.firstOrNull()?.point
-                    if (geo != null) setDestination(geo, item.name)
-                    else _uiState.update { it.copy(errorMessage = "Не удалось найти место") }
+            searchManager.submit(
+                item.name,
+                com.yandex.mapkit.geometry.Geometry.fromBoundingBox(
+                    com.yandex.mapkit.geometry.BoundingBox(
+                        Point(41.2, 19.6), Point(82.0, 190.0)
+                    )
+                ),
+                searchOpts,
+                object : Session.SearchListener {
+                    override fun onSearchResponse(response: Response) {
+                        val geo = response.collection.children.firstOrNull()?.obj
+                            ?.geometry?.firstOrNull()?.point
+                        if (geo != null) setDestination(geo, item.name)
+                        else _uiState.update { it.copy(errorMessage = "Не удалось найти место") }
+                    }
+                    override fun onSearchError(error: Error) {
+                        _uiState.update { it.copy(errorMessage = "Не удалось найти место") }
+                    }
                 }
-                override fun onSearchError(error: Error) {
-                    _uiState.update { it.copy(errorMessage = "Не удалось найти место") }
-                }
-            })
+            )
         }
     }
+
+    /** Called when user long-presses the map — reverse-geocodes the tapped point. */
+    fun setDestinationFromMap(point: Point) {
+        _uiState.update {
+            it.copy(
+                query = "Определяется адрес…",
+                suggestions = emptyList(),
+                isLoadingRoute = true,
+                mode = NavigatorMode.SEARCHING
+            )
+        }
+        reverseGeoSession?.cancel()
+        val searchOpts = SearchOptions().apply {
+            searchTypes = SearchType.GEO.value
+            resultPageSize = 1
+        }
+        reverseGeoSession = searchManager.submit(
+            point,
+            17,
+            searchOpts,
+            object : Session.SearchListener {
+                override fun onSearchResponse(response: Response) {
+                    val name = response.collection.children.firstOrNull()?.obj?.name
+                        ?: "%.4f, %.4f".format(point.latitude, point.longitude)
+                    _uiState.update { it.copy(query = name) }
+                    setDestination(point, name)
+                }
+                override fun onSearchError(error: Error) {
+                    val name = "%.4f, %.4f".format(point.latitude, point.longitude)
+                    _uiState.update { it.copy(query = name) }
+                    setDestination(point, name)
+                }
+            }
+        )
+    }
+
+    // ── Route ────────────────────────────────────────────────────────────────
 
     fun setDestination(point: Point, name: String) {
         _uiState.update {
@@ -236,15 +348,16 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                 destinationPoint = point,
                 destinationName = name,
                 isLoadingRoute = true,
-                mode = NavigatorMode.SEARCHING
+                mode = NavigatorMode.SEARCHING,
+                suggestions = emptyList()
             )
         }
         buildRoute(point)
     }
 
     private fun buildRoute(destination: Point) {
-        val currentLat = _uiState.value.currentLat ?: 55.7558  // Default: Moscow center
-        val currentLon = _uiState.value.currentLon ?: 37.6173
+        val currentLat = _uiState.value.currentLat ?: 56.0097
+        val currentLon = _uiState.value.currentLon ?: 92.8664
         val from = Point(currentLat, currentLon)
 
         drivingSession?.cancel()
@@ -252,7 +365,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
             RequestPoint(from, RequestPointType.WAYPOINT, null, null, null),
             RequestPoint(destination, RequestPointType.WAYPOINT, null, null, null)
         )
-        val drivingOptions = DrivingOptions().apply { routesCount = 1 }
+        val drivingOptions = DrivingOptions().apply { routesCount = 3 }
         drivingSession = drivingRouter.requestRoutes(
             requestPoints,
             drivingOptions,
@@ -264,11 +377,15 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                         val distKm = route.metadata.weight.distance.value / 1000.0
                         val timeSec = route.metadata.weight.timeWithTraffic.value
                         val timeMin = (timeSec / 60).toInt()
+                        val eta = computeEta(timeMin)
                         _uiState.update {
                             it.copy(
                                 currentRoute = route,
+                                allRoutes = routes.toList(),
+                                selectedRouteIndex = 0,
                                 routeDistanceKm = distKm,
                                 routeTimeMin = timeMin,
+                                etaString = eta,
                                 isLoadingRoute = false,
                                 mode = NavigatorMode.ROUTE_READY
                             )
@@ -277,11 +394,22 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                 }
                 override fun onDrivingRoutesError(error: Error) {
-                    val msg = if (error is NetworkError) "Нет сети для построения маршрута" else "Ошибка построения маршрута"
+                    val msg = if (error is NetworkError)
+                        "Нет сети для построения маршрута"
+                    else
+                        "Ошибка построения маршрута"
                     _uiState.update { it.copy(isLoadingRoute = false, errorMessage = msg) }
                 }
             }
         )
+    }
+
+    private fun computeEta(timeMin: Int): String {
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.MINUTE, timeMin)
+        val h = cal.get(Calendar.HOUR_OF_DAY)
+        val m = cal.get(Calendar.MINUTE)
+        return "%02d:%02d".format(h, m)
     }
 
     private fun estimateFuelCost(distanceKm: Double) {
@@ -289,18 +417,17 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val refuels = expenseDao.getFullTankRefuels(carId, 5).firstOrNull() ?: emptyList()
             if (refuels.isNotEmpty()) {
-                // price per liter = total spend / total liters (or fallback 55 rub/L)
                 val totalLiters = refuels.sumOf { it.fuelLiters ?: 0.0 }
                 val totalSpend = refuels.sumOf { it.amount }
                 val pricePerLiter = if (totalLiters > 0) totalSpend / totalLiters else 55.0
-                // Assume ~10 L/100km as default consumption
                 val avgConsumption = 10.0
-                val fuelNeeded = distanceKm / 100.0 * avgConsumption
-                val cost = fuelNeeded * pricePerLiter
+                val cost = (distanceKm / 100.0 * avgConsumption) * pricePerLiter
                 _uiState.update { it.copy(fuelCostEstimate = cost) }
             }
         }
     }
+
+    // ── Navigation control ───────────────────────────────────────────────────
 
     fun startNavigation() {
         val dest = _uiState.value.destinationPoint ?: return
@@ -315,7 +442,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
             putExtra(NavigationService.EXTRA_DEST_NAME, destName)
         }
         getApplication<Application>().startForegroundService(intent)
-        _uiState.update { it.copy(mode = NavigatorMode.NAVIGATING) }
+        _uiState.update { it.copy(mode = NavigatorMode.NAVIGATING, isCameraLocked = true) }
     }
 
     fun stopNavigation() {
@@ -336,17 +463,83 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                 destinationPoint = null,
                 destinationName = "",
                 currentRoute = null,
+                allRoutes = emptyList(),
+                selectedRouteIndex = 0,
                 routeDistanceKm = null,
                 routeTimeMin = null,
-                fuelCostEstimate = null
+                etaString = "",
+                fuelCostEstimate = null,
+                poiItems = emptyList(),
+                activePoiCategory = null,
+                isCameraLocked = true
             )
         }
     }
 
+    /** Switch to a different alternative route by index. */
+    fun selectRoute(index: Int) {
+        val routes = _uiState.value.allRoutes
+        if (index !in routes.indices) return
+        val route = routes[index]
+        val distKm = route.metadata.weight.distance.value / 1000.0
+        val timeSec = route.metadata.weight.timeWithTraffic.value
+        val timeMin = (timeSec / 60).toInt()
+        _uiState.update {
+            it.copy(
+                selectedRouteIndex = index,
+                currentRoute = route,
+                routeDistanceKm = distKm,
+                routeTimeMin = timeMin,
+                etaString = computeEta(timeMin)
+            )
+        }
+        estimateFuelCost(distKm)
+    }
+
+    // ── Route deviation ──────────────────────────────────────────────────────
+
+    private fun checkRouteDeviation(lat: Double, lon: Double) {
+        val now = System.currentTimeMillis()
+        if (now - lastDeviationCheckMs < DEVIATION_CHECK_INTERVAL) return
+        lastDeviationCheckMs = now
+
+        val route = _uiState.value.currentRoute ?: return
+        val pts = route.geometry.points
+        if (pts.isEmpty()) return
+
+        val minDist = pts.minOf { pt -> haversineMeters(lat, lon, pt.latitude, pt.longitude) }
+        if (minDist > DEVIATION_THRESHOLD_M) {
+            val dest = _uiState.value.destinationPoint ?: return
+            // Recalculate from current position
+            buildRoute(dest)
+        }
+    }
+
+    private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6_371_000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = sin(dLat / 2).pow(2) +
+                cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
+        return r * 2 * asin(sqrt(a))
+    }
+
+    // ── Camera lock ──────────────────────────────────────────────────────────
+
+    fun unlockCamera() {
+        _uiState.update { it.copy(isCameraLocked = false) }
+    }
+
+    fun lockCamera() {
+        _uiState.update { it.copy(isCameraLocked = true) }
+    }
+
+    // ── POI ─────────────────────────────────────────────────────────────────
+
     fun searchPoi(category: PoiCategory) {
         val dest = _uiState.value.destinationPoint
-        val currentLat = _uiState.value.currentLat ?: 55.7558
-        val currentLon = _uiState.value.currentLon ?: 37.6173
+        val currentLat = _uiState.value.currentLat ?: 56.0097
+        val currentLon = _uiState.value.currentLon ?: 92.8664
         val center = dest ?: Point(currentLat, currentLon)
 
         val activeCategory = if (_uiState.value.activePoiCategory == category) null else category
@@ -374,8 +567,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                     val items = response.collection.children.mapNotNull { child ->
                         val obj = child.obj ?: return@mapNotNull null
                         val point = obj.geometry.firstOrNull()?.point ?: return@mapNotNull null
-                        val name = obj.name ?: category.label
-                        PoiItem(name, "", point, activeCategory)
+                        PoiItem(obj.name ?: category.label, "", point, activeCategory)
                     }
                     _uiState.update { it.copy(poiItems = items) }
                 }
@@ -386,6 +578,8 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
+    // ── Favorites ────────────────────────────────────────────────────────────
+
     fun saveFavoritePlace(name: String, lat: Double, lon: Double, type: FavoritePlaceType, address: String = "") {
         viewModelScope.launch {
             favoritePlaceDao.insertFavoritePlace(
@@ -395,9 +589,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun deleteFavoritePlace(id: String) {
-        viewModelScope.launch {
-            favoritePlaceDao.deleteFavoritePlace(id)
-        }
+        viewModelScope.launch { favoritePlaceDao.deleteFavoritePlace(id) }
     }
 
     fun selectCar(carId: String) {
@@ -411,6 +603,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     override fun onCleared() {
         super.onCleared()
         suggestSearchSession?.cancel()
+        reverseGeoSession?.cancel()
         drivingSession?.cancel()
         poiSearchSession?.cancel()
         fusedLocationClient.removeLocationUpdates(locationCallback)

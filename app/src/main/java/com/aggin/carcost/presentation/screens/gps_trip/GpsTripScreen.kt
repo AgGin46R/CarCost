@@ -64,7 +64,10 @@ class GpsTripViewModel(
 ) : AndroidViewModel(application) {
     private val dao = AppDatabase.getDatabase(application).gpsTripDao()
 
-    private val _isRecording = MutableStateFlow(false)
+    // Restore recording state if the service is already running (e.g. after notification tap)
+    private val _isRecording = MutableStateFlow(
+        GpsTripService.isRunning && GpsTripService.activeCarId == carId
+    )
     private val _currentDistance = MutableStateFlow(0.0)
 
     val uiState: StateFlow<GpsTripUiState> = combine(

@@ -48,9 +48,15 @@ class MaintenanceDashboardViewModel(application: Application) : AndroidViewModel
                     val car = carMap[reminder.carId]
                     val currentOdometer = car?.currentOdometer ?: reminder.lastChangeOdometer
                     val kmRemaining = (reminder.nextChangeOdometer ?: currentOdometer) - currentOdometer
+
+                    // Date-based urgency check
+                    val daysRemaining = reminder.nextChangeDate?.let { nextDate ->
+                        ((nextDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
+                    }
+
                     val urgency = when {
-                        kmRemaining <= 0 -> ReminderUrgency.OVERDUE
-                        kmRemaining <= 500 -> ReminderUrgency.SOON
+                        kmRemaining <= 0 || daysRemaining != null && daysRemaining <= 0 -> ReminderUrgency.OVERDUE
+                        kmRemaining <= 500 || daysRemaining != null && daysRemaining <= 7 -> ReminderUrgency.SOON
                         else -> ReminderUrgency.OK
                     }
                     val predicted = if (car != null && reminder.nextChangeOdometer != null) {

@@ -20,6 +20,8 @@ import com.aggin.carcost.data.remote.repository.CarInvitationDto
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+data class SmartHint(val message: String, val carId: String? = null)
+
 data class HomeUiState(
     val cars: List<Car> = emptyList(),
     val remindersByCarId: Map<String, List<MaintenanceReminder>> = emptyMap(),
@@ -28,7 +30,8 @@ data class HomeUiState(
     val isLoading: Boolean = true,
     val isSyncing: Boolean = false,
     val syncError: String? = null,
-    val pendingInvitations: List<CarInvitationDto> = emptyList()
+    val pendingInvitations: List<CarInvitationDto> = emptyList(),
+    val smartHints: List<SmartHint> = emptyList()
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -200,6 +203,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             if (cars.isEmpty()) {
                 flowOf(HomeUiState(cars = emptyList(), isLoading = false))
             } else {
+                // Trigger smart hints computation once when cars are loaded
+                viewModelScope.launch { computeSmartHints(cars.map { it.id }) }
+
                 combine(cars.map { car ->
                     combine(
                         reminderRepository.getActiveReminders(car.id),
@@ -224,18 +230,90 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         },
         _pendingInvitations,
         _isSyncing,
-        _syncError
-    ) { baseState, invitations, syncing, error ->
+        _syncError,
+        _smartHints
+    ) { baseState, invitations, syncing, error, hints ->
         baseState.copy(
             pendingInvitations = invitations,
             isSyncing = syncing,
-            syncError = error
+            syncError = error,
+            smartHints = hints
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = HomeUiState()
     )
+
+    // ── Smart Hints ──────────────────────────────────────────────────────────
+
+    private val _smartHints = MutableStateFlow<List<SmartHint>>(emptyList())
+
+    /** Call once after cars are loaded to compute contextual smart hints. */
+    fun computeSmartHints(carIds: List<String>) {
+        viewModelScope.launch {
+            val hints = mutableListOf<SmartHint>()
+            val now = System.currentTimeMillis()
+            val cal = java.util.Calendar.getInstance()
+
+            for (carId in carIds) {
+                val expenses = database.expenseDao().getExpensesByCarIdSync(carId)
+                if (expenses.size < 5) continue
+
+                // Hint 1: Most frequent refuel day of week
+                val fuelExpenses = expenses.filter { it.category == com.aggin.carcost.data.local.database.entities.ExpenseCategory.FUEL }
+                if (fuelExpenses.size >= 3) {
+                    val dayFreq = fuelExpenses.groupBy { exp ->
+                        cal.timeInMillis = exp.date
+                        cal.get(java.util.Calendar.DAY_OF_WEEK)
+                    }.maxByOrNull { it.value.size }
+                    dayFreq?.let { (day, _) ->
+                        val dayName = when (day) {
+                            java.util.Calendar.MONDAY -> "понедельник"
+                            java.util.Calendar.TUESDAY -> "вторник"
+                            java.util.Calendar.WEDNESDAY -> "среда"
+                            java.util.Calendar.THURSDAY -> "четверг"
+                            java.util.Calendar.FRIDAY -> "пятницу"
+                            java.util.Calendar.SATURDAY -> "субботу"
+                            else -> "воскресенье"
+                        }
+                        hints.add(SmartHint("⛽ Обычно вы заправляетесь в $dayName — следующая заправка скоро?", carId))
+                    }
+                }
+
+                // Hint 2: Overdue oil change
+                val reminders = database.maintenanceReminderDao().getRemindersByCarIdSync(carId)
+                val car = database.carDao().getCarById(carId)
+                if (car != null) {
+                    val overdueOil = reminders.firstOrNull {
+                        it.type == com.aggin.carcost.data.local.database.entities.MaintenanceType.OIL_CHANGE &&
+                        car.currentOdometer >= it.nextChangeOdometer
+                    }
+                    if (overdueOil != null) {
+                        hints.add(SmartHint("🔧 Просрочена замена масла (${car.brand} ${car.model}) — пора в сервис!", carId))
+                    }
+                }
+
+                // Hint 3: Monthly spend spike vs previous 2 months
+                val monthlyTotals = expenses.groupBy { exp ->
+                    cal.timeInMillis = exp.date
+                    "${cal.get(java.util.Calendar.YEAR)}-${cal.get(java.util.Calendar.MONTH)}"
+                }.mapValues { it.value.sumOf { e -> e.amount } }.values.toList().sortedDescending()
+                if (monthlyTotals.size >= 3) {
+                    val currentMonth = monthlyTotals.first()
+                    val avgPrev = monthlyTotals.drop(1).take(2).average()
+                    if (avgPrev > 0 && currentMonth > avgPrev * 1.4) {
+                        hints.add(SmartHint("📈 Расходы в этом месяце на ${((currentMonth / avgPrev - 1) * 100).toInt()}% выше обычного", carId))
+                    }
+                }
+            }
+            _smartHints.value = hints.take(3) // Show at most 3 hints
+        }
+    }
+
+    fun dismissHint(hint: SmartHint) {
+        _smartHints.value = _smartHints.value - hint
+    }
 
     fun deleteCar(car: Car) {
         viewModelScope.launch {

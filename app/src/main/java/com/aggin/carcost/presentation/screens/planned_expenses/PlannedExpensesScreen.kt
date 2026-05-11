@@ -1,10 +1,15 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.draw.shadow
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.longPressDraggableHandle
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -104,41 +109,90 @@ fun PlannedExpensesScreen(
                 totalEstimated = uiState.totalEstimatedAmount
             )
 
-            // Список
+            // Drag-reorderable list (only when no filter is active)
             val filteredItems = if (selectedFilter != null) {
                 uiState.plannedExpenses.filter { it.status == selectedFilter }
             } else {
                 uiState.plannedExpenses
             }
 
-            if (filteredItems.isEmpty()) {
+            // Mutable local list for drag reordering
+            val localItems = remember { mutableStateListOf<PlannedExpense>() }
+            var isDragging by remember { mutableStateOf(false) }
+
+            // Sync DB → local only when not dragging
+            LaunchedEffect(uiState.plannedExpenses) {
+                if (!isDragging) {
+                    localItems.clear()
+                    localItems.addAll(filteredItems)
+                }
+            }
+
+            // Also sync when filter changes
+            LaunchedEffect(selectedFilter) {
+                if (!isDragging) {
+                    localItems.clear()
+                    localItems.addAll(filteredItems)
+                }
+            }
+
+            if (localItems.isEmpty()) {
                 EmptyState(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(32.dp)
                 )
             } else {
+                val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+                val reorderState = rememberReorderableLazyListState(
+                    lazyListState = lazyListState,
+                    onMove = { from, to ->
+                        localItems.apply { add(to.index, removeAt(from.index)) }
+                    }
+                )
                 LazyColumn(
+                    state = lazyListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(filteredItems, key = { it.id }) { plannedExpense ->
-                        PlannedExpenseCard(
-                            plannedExpense = plannedExpense,
-                            onClick = {
-                                navController.navigate(
-                                    Screen.EditPlannedExpense.createRoute(carId, plannedExpense.id)
+                    items(localItems, key = { it.id }) { plannedExpense ->
+                        ReorderableItem(reorderState, key = plannedExpense.id) { isDraggingItem ->
+                            val dragHandleMod = if (selectedFilter == null) {
+                                Modifier.longPressDraggableHandle(
+                                    onDragStarted = { isDragging = true },
+                                    onDragStopped = {
+                                        isDragging = false
+                                        viewModel.persistOrder(localItems.toList())
+                                    }
                                 )
-                            },
-                            onComplete = {
-                                // Переход к созданию расхода с данными из плана
-                                viewModel.markAsInProgress(plannedExpense.id)
-                                navController.navigate(
-                                    "${Screen.AddExpense.createRoute(carId)}?plannedId=${plannedExpense.id}"
-                                )
-                            }
-                        )
+                            } else Modifier
+                            PlannedExpenseCard(
+                                plannedExpense = plannedExpense,
+                                isDragging = isDraggingItem,
+                                dragHandleModifier = dragHandleMod,
+                                showDragHandle = selectedFilter == null,
+                                onClick = {
+                                    navController.navigate(
+                                        Screen.EditPlannedExpense.createRoute(carId, plannedExpense.id)
+                                    )
+                                },
+                                onComplete = {
+                                    when (plannedExpense.status) {
+                                        PlannedExpenseStatus.PLANNED -> {
+                                            viewModel.markAsInProgress(plannedExpense.id)
+                                            navController.navigate(
+                                                "${Screen.AddExpense.createRoute(carId)}?plannedId=${plannedExpense.id}"
+                                            )
+                                        }
+                                        PlannedExpenseStatus.IN_PROGRESS -> {
+                                            viewModel.markAsCompleted(plannedExpense)
+                                        }
+                                        else -> {}
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -212,10 +266,14 @@ fun StatItem(
 fun PlannedExpenseCard(
     plannedExpense: PlannedExpense,
     onClick: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    isDragging: Boolean = false,
+    dragHandleModifier: Modifier = Modifier,
+    showDragHandle: Boolean = false
 ) {
+    val elevation by animateDpAsState(if (isDragging) 8.dp else 0.dp, label = "dragElevation")
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().shadow(elevation),
         onClick = onClick
     ) {
         Column(
@@ -228,6 +286,20 @@ fun PlannedExpenseCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
+                // Drag handle (only shown in unfiltered list)
+                if (showDragHandle) {
+                    Icon(
+                        Icons.Default.DragHandle,
+                        contentDescription = "Перетащить",
+                        modifier = Modifier
+                            .size(20.dp)
+                            .align(Alignment.CenterVertically)
+                            .then(dragHandleModifier),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -244,6 +316,36 @@ fun PlannedExpenseCard(
                             textDecoration = if (plannedExpense.status == PlannedExpenseStatus.COMPLETED)
                                 TextDecoration.LineThrough else null
                         )
+                    }
+
+                    // Recurrence badge
+                    if (plannedExpense.recurrenceType != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.tertiaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(Icons.Default.Repeat, null,
+                                    modifier = Modifier.size(10.dp),
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Text(
+                                    text = when (plannedExpense.recurrenceType) {
+                                        "DAILY"   -> "Ежедневно"
+                                        "WEEKLY"  -> "Еженедельно"
+                                        "MONTHLY" -> "Ежемесячно"
+                                        "YEARLY"  -> "Ежегодно"
+                                        else      -> plannedExpense.recurrenceType
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
+                        }
                     }
 
                     if (plannedExpense.description != null) {
@@ -306,7 +408,10 @@ fun PlannedExpenseCard(
                 ) {
                     Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Выполнить")
+                    Text(
+                        if (plannedExpense.status == PlannedExpenseStatus.IN_PROGRESS) "Завершить"
+                        else "Выполнить"
+                    )
                 }
             }
         }

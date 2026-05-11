@@ -40,6 +40,14 @@ class GpsTripService : LifecycleService() {
         private const val MIN_DISPLACEMENT_METERS = 10f
         // Location poll interval
         private const val LOCATION_INTERVAL_MS = 3_000L
+
+        /** True while a trip is being recorded — survives ViewModel recreation on notification tap. */
+        @Volatile var isRunning: Boolean = false
+            private set
+
+        /** Car ID of the ongoing trip, or null when idle. */
+        @Volatile var activeCarId: String? = null
+            private set
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -89,6 +97,9 @@ class GpsTripService : LifecycleService() {
         routePoints.clear()
         speedSamples.clear()
 
+        isRunning = true
+        activeCarId = carId
+
         startForeground(NOTIFICATION_ID, buildNotification("Поездка: 0.0 км"))
         requestLocationUpdates()
     }
@@ -97,6 +108,8 @@ class GpsTripService : LifecycleService() {
         val tripId = currentTripId ?: return
         val carIdVal = carId ?: return
         currentTripId = null
+        isRunning = false
+        activeCarId = null
 
         fusedLocationClient.removeLocationUpdates(locationCallback)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -202,10 +215,16 @@ class GpsTripService : LifecycleService() {
     }
 
     private fun buildNotification(text: String): Notification {
+        val launchIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(com.aggin.carcost.data.notifications.NotificationHelper.EXTRA_NAV_TYPE,
+                com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_GPS_TRIP)
+            putExtra(com.aggin.carcost.data.notifications.NotificationHelper.EXTRA_NAV_CAR_ID,
+                carId ?: "")
+        }
         val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            this, 0, launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("CarCost — GPS запись")

@@ -6,6 +6,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -15,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material3.*
@@ -22,9 +25,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -276,14 +282,10 @@ fun EditCarScreen(
                     enabled = !uiState.isSaving
                 )
 
-                // Цвет
-                OutlinedTextField(
-                    value = uiState.color,
-                    onValueChange = { viewModel.updateColor(it) },
-                    label = { Text("Цвет") },
-                    placeholder = { Text("Черный") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
+                // Цвет — палитра + текстовое поле
+                CarColorPicker(
+                    currentColor = uiState.color,
+                    onColorSelected = { viewModel.updateColor(it) },
                     enabled = !uiState.isSaving
                 )
 
@@ -425,6 +427,75 @@ fun FuelTypeSelector(
             )
             Spacer(modifier = Modifier.weight(1f))
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Car Color Picker
+// ---------------------------------------------------------------------------
+
+/** Common car colors as hex strings → display name */
+val CAR_COLOR_PALETTE: List<Pair<String, String>> = listOf(
+    "#FFFFFF" to "Белый",
+    "#C0C0C0" to "Серебристый",
+    "#808080" to "Серый",
+    "#1C1C1C" to "Чёрный",
+    "#C0392B" to "Красный",
+    "#E67E22" to "Оранжевый",
+    "#F1C40F" to "Жёлтый",
+    "#27AE60" to "Зелёный",
+    "#2980B9" to "Синий",
+    "#1A237E" to "Тёмно-синий",
+    "#6C3483" to "Фиолетовый",
+    "#795548" to "Коричневый",
+)
+
+@Composable
+fun CarColorPicker(
+    currentColor: String,
+    onColorSelected: (String) -> Unit,
+    enabled: Boolean = true
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Цвет автомобиля", style = MaterialTheme.typography.bodyMedium)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(CAR_COLOR_PALETTE) { (hex, name) ->
+                val isSelected = currentColor.equals(hex, ignoreCase = true)
+                val parsed = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color.Gray }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(parsed)
+                        .then(
+                            if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                            else Modifier.border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), CircleShape)
+                        )
+                        .clickable(enabled = enabled) { onColorSelected(hex) }
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = if (parsed.luminance() > 0.4f) Color.Black else Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+        // Also allow free-text entry for custom colors
+        OutlinedTextField(
+            value = currentColor,
+            onValueChange = { if (enabled) onColorSelected(it) },
+            label = { Text("Или введите вручную") },
+            placeholder = { Text("#RRGGBB или название") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            enabled = enabled,
+            supportingText = { Text("Выберите из палитры или введите HEX-цвет", fontSize = 11.sp) }
+        )
     }
 }
 

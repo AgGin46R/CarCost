@@ -23,7 +23,7 @@ interface PlannedExpenseDao {
     @Query("SELECT * FROM planned_expenses WHERE id = :id")
     fun getPlannedExpenseByIdFlow(id: String): Flow<PlannedExpense?>
 
-    @Query("SELECT * FROM planned_expenses WHERE carId = :carId ORDER BY priority DESC, targetDate ASC")
+    @Query("SELECT * FROM planned_expenses WHERE carId = :carId ORDER BY sortOrder ASC, priority DESC, targetDate ASC")
     fun getPlannedExpensesByCarId(carId: String): Flow<List<PlannedExpense>>
 
     @Query("SELECT * FROM planned_expenses WHERE carId = :carId AND status = :status ORDER BY priority DESC, targetDate ASC")
@@ -69,6 +69,9 @@ interface PlannedExpenseDao {
 
     @Query("UPDATE planned_expenses SET isSynced = :isSynced WHERE id = :id")
     suspend fun updateSyncStatus(id: String, isSynced: Boolean)
+
+    @Query("UPDATE planned_expenses SET sortOrder = :sortOrder WHERE id = :id")
+    suspend fun updateSortOrder(id: String, sortOrder: Int)
 
     // DELETE
     @Delete

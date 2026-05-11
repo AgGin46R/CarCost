@@ -24,6 +24,8 @@ import com.aggin.carcost.data.local.database.dao.ChatMessageDao
 import com.aggin.carcost.data.local.database.dao.InsurancePolicyDao
 import com.aggin.carcost.data.local.database.dao.CarIncidentDao
 import com.aggin.carcost.data.local.database.dao.ChatReactionDao
+import com.aggin.carcost.data.local.database.dao.FavoritePlaceDao
+import com.aggin.carcost.data.local.database.dao.PendingWriteDao
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
@@ -42,6 +44,8 @@ import com.aggin.carcost.data.local.database.entities.ChatMessage
 import com.aggin.carcost.data.local.database.entities.InsurancePolicy
 import com.aggin.carcost.data.local.database.entities.CarIncident
 import com.aggin.carcost.data.local.database.entities.ChatReaction
+import com.aggin.carcost.data.local.database.entities.FavoritePlace
+import com.aggin.carcost.data.local.database.entities.PendingWrite
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -433,6 +437,51 @@ val MIGRATION_32_33 = object : Migration(32, 33) {
     }
 }
 
+val MIGRATION_34_35 = object : Migration(34, 35) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // MaintenanceReminder — date-based reminder fields
+        database.execSQL("ALTER TABLE maintenance_reminders ADD COLUMN intervalDays INTEGER")
+        database.execSQL("ALTER TABLE maintenance_reminders ADD COLUMN nextChangeDate INTEGER")
+
+        // PlannedExpense — sort order + recurrence
+        database.execSQL("ALTER TABLE planned_expenses ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE planned_expenses ADD COLUMN recurrenceType TEXT")
+        database.execSQL("ALTER TABLE planned_expenses ADD COLUMN recurrenceAnchorDate INTEGER")
+
+        // ChatMessage — @mentions
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN mentions TEXT")
+
+        // Offline write queue
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS pending_writes (
+                id TEXT PRIMARY KEY NOT NULL,
+                tableName TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                retryCount INTEGER NOT NULL DEFAULT 0,
+                createdAt INTEGER NOT NULL,
+                lastAttemptAt INTEGER
+            )
+        """.trimIndent())
+    }
+}
+
+val MIGRATION_33_34 = object : Migration(33, 34) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS favorite_places (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                address TEXT NOT NULL DEFAULT '',
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                type TEXT NOT NULL DEFAULT 'OTHER',
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+    }
+}
+
 val MIGRATION_29_30 = object : Migration(29, 30) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE chat_messages ADD COLUMN replyToId TEXT")
@@ -533,9 +582,11 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         ChatMessage::class,
         InsurancePolicy::class,
         CarIncident::class,
-        ChatReaction::class
+        ChatReaction::class,
+        FavoritePlace::class,
+        PendingWrite::class
     ],
-    version = 33,
+    version = 35,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -558,6 +609,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun insurancePolicyDao(): InsurancePolicyDao
     abstract fun carIncidentDao(): CarIncidentDao
     abstract fun chatReactionDao(): ChatReactionDao
+    abstract fun favoritePlaceDao(): FavoritePlaceDao
+    abstract fun pendingWriteDao(): PendingWriteDao
 
     companion object {
         @Volatile
@@ -594,7 +647,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_29_30,
                         MIGRATION_30_31,
                         MIGRATION_31_32,
-                        MIGRATION_32_33
+                        MIGRATION_32_33,
+                        MIGRATION_33_34,
+                        MIGRATION_34_35
                     )
                     .build()
                 INSTANCE = instance

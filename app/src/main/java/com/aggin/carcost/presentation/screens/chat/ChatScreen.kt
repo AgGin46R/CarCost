@@ -63,9 +63,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -129,7 +133,13 @@ data class ChatUiState(
     val pageOffset: Int = 0,
     val sendError: String? = null,
     // messageId → list of reactions
-    val reactions: Map<String, List<com.aggin.carcost.data.local.database.entities.ChatReaction>> = emptyMap()
+    val reactions: Map<String, List<com.aggin.carcost.data.local.database.entities.ChatReaction>> = emptyMap(),
+    // Car members available for @mention (email → userId)
+    val memberEmails: List<String> = emptyList(),
+    // Filtered suggestion list while typing @...
+    val mentionSuggestions: List<String> = emptyList(),
+    // Users who sent a message in the last 10 minutes (by userId)
+    val onlineUserIds: Set<String> = emptySet()
 )
 
 class ChatViewModel(
@@ -156,6 +166,10 @@ class ChatViewModel(
         viewModelScope.launch {
             db.chatMessageDao().getMessagesByCarId(carId).collect { messages ->
                 _uiState.update { it.copy(messages = messages, isLoading = false) }
+                // Recompute online status whenever messages change
+                val threshold = System.currentTimeMillis() - ONLINE_THRESHOLD_MS
+                val online = messages.filter { it.createdAt >= threshold }.map { it.userId }.toSet()
+                _uiState.update { it.copy(onlineUserIds = online) }
             }
         }
 
@@ -191,6 +205,36 @@ class ChatViewModel(
         }
         // Polling удалён: Realtime WebSocket в RealtimeSyncManager обновляет chat_messages
         // в реальном времени без лишних HTTP-запросов
+
+        // Load car members for @mention suggestions
+        viewModelScope.launch {
+            db.carMemberDao().getMembersByCarId(carId).collect { members ->
+                _uiState.update { it.copy(memberEmails = members.map { m -> m.email }) }
+            }
+        }
+    }
+
+    /** Called each time the user changes the input text. If the last word starts with '@',
+     *  populate mentionSuggestions for the autocomplete popup. */
+    fun onInputChanged(text: String) {
+        val lastWord = text.substringAfterLast(' ').substringAfterLast('\n')
+        if (lastWord.startsWith("@") && lastWord.length > 1) {
+            val query = lastWord.removePrefix("@").lowercase()
+            val suggestions = _uiState.value.memberEmails.filter {
+                it.lowercase().contains(query)
+            }.take(5)
+            _uiState.update { it.copy(mentionSuggestions = suggestions) }
+        } else {
+            _uiState.update { it.copy(mentionSuggestions = emptyList()) }
+        }
+    }
+
+    /** Replace the current @-token with the chosen member email. */
+    fun applyMentionSuggestion(currentText: String, email: String): String {
+        val idx = currentText.lastIndexOf('@')
+        val result = if (idx >= 0) currentText.substring(0, idx) + "@$email " else currentText
+        _uiState.update { it.copy(mentionSuggestions = emptyList()) }
+        return result
     }
 
     /** Принудительно обновить сообщения из Supabase (вызывается при ON_RESUME). */
@@ -202,7 +246,10 @@ class ChatViewModel(
         }
     }
 
-    private companion object { const val PAGE_SIZE = 40 }
+    private companion object {
+        const val PAGE_SIZE = 40
+        const val ONLINE_THRESHOLD_MS = 10 * 60 * 1000L   // 10 minutes
+    }
 
     /** Подгрузить более старые сообщения при скролле вверх. */
     fun loadMoreMessages() {
@@ -314,6 +361,12 @@ class ChatViewModel(
                     mediaUrl = uploadResult.getOrNull()
                 }
 
+                // Extract @mentions from text
+                val mentionPattern = Regex("@([\\w.@+-]+)")
+                val mentionedEmails = mentionPattern.findAll(trimmed).map { it.groupValues[1] }.toSet()
+                val mentionsJson = if (mentionedEmails.isNotEmpty())
+                    "[${mentionedEmails.joinToString(",") { "\"$it\"" }}]" else null
+
                 val message = ChatMessage(
                     id = messageId,
                     carId = carId,
@@ -323,7 +376,8 @@ class ChatViewModel(
                     mediaUrl = mediaUrl,
                     mediaType = if (mediaUrl != null) "image" else null,
                     replyToId = replyTo?.id,
-                    replyToText = replyTo?.message?.take(100)?.ifBlank { replyTo.fileName }
+                    replyToText = replyTo?.message?.take(100)?.ifBlank { replyTo.fileName },
+                    mentions = mentionsJson
                 )
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
@@ -779,6 +833,7 @@ fun ChatScreen(carId: String, navController: NavController) {
     var showSearch by remember { mutableStateOf(false) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column {
@@ -805,11 +860,32 @@ fun ChatScreen(carId: String, navController: NavController) {
                             Column {
                                 Text("Чат", fontWeight = FontWeight.Bold)
                                 if (uiState.carName.isNotBlank()) {
-                                    Text(
-                                        uiState.carName,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            uiState.carName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        // Online indicator — show count of recently active users
+                                        val onlineCount = uiState.onlineUserIds
+                                            .count { it != uiState.currentUserId }
+                                        if (onlineCount > 0) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF4CAF50))
+                                            )
+                                            Text(
+                                                text = "$onlineCount онлайн",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color(0xFF4CAF50)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -854,7 +930,11 @@ fun ChatScreen(carId: String, navController: NavController) {
                 pendingFileName = pendingFileName,
                 replyingTo = uiState.replyingTo,
                 editingMessage = uiState.editingMessage,
-                onTextChange = { inputText = it },
+                onTextChange = { inputText = it; viewModel.onInputChanged(it) },
+                mentionSuggestions = uiState.mentionSuggestions,
+                onMentionSelected = { email ->
+                    inputText = viewModel.applyMentionSuggestion(inputText, email)
+                },
                 onAttachClick = { showAttachSheet = true },
                 onRemoveImage = { pendingMediaUri = null },
                 onRemoveFile = { pendingFileUri = null; pendingFileName = null },
@@ -886,7 +966,6 @@ fun ChatScreen(carId: String, navController: NavController) {
                             pendingMediaUri = null
                         }
                     }
-                    keyboard?.hide()
                 }
             )
         }
@@ -954,7 +1033,8 @@ fun ChatScreen(carId: String, navController: NavController) {
                             onOpenFile = { url, name -> openFile(context, url, name) },
                             reactions = uiState.reactions[message.id].orEmpty(),
                             currentUserId = uiState.currentUserId,
-                            onToggleReaction = { emoji -> viewModel.toggleReaction(message.id, emoji) }
+                            onToggleReaction = { emoji -> viewModel.toggleReaction(message.id, emoji) },
+                            isOnline = uiState.onlineUserIds.contains(message.userId)
                         )
                     }
                 }
@@ -1050,10 +1130,39 @@ private fun ChatInputBar(
     onMicClick: () -> Unit,
     onCancelRecording: () -> Unit,
     onStopAndSend: () -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    mentionSuggestions: List<String> = emptyList(),
+    onMentionSelected: (String) -> Unit = {}
 ) {
     val canSend = (text.isNotBlank() || pendingMediaUri != null || pendingFileName != null) && !isSending
     val showMic = text.isBlank() && pendingMediaUri == null && pendingFileName == null
+
+    // Mention suggestions popup (shown above the input bar)
+    if (mentionSuggestions.isNotEmpty()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column {
+                mentionSuggestions.forEach { email ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onMentionSelected(email) }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.AlternateEmail, null, modifier = Modifier.size(16.dp))
+                        Text(email, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    HorizontalDivider()
+                }
+            }
+        }
+    }
 
     Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
         Column(
@@ -1254,7 +1363,8 @@ private fun ChatBubble(
     onOpenFile: (String, String) -> Unit,
     reactions: List<com.aggin.carcost.data.local.database.entities.ChatReaction> = emptyList(),
     currentUserId: String = "",
-    onToggleReaction: (String) -> Unit = {}
+    onToggleReaction: (String) -> Unit = {},
+    isOnline: Boolean = false
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
@@ -1402,11 +1512,34 @@ private fun ChatBubble(
                 horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
             ) {
                 if (!isMe) {
-                    Box(
-                        modifier = Modifier.size(32.dp).clip(CircleShape).background(avatarColor(message.userEmail)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(message.userEmail.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Box(modifier = Modifier.size(36.dp)) {
+                        // Avatar circle
+                        Box(
+                            modifier = Modifier.size(32.dp).clip(CircleShape)
+                                .background(avatarColor(message.userEmail)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(message.userEmail.take(1).uppercase(), color = Color.White,
+                                fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        // Online indicator dot (bottom-right)
+                        if (isOnline) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surface)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .align(Alignment.Center)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF4CAF50))
+                                )
+                            }
+                        }
                     }
                     Spacer(Modifier.width(6.dp))
                 }
@@ -1530,7 +1663,11 @@ private fun ChatBubble(
                                     Column {
                                         if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble, onClick = { onJumpToMessage(message.replyToId) })
                                         if (message.message.isNotBlank()) {
-                                            Text(message.message, color = onBubble, fontSize = 15.sp)
+                                            MentionText(
+                                                text = message.message,
+                                                baseColor = onBubble,
+                                                fontSize = 15.sp
+                                            )
                                         }
                                     }
                                 }
@@ -1859,4 +1996,37 @@ fun VideoPlayerBubble(url: String, bubbleShape: androidx.compose.ui.graphics.Sha
             }
         }
     }
+}
+
+// ── Mention-aware text renderer ────────────────────────────────────────────────
+
+/**
+ * Renders [text] with @mention tokens highlighted in the primary color.
+ */
+@Composable
+private fun MentionText(
+    text: String,
+    baseColor: Color,
+    fontSize: TextUnit = TextUnit.Unspecified
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val annotated = remember(text, primaryColor) {
+        buildAnnotatedString {
+            val pattern = Regex("@[\\w.@+-]+")
+            var last = 0
+            for (match in pattern.findAll(text)) {
+                append(text.substring(last, match.range.first))
+                withStyle(SpanStyle(color = primaryColor, fontWeight = FontWeight.SemiBold)) {
+                    append(match.value)
+                }
+                last = match.range.last + 1
+            }
+            append(text.substring(last))
+        }
+    }
+    Text(
+        text = annotated,
+        color = baseColor,
+        fontSize = fontSize
+    )
 }

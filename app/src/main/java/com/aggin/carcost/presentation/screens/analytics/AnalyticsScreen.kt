@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +67,7 @@ fun EnhancedAnalyticsScreen(
         factory = AnalyticsViewModelFactory(application, carId)
     )
     val uiState by viewModel.uiState.collectAsState()
+    val pullRefreshState = rememberPullToRefreshState()
 
     Scaffold(
         topBar = {
@@ -75,6 +78,18 @@ fun EnhancedAnalyticsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
                     }
                 },
+                actions = {
+                    IconButton(onClick = {
+                        // Pre-fill with avg consumption if available
+                        val avgL100 = uiState.fuelStatistics?.averageConsumption ?: 0.0
+                        navController.navigate(
+                            com.aggin.carcost.presentation.navigation.Screen.FuelCalculator
+                                .createRoute(avgL100 = avgL100)
+                        )
+                    }) {
+                        Icon(Icons.Default.Calculate, "Калькулятор топлива")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -82,17 +97,23 @@ fun EnhancedAnalyticsScreen(
             )
         }
     ) { paddingValues ->
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh = { viewModel.refresh() },
+            state = pullRefreshState,
+            modifier = Modifier.padding(paddingValues)
+        ) {
         if (uiState.isLoading) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(paddingValues)
+                modifier = Modifier.fillMaxSize()
             ) {
                 com.aggin.carcost.presentation.components.SkeletonCardList(count = 4, cardHeight = 160.dp)
             }
         } else if (uiState.expenses.isEmpty() && uiState.gpsTripStats == null) {
-            EmptyAnalyticsState(Modifier.padding(paddingValues))
+            EmptyAnalyticsState(Modifier.fillMaxSize())
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -112,6 +133,10 @@ fun EnhancedAnalyticsScreen(
 
                     if (uiState.topMonths.isNotEmpty()) {
                         item { TopExpenseMonthsCard(uiState.topMonths) }
+                    }
+
+                    if (uiState.anomalies.isNotEmpty()) {
+                        item { AnomalyCard(uiState.anomalies) }
                     }
 
                     if (uiState.categoryExpenses.isNotEmpty()) {
@@ -139,9 +164,10 @@ fun EnhancedAnalyticsScreen(
                     }
                 }
             }
-        }
-    }
-}
+        } // end else
+        } // end PullToRefreshBox
+    } // end Scaffold
+} // end EnhancedAnalyticsScreen
 
 // ---------------------------------------------------------------------------
 // GPS Trip Stats Card
@@ -761,6 +787,83 @@ fun ForecastCard(forecast: ExpenseForecast) {
                         },
                         fontWeight = FontWeight.Bold,
                         color = trendColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Anomaly Detection Card
+// ---------------------------------------------------------------------------
+
+@Composable
+fun AnomalyCard(anomalies: List<com.aggin.carcost.presentation.screens.analytics.ExpenseAnomaly>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.WarningAmber,
+                    null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Аномалии в расходах",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Значительные изменения по сравнению со средним за 3 месяца",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+            )
+            Spacer(Modifier.height(12.dp))
+            anomalies.forEach { anomaly ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            if (anomaly.changePercent > 0) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
+                            null,
+                            tint = if (anomaly.changePercent > 0) MaterialTheme.colorScheme.error
+                                   else Color(0xFF4CAF50),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            anomaly.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                    Text(
+                        "%.0f ₽".format(anomaly.currentMonthAmount),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+                if (anomaly != anomalies.last()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.2f)
                     )
                 }
             }

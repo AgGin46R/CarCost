@@ -33,5 +33,7 @@ data class ChatMessage(
     val fileName: String? = null,
     val replyToId: String? = null,
     val replyToText: String? = null,
-    val isEdited: Boolean = false
+    val isEdited: Boolean = false,
+    // Упомянутые пользователи (JSON-массив userId, например: ["uid1","uid2"])
+    val mentions: String? = null
 )

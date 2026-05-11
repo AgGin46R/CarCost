@@ -17,6 +17,8 @@ data class EditMaintenanceReminderUiState(
     val selectedType: MaintenanceType = MaintenanceType.OIL_CHANGE,
     val lastChangeOdometer: String = "",
     val intervalKm: String = "",
+    val intervalDays: String = "",        // "" means not set (odometer-only)
+    val nextChangeDateMs: Long? = null,   // user-picked or auto-calculated
     val notes: String = "",
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
@@ -85,6 +87,8 @@ class EditMaintenanceReminderViewModel(application: Application) : AndroidViewMo
                         selectedType = r.type,
                         lastChangeOdometer = r.lastChangeOdometer.toString(),
                         intervalKm = r.intervalKm.toString(),
+                        intervalDays = r.intervalDays?.toString() ?: "",
+                        nextChangeDateMs = r.nextChangeDate,
                         notes = r.notes ?: "",
                         isEditMode = true
                     )
@@ -104,6 +108,8 @@ class EditMaintenanceReminderViewModel(application: Application) : AndroidViewMo
     }
     fun updateLastOdometer(value: String) = _uiState.update { it.copy(lastChangeOdometer = value.filter { c -> c.isDigit() }) }
     fun updateIntervalKm(value: String) = _uiState.update { it.copy(intervalKm = value.filter { c -> c.isDigit() }) }
+    fun updateIntervalDays(value: String) = _uiState.update { it.copy(intervalDays = value.filter { c -> c.isDigit() }) }
+    fun updateNextChangeDateMs(ms: Long?) = _uiState.update { it.copy(nextChangeDateMs = ms) }
     fun updateNotes(value: String) = _uiState.update { it.copy(notes = value) }
 
     fun save() {
@@ -121,6 +127,8 @@ class EditMaintenanceReminderViewModel(application: Application) : AndroidViewMo
                     nextChangeOdometer = state.nextChangeOdometer,
                     notes = state.notes.takeIf { it.isNotBlank() },
                     isActive = true,
+                    intervalDays = state.intervalDays.toIntOrNull(),
+                    nextChangeDate = state.nextChangeDateMs,
                     updatedAt = System.currentTimeMillis()
                 )
                 reminderDao.insertReminder(reminder)

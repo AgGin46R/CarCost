@@ -137,4 +137,12 @@ class Converters {
     @TypeConverter
     fun toIncidentType(value: String): IncidentType =
         try { IncidentType.valueOf(value) } catch (e: IllegalArgumentException) { IncidentType.OTHER }
+
+    // FavoritePlaceType converters
+    @TypeConverter
+    fun fromFavoritePlaceType(value: FavoritePlaceType): String = value.name
+
+    @TypeConverter
+    fun toFavoritePlaceType(value: String): FavoritePlaceType =
+        try { FavoritePlaceType.valueOf(value) } catch (e: IllegalArgumentException) { FavoritePlaceType.OTHER }
 }

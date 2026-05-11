@@ -22,8 +22,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 41
-        versionName = "3.0.0"
+        versionCode = 46
+        versionName = "3.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -153,6 +153,9 @@ dependencies {
     implementation("com.patrykandpatrick.vico:compose:1.13.1")
     implementation("com.patrykandpatrick.vico:compose-m3:1.13.1")
     implementation("com.patrykandpatrick.vico:core:1.13.1")
+
+    // Drag-and-drop reorderable list
+    implementation("sh.calvin.reorderable:reorderable:2.4.0")
 
     // Accompanist
     implementation("com.google.accompanist:accompanist-permissions:0.33.2-alpha")

@@ -18,6 +18,8 @@ object NotificationHelper {
     const val NAV_TYPE_CHAT = "chat"
     const val NAV_TYPE_CAR = "car"
     const val NAV_TYPE_ADD_EXPENSE = "add_expense"
+    const val NAV_TYPE_GPS_TRIP = "gps_trip"
+    const val NAV_TYPE_NAVIGATOR = "navigator"
 
     // ── Channels ────────────────────────────────────────────────────────────────
     const val CHANNEL_ID = "maintenance_reminders"
