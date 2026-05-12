@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.shadow
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.longPressDraggableHandle
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*

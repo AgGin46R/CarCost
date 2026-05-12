@@ -438,21 +438,76 @@ val MIGRATION_32_33 = object : Migration(32, 33) {
 }
 
 val MIGRATION_34_35 = object : Migration(34, 35) {
+    private fun SupportSQLiteDatabase.tryExec(sql: String) {
+        try { execSQL(sql) } catch (e: Exception) { /* column/table already exists */ }
+    }
+
     override fun migrate(database: SupportSQLiteDatabase) {
         // MaintenanceReminder — date-based reminder fields
-        database.execSQL("ALTER TABLE maintenance_reminders ADD COLUMN intervalDays INTEGER")
-        database.execSQL("ALTER TABLE maintenance_reminders ADD COLUMN nextChangeDate INTEGER")
+        database.tryExec("ALTER TABLE maintenance_reminders ADD COLUMN intervalDays INTEGER")
+        database.tryExec("ALTER TABLE maintenance_reminders ADD COLUMN nextChangeDate INTEGER")
 
         // PlannedExpense — sort order + recurrence
-        database.execSQL("ALTER TABLE planned_expenses ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
-        database.execSQL("ALTER TABLE planned_expenses ADD COLUMN recurrenceType TEXT")
-        database.execSQL("ALTER TABLE planned_expenses ADD COLUMN recurrenceAnchorDate INTEGER")
+        database.tryExec("ALTER TABLE planned_expenses ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+        database.tryExec("ALTER TABLE planned_expenses ADD COLUMN recurrenceType TEXT")
+        database.tryExec("ALTER TABLE planned_expenses ADD COLUMN recurrenceAnchorDate INTEGER")
 
         // ChatMessage — @mentions
-        database.execSQL("ALTER TABLE chat_messages ADD COLUMN mentions TEXT")
+        database.tryExec("ALTER TABLE chat_messages ADD COLUMN mentions TEXT")
 
         // Offline write queue
-        database.execSQL("""
+        database.tryExec("""
+            CREATE TABLE IF NOT EXISTS pending_writes (
+                id TEXT PRIMARY KEY NOT NULL,
+                tableName TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                retryCount INTEGER NOT NULL DEFAULT 0,
+                createdAt INTEGER NOT NULL,
+                lastAttemptAt INTEGER
+            )
+        """.trimIndent())
+    }
+}
+
+/**
+ * Защитная миграция 35→36.
+ * Некоторые dev-сборки уже имели новые столбцы при версии 35,
+ * поэтому каждый ALTER TABLE обёрнут в try-catch: если столбец
+ * уже существует — SQLiteException игнорируется.
+ */
+val MIGRATION_35_36 = object : Migration(35, 36) {
+    private fun SupportSQLiteDatabase.tryExec(sql: String) {
+        try { execSQL(sql) } catch (e: Exception) { /* column/table already exists */ }
+    }
+
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // maintenance_reminders — могут уже быть
+        database.tryExec("ALTER TABLE maintenance_reminders ADD COLUMN intervalDays INTEGER")
+        database.tryExec("ALTER TABLE maintenance_reminders ADD COLUMN nextChangeDate INTEGER")
+
+        // planned_expenses — могут уже быть
+        database.tryExec("ALTER TABLE planned_expenses ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+        database.tryExec("ALTER TABLE planned_expenses ADD COLUMN recurrenceType TEXT")
+        database.tryExec("ALTER TABLE planned_expenses ADD COLUMN recurrenceAnchorDate INTEGER")
+
+        // chat_messages — может уже быть
+        database.tryExec("ALTER TABLE chat_messages ADD COLUMN mentions TEXT")
+
+        // Таблицы (IF NOT EXISTS — безопасно)
+        database.tryExec("""
+            CREATE TABLE IF NOT EXISTS favorite_places (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                address TEXT NOT NULL DEFAULT '',
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                type TEXT NOT NULL DEFAULT 'OTHER',
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+
+        database.tryExec("""
             CREATE TABLE IF NOT EXISTS pending_writes (
                 id TEXT PRIMARY KEY NOT NULL,
                 tableName TEXT NOT NULL,
@@ -586,7 +641,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         FavoritePlace::class,
         PendingWrite::class
     ],
-    version = 35,
+    version = 36,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -649,7 +704,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_31_32,
                         MIGRATION_32_33,
                         MIGRATION_33_34,
-                        MIGRATION_34_35
+                        MIGRATION_34_35,
+                        MIGRATION_35_36
                     )
                     .build()
                 INSTANCE = instance

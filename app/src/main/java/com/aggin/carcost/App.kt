@@ -37,7 +37,7 @@ class App : Application() {
         lateinit var supabase: SupabaseClient
             private set
 
-        lateinit var realtimeSync: RealtimeSyncManager
+        var realtimeSync: RealtimeSyncManager? = null
             private set
 
         private const val TAG = "CarCostApp"
@@ -86,8 +86,11 @@ class App : Application() {
         }
 
         // Start real-time sync after Supabase is ready
-        realtimeSync = RealtimeSyncManager(this)
-        realtimeSync.start()
+        try {
+            realtimeSync = RealtimeSyncManager(this).also { it.start() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize RealtimeSyncManager", e)
+        }
 
         // Регистрируем FCM токен в Supabase (нужен для push когда приложение закрыто)
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -97,7 +100,7 @@ class App : Application() {
         // Reconnect Realtime and refresh FCM token every time app comes to foreground
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
-                realtimeSync.reconnectIfNeeded()
+                realtimeSync?.reconnectIfNeeded()
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                     FcmTokenManager.registerCurrentToken()
                 }

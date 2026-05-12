@@ -73,6 +73,12 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
+        <!-- Navigation ForegroundService (Yandex Navigator) -->
+        <service
+            android:name=".data.navigation.NavigationService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
         <!-- FCM: получает push-уведомления даже когда приложение закрыто -->
         <service
             android:name=".data.remote.fcm.CarCostFirebaseMessagingService"

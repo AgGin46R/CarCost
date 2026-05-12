@@ -198,6 +198,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _pendingInvitations.value = _pendingInvitations.value.filter { it.token != token }
     }
 
+    private val _smartHints = MutableStateFlow<List<SmartHint>>(emptyList())
+
     val uiState: StateFlow<HomeUiState> = combine(
         carRepository.getAllActiveCars().flatMapLatest { cars ->
             if (cars.isEmpty()) {
@@ -246,8 +248,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     // ── Smart Hints ──────────────────────────────────────────────────────────
-
-    private val _smartHints = MutableStateFlow<List<SmartHint>>(emptyList())
 
     /** Call once after cars are loaded to compute contextual smart hints. */
     fun computeSmartHints(carIds: List<String>) {
