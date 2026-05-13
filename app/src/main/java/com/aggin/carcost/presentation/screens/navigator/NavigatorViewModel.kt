@@ -212,8 +212,14 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
             .setMinUpdateDistanceMeters(3f)
             .build()
         try {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
             fusedLocationClient.requestLocationUpdates(req, locationCallback, Looper.getMainLooper())
-        } catch (_: SecurityException) {}
+        } catch (_: SecurityException) {
+        } catch (_: Exception) {}
+    }
+
+    fun retryLocationTracking() {
+        startLocationTracking()
     }
 
     // ── Search ───────────────────────────────────────────────────────────────

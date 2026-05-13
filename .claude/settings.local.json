@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:USERPROFILE; $env:ANDROID_HOME; $env:ANDROID_SDK_ROOT)",
+      "PowerShell($env:USERPROFILE)",
+      "PowerShell($env:ANDROID_HOME)",
+      "PowerShell($env:ANDROID_SDK_ROOT)"
+    ]
+  }
+}

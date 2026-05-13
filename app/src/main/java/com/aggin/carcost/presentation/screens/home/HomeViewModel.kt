@@ -18,6 +18,7 @@ import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepos
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.repository.CarInvitationDto
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 data class SmartHint(val message: String, val carId: String? = null)
@@ -52,8 +53,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSyncing = MutableStateFlow(false)
     private val _syncError = MutableStateFlow<String?>(null)
 
+    private var lastSyncMs = 0L
+    private val SYNC_COOLDOWN_MS = 5 * 60 * 1000L // 5 минут
+
     init {
         checkPendingInvitations()
+        syncIfStale()
+    }
+
+    /** Синхронизирует данные только если прошло больше SYNC_COOLDOWN_MS с последнего синка. */
+    private fun syncIfStale() {
+        val now = System.currentTimeMillis()
+        if (now - lastSyncMs < SYNC_COOLDOWN_MS) return
+        lastSyncMs = now
         syncRemindersForAllCars()
         syncCarsIfLocalEmpty()
     }
@@ -90,6 +102,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 syncRemindersForAllCars()
                 syncExpensesForAllCars()
                 checkPendingInvitations()
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "forceRefresh failed", e)
+                _syncError.value = e.message ?: "Ошибка обновления"
             } finally {
                 _isSyncing.value = false
             }
@@ -191,6 +206,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             supabaseMembers.getPendingInvitationsForMe()
                 .onSuccess { _pendingInvitations.value = it }
+                .onFailure { Log.d("HomeViewModel", "Pending invitations check skipped: ${it.message}") }
         }
     }
 
@@ -213,7 +229,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         reminderRepository.getActiveReminders(car.id),
                         expenseRepository.getMonthlyExpenses(car.id),
                         settingsManager.lastChatSeenFlow(car.id).flatMapLatest { lastSeen ->
-                            database.chatMessageDao().getUnreadCount(car.id, lastSeen)
+                            val currentUserId = supabaseAuth.getUserId() ?: ""
+                            database.chatMessageDao().getUnreadCount(car.id, lastSeen, currentUserId)
                         }
                     ) { reminders, monthly, unread ->
                         listOf(car.id, reminders, monthly, unread)
@@ -251,7 +268,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Call once after cars are loaded to compute contextual smart hints. */
     fun computeSmartHints(carIds: List<String>) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val hints = mutableListOf<SmartHint>()
             val now = System.currentTimeMillis()
             val cal = java.util.Calendar.getInstance()

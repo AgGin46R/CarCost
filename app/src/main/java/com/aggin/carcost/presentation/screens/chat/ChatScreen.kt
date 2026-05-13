@@ -95,6 +95,9 @@ import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.notifications.ActiveChatTracker
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseChatRepository
+import com.aggin.carcost.data.remote.repository.SupabaseUserDto
+import com.aggin.carcost.supabase
+import io.github.jan.supabase.postgrest.from
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -111,6 +114,15 @@ import java.util.*
 import com.aggin.carcost.presentation.components.SkeletonChatList
 
 // ── ViewModel ────────────────────────────────────────────────────────────────
+
+data class MemberProfile(
+    val userId: String,
+    val email: String,
+    val displayName: String?,
+    val photoUrl: String?,
+    val isOnline: Boolean,
+    val role: String?
+)
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -139,7 +151,9 @@ data class ChatUiState(
     // Filtered suggestion list while typing @...
     val mentionSuggestions: List<String> = emptyList(),
     // Users who sent a message in the last 10 minutes (by userId)
-    val onlineUserIds: Set<String> = emptySet()
+    val onlineUserIds: Set<String> = emptySet(),
+    // userId → cached profile for member card
+    val memberProfileCache: Map<String, MemberProfile> = emptyMap()
 )
 
 class ChatViewModel(
@@ -210,6 +224,49 @@ class ChatViewModel(
         viewModelScope.launch {
             db.carMemberDao().getMembersByCarId(carId).collect { members ->
                 _uiState.update { it.copy(memberEmails = members.map { m -> m.email }) }
+            }
+        }
+    }
+
+    /** Load and cache member profile for the profile card dialog. */
+    fun fetchMemberProfile(userId: String, email: String) {
+        if (_uiState.value.memberProfileCache.containsKey(userId)) return
+        viewModelScope.launch {
+            val online = _uiState.value.onlineUserIds.contains(userId)
+            val localUser = db.userDao().getUserById(userId).firstOrNull()
+            val member = db.carMemberDao().getMembersByCarId(carId).firstOrNull()
+                ?.find { it.userId == userId }
+            val profile = MemberProfile(
+                userId = userId,
+                email = email,
+                displayName = localUser?.displayName,
+                photoUrl = localUser?.photoUrl,
+                isOnline = online,
+                role = member?.role?.name
+            )
+            _uiState.update { it.copy(memberProfileCache = it.memberProfileCache + (userId to profile)) }
+            // Try fetching from Supabase users table if not in local DB
+            if (localUser == null) {
+                try {
+                    val remoteUser = com.aggin.carcost.supabase.from("users")
+                        .select { filter { eq("id", userId) } }
+                        .decodeSingleOrNull<com.aggin.carcost.data.remote.repository.SupabaseUserDto>()
+                    if (remoteUser != null) {
+                        val updated = profile.copy(
+                            displayName = remoteUser.displayName,
+                            photoUrl = remoteUser.photoUrl
+                        )
+                        _uiState.update { it.copy(memberProfileCache = it.memberProfileCache + (userId to updated)) }
+                        db.userDao().insertUser(
+                            com.aggin.carcost.data.local.database.entities.User(
+                                uid = userId,
+                                email = email,
+                                displayName = remoteUser.displayName,
+                                photoUrl = remoteUser.photoUrl
+                            )
+                        )
+                    }
+                } catch (_: Exception) {}
             }
         }
     }
@@ -750,6 +807,8 @@ fun ChatScreen(carId: String, navController: NavController) {
     var pendingFileName by remember { mutableStateOf<String?>(null) }
     var fullscreenImageUrl by remember { mutableStateOf<String?>(null) }
     var showAttachSheet by remember { mutableStateOf(false) }
+    // userId to email — used to open profile card
+    var selectedMemberProfile by remember { mutableStateOf<Pair<String, String>?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
 
     // Show send errors via Snackbar
@@ -1010,6 +1069,10 @@ fun ChatScreen(carId: String, navController: NavController) {
                             onDelete = if (isMe) ({ viewModel.deleteMessage(message) }) else null,
                             onReply = { viewModel.setReplyTo(message) },
                             onEdit = { viewModel.startEditing(message) },
+                            onAvatarClick = if (!isMe) ({
+                                viewModel.fetchMemberProfile(message.userId, message.userEmail)
+                                selectedMemberProfile = message.userId to message.userEmail
+                            }) else ({}),
                             onJumpToMessage = { targetId ->
                                 screenScope.launch {
                                     val grouped = uiState.messages.groupByDate()
@@ -1080,6 +1143,19 @@ fun ChatScreen(carId: String, navController: NavController) {
             )
             Spacer(Modifier.height(16.dp))
         }
+    }
+
+    // Member profile card dialog
+    selectedMemberProfile?.let { (userId, email) ->
+        val profile = uiState.memberProfileCache[userId]
+        MemberProfileCard(
+            email = email,
+            displayName = profile?.displayName,
+            photoUrl = profile?.photoUrl,
+            isOnline = profile?.isOnline ?: uiState.onlineUserIds.contains(userId),
+            role = profile?.role,
+            onDismiss = { selectedMemberProfile = null }
+        )
     }
 
     // Fullscreen image viewer
@@ -1364,7 +1440,8 @@ private fun ChatBubble(
     reactions: List<com.aggin.carcost.data.local.database.entities.ChatReaction> = emptyList(),
     currentUserId: String = "",
     onToggleReaction: (String) -> Unit = {},
-    isOnline: Boolean = false
+    isOnline: Boolean = false,
+    onAvatarClick: () -> Unit = {}
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
@@ -1513,10 +1590,11 @@ private fun ChatBubble(
             ) {
                 if (!isMe) {
                     Box(modifier = Modifier.size(36.dp)) {
-                        // Avatar circle
+                        // Avatar circle — clickable to show profile card
                         Box(
                             modifier = Modifier.size(32.dp).clip(CircleShape)
-                                .background(avatarColor(message.userEmail)),
+                                .background(avatarColor(message.userEmail))
+                                .clickable { onAvatarClick() },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(message.userEmail.take(1).uppercase(), color = Color.White,
@@ -1822,6 +1900,127 @@ private fun formatDuration(seconds: Int): String {
     val m = seconds / 60
     val s = seconds % 60
     return "%d:%02d".format(m, s)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MemberProfileCard(
+    email: String,
+    displayName: String?,
+    photoUrl: String?,
+    isOnline: Boolean,
+    role: String?,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Закрыть") }
+        },
+        title = null,
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Avatar
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    if (photoUrl != null) {
+                        AsyncImage(
+                            model = photoUrl,
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier.size(80.dp).clip(CircleShape)
+                                .background(avatarColor(email)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                email.take(1).uppercase(),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 32.sp
+                            )
+                        }
+                    }
+                    // Online dot
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(if (isOnline) Color(0xFF4CAF50) else Color(0xFF9E9E9E))
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Name
+                Text(
+                    displayName ?: email.substringBefore("@"),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    email,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // Online status chip
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isOnline)
+                        Color(0xFF4CAF50).copy(alpha = 0.15f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(8.dp).clip(CircleShape)
+                                .background(if (isOnline) Color(0xFF4CAF50) else Color(0xFF9E9E9E))
+                        )
+                        Text(
+                            if (isOnline) "Онлайн" else "Не в сети",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (isOnline) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Role badge
+                if (role != null) {
+                    Spacer(Modifier.height(6.dp))
+                    val roleLabel = when (role) {
+                        "OWNER" -> "Владелец"
+                        "DRIVER" -> "Водитель"
+                        else -> role
+                    }
+                    Text(
+                        roleLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    )
 }
 
 private fun parseDurationFromFileName(fileName: String?): String {

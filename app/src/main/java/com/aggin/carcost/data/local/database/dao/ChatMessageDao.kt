@@ -28,6 +28,6 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE id = :id")
     suspend fun getById(id: String): ChatMessage?
 
-    @Query("SELECT COUNT(*) FROM chat_messages WHERE carId = :carId AND createdAt > :afterTimestamp")
-    fun getUnreadCount(carId: String, afterTimestamp: Long): Flow<Int>
+    @Query("SELECT COUNT(*) FROM chat_messages WHERE carId = :carId AND createdAt > :afterTimestamp AND userId != :currentUserId")
+    fun getUnreadCount(carId: String, afterTimestamp: Long, currentUserId: String): Flow<Int>
 }

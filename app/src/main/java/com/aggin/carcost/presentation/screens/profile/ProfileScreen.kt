@@ -54,8 +54,7 @@ fun ProfileScreen(
     val settingsManager = remember { SettingsManager(context) }
     val currentTheme by settingsManager.themeFlow.collectAsState(initial = "System")
     val currentAccent by settingsManager.accentFlow.collectAsState(initial = "Blue")
-    var showThemeDialog by remember { mutableStateOf(false) }
-    var showAccentDialog by remember { mutableStateOf(false) }
+    var showAppearanceDialog by remember { mutableStateOf(false) }
 
     val notifMaintenance by settingsManager.notifMaintenanceFlow.collectAsState(initial = true)
     val notifInsurance by settingsManager.notifInsuranceFlow.collectAsState(initial = true)
@@ -172,8 +171,7 @@ fun ProfileScreen(
                 navController = navController,
                 onEditProfile = { showEditDialog = true },
                 onChangePassword = { showPasswordDialog = true },
-                onChangeTheme = { showThemeDialog = true },
-                onChangeAccent = { showAccentDialog = true },
+                onChangeAppearance = { showAppearanceDialog = true },
                 onLogout = { showLogoutDialog = true }
             )
 
@@ -255,21 +253,13 @@ fun ProfileScreen(
         )
     }
 
-    if (showAccentDialog) {
-        AccentColorDialog(
-            currentAccent = currentAccent,
-            onDismiss = { showAccentDialog = false },
-            onAccentSelected = { viewModel.setAccent(it) }
-        )
-    }
-
-    if (showThemeDialog) {
-        ThemeSelectionDialog(
+    if (showAppearanceDialog) {
+        AppearanceDialog(
             currentTheme = currentTheme,
-            onDismiss = { showThemeDialog = false },
-            onThemeSelected = { theme ->
-                viewModel.setTheme(theme)
-            }
+            currentAccent = currentAccent,
+            onDismiss = { showAppearanceDialog = false },
+            onThemeSelected = { viewModel.setTheme(it) },
+            onAccentSelected = { viewModel.setAccent(it) }
         )
     }
 
@@ -594,8 +584,7 @@ fun ActionsSection(
     navController: NavController,
     onEditProfile: () -> Unit,
     onChangePassword: () -> Unit,
-    onChangeTheme: () -> Unit,
-    onChangeAccent: () -> Unit,
+    onChangeAppearance: () -> Unit,
     onLogout: () -> Unit
 ) {
     Column(
@@ -616,8 +605,7 @@ fun ActionsSection(
             title = "Чаты",
             onClick = { navController.navigate(Screen.ChatsList.route) }
         )
-        ActionItem(icon = Icons.Default.Palette, title = "Тема оформления", onClick = onChangeTheme)
-        ActionItem(icon = Icons.Default.ColorLens, title = "Акцентный цвет", onClick = onChangeAccent)
+        ActionItem(icon = Icons.Default.Palette, title = "Внешний вид", onClick = onChangeAppearance)
         ActionItem(icon = Icons.Default.Lock, title = "Сменить пароль", onClick = onChangePassword)
         ActionItem(
             icon = Icons.Default.Category,
@@ -981,6 +969,120 @@ fun AccentColorDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Закрыть") }
+        }
+    )
+}
+
+@Composable
+fun AppearanceDialog(
+    currentTheme: String,
+    currentAccent: String,
+    onDismiss: () -> Unit,
+    onThemeSelected: (String) -> Unit,
+    onAccentSelected: (String) -> Unit
+) {
+    val themeOptions = mapOf("Light" to "Светлая", "Dark" to "Тёмная", "System" to "Системная")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Внешний вид") },
+        text = {
+            val scroll = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+            ) {
+                    // ── Тема ──
+                    Text(
+                        "Тема",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    themeOptions.forEach { (key, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = currentTheme == key,
+                                    onClick = { onThemeSelected(key) },
+                                    role = Role.RadioButton
+                                )
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = currentTheme == key, onClick = null)
+                            Spacer(Modifier.width(12.dp))
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(16.dp))
+
+                    // ── Акцентный цвет ──
+                    Text(
+                        "Акцентный цвет",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    val chunks = AccentScheme.entries.chunked(3)
+                    chunks.forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            row.forEach { scheme ->
+                                val selected = currentAccent == scheme.key
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.weight(1f).clickable { onAccentSelected(scheme.key) }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(scheme.previewColor)
+                                            .then(
+                                                if (selected) Modifier.border(
+                                                    3.dp,
+                                                    MaterialTheme.colorScheme.onSurface,
+                                                    CircleShape
+                                                ) else Modifier
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (selected) {
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = androidx.compose.ui.graphics.Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        scheme.displayName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (selected) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Готово") }
         }
     )
 }

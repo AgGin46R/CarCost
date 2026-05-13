@@ -53,6 +53,7 @@ fun NavigatorScreen(
     // MapKit lifecycle
     DisposableEffect(Unit) {
         MapKitFactory.getInstance().onStart()
+        viewModel.retryLocationTracking()
         onDispose { MapKitFactory.getInstance().onStop() }
     }
 
@@ -296,9 +297,11 @@ fun NavigatorScreen(
                     mapObjects = map.mapObjects
 
                     // User location dot
-                    val userLayer = MapKitFactory.getInstance()
-                        .createUserLocationLayer(mv.mapWindow)
-                    userLayer.isVisible = true
+                    try {
+                        val userLayer = MapKitFactory.getInstance()
+                            .createUserLocationLayer(mv.mapWindow)
+                        userLayer.isVisible = true
+                    } catch (_: Exception) {}
 
                     // Initial camera position
                     val lat = uiState.currentLat ?: 56.0097
@@ -577,7 +580,7 @@ fun NavigatorScreen(
                     end = 16.dp,
                     bottom = when (uiState.mode) {
                         NavigatorMode.ROUTE_READY -> 240.dp
-                        NavigatorMode.IDLE -> 180.dp
+                        NavigatorMode.IDLE -> 216.dp
                         else -> 80.dp
                     }
                 )

@@ -26,6 +26,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -152,6 +153,16 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                                 Log.d("Login", "Starting background sync...")
                                 syncRepo.fullSync()
                                 Log.d("Login", "✅ Background sync completed")
+                                // После синхронизации: пометить все чаты как прочитанные до текущего момента,
+                                // чтобы сообщения до входа не показывались как непрочитанными
+                                val settingsManager = com.aggin.carcost.data.local.settings.SettingsManager(getApplication())
+                                val now = System.currentTimeMillis()
+                                database.carDao().getAllActiveCarsSync().forEach { car ->
+                                    val lastSeen = settingsManager.lastChatSeenFlow(car.id).firstOrNull() ?: 0L
+                                    if (lastSeen == 0L) {
+                                        settingsManager.setLastChatSeen(car.id, now)
+                                    }
+                                }
                             } catch (e: Exception) {
                                 Log.e("Login", "Background sync failed", e)
                             }
