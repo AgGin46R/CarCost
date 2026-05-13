@@ -9,6 +9,9 @@ interface SavingsGoalDao {
     @Query("SELECT * FROM savings_goals WHERE carId = :carId ORDER BY createdAt DESC")
     fun getGoalsByCarId(carId: String): Flow<List<SavingsGoal>>
 
+    @Query("SELECT * FROM savings_goals WHERE carId = :carId ORDER BY createdAt DESC")
+    suspend fun getGoalsByCarIdSync(carId: String): List<SavingsGoal>
+
     @Query("SELECT * FROM savings_goals WHERE id = :id")
     suspend fun getById(id: String): SavingsGoal?
 

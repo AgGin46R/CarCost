@@ -210,7 +210,14 @@ class ChatViewModel(
             val carName = carEntity?.let { "${it.brand} ${it.model}" } ?: ""
             _uiState.update { it.copy(currentUserId = currentUserId, carName = carName) }
             supabaseChat.getMessages(carId).onSuccess { remote ->
-                if (remote.isNotEmpty()) db.chatMessageDao().insertAll(remote)
+                if (remote.isNotEmpty()) {
+                    // IGNORE avoids DELETE+INSERT for existing rows, which would cascade-delete reactions
+                    db.chatMessageDao().insertAllIgnore(remote)
+                    // Separately update the text of edited messages so edits from other devices sync
+                    remote.filter { it.isEdited }.forEach {
+                        db.chatMessageDao().updateContent(it.id, it.message, it.isEdited)
+                    }
+                }
             }
             // Fetch all reactions for this car's messages
             supabaseReactions.getReactionsForCar(carId).onSuccess { remoteReactions ->
@@ -298,7 +305,18 @@ class ChatViewModel(
     fun refreshMessages() {
         viewModelScope.launch {
             supabaseChat.getMessages(carId).onSuccess { remote ->
-                if (remote.isNotEmpty()) db.chatMessageDao().insertAll(remote)
+                if (remote.isNotEmpty()) {
+                    // IGNORE preserves reactions (no cascade delete of existing rows)
+                    db.chatMessageDao().insertAllIgnore(remote)
+                    // Sync edits from other devices
+                    remote.filter { it.isEdited }.forEach {
+                        db.chatMessageDao().updateContent(it.id, it.message, it.isEdited)
+                    }
+                }
+            }
+            // Always refresh reactions after syncing messages
+            supabaseReactions.getReactionsForCar(carId).onSuccess { remoteReactions ->
+                remoteReactions.forEach { r -> try { db.chatReactionDao().insert(r) } catch (_: Exception) {} }
             }
         }
     }

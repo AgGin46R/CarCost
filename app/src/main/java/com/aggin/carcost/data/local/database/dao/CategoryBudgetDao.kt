@@ -11,6 +11,12 @@ interface CategoryBudgetDao {
     @Query("SELECT * FROM category_budgets WHERE carId = :carId AND month = :month AND year = :year")
     fun getBudgetsByCarIdAndPeriod(carId: String, month: Int, year: Int): Flow<List<CategoryBudget>>
 
+    @Query("SELECT * FROM category_budgets WHERE carId = :carId AND month = :month AND year = :year")
+    suspend fun getBudgetsSync(carId: String, month: Int, year: Int): List<CategoryBudget>
+
+    @Query("SELECT * FROM category_budgets WHERE carId = :carId")
+    suspend fun getAllForCarSync(carId: String): List<CategoryBudget>
+
     @Query("SELECT * FROM category_budgets WHERE carId = :carId AND category = :category AND month = :month AND year = :year LIMIT 1")
     suspend fun getBudget(carId: String, category: ExpenseCategory, month: Int, year: Int): CategoryBudget?
 

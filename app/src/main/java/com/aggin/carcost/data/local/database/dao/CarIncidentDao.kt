@@ -10,6 +10,9 @@ interface CarIncidentDao {
     @Query("SELECT * FROM car_incidents WHERE carId = :carId ORDER BY date DESC")
     fun getIncidentsByCarId(carId: String): Flow<List<CarIncident>>
 
+    @Query("SELECT * FROM car_incidents WHERE carId = :carId ORDER BY date DESC")
+    suspend fun getIncidentsByCarIdSync(carId: String): List<CarIncident>
+
     @Query("SELECT * FROM car_incidents WHERE id = :id")
     suspend fun getIncidentById(id: String): CarIncident?
 

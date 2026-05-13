@@ -16,6 +16,14 @@ interface ChatMessageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(messages: List<ChatMessage>)
 
+    /** Insert new messages without touching existing ones — preserves chat_reactions cascade. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllIgnore(messages: List<ChatMessage>)
+
+    /** Update only the text content of an existing message (used to sync edits without cascade). */
+    @Query("UPDATE chat_messages SET message = :message, isEdited = :isEdited WHERE id = :id")
+    suspend fun updateContent(id: String, message: String, isEdited: Boolean)
+
     @Query("DELETE FROM chat_messages WHERE id = :messageId")
     suspend fun deleteById(messageId: String)
 

@@ -17,6 +17,8 @@ import com.aggin.carcost.MainActivity
 import com.aggin.carcost.R
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.GpsTrip
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.domain.gamification.AchievementChecker
 import com.google.android.gms.location.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -142,6 +144,17 @@ class GpsTripService : LifecycleService() {
                 avgSpeedKmh = avgSpeed
             )
             db.gpsTripDao().insert(trip)
+
+            // Check TRIP_TRACKER achievement (best-effort)
+            try {
+                val userId = SupabaseAuthRepository().getUserId()
+                if (userId != null) {
+                    AchievementChecker(db.achievementDao(), db.expenseDao())
+                        .checkAfterTripRecorded(userId)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("GpsTripService", "Achievement check failed", e)
+            }
 
             // Update car odometer if distance is meaningful (≥ 100m)
             if (distanceKm >= 0.1) {

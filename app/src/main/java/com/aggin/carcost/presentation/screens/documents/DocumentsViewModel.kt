@@ -7,6 +7,8 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.CarDocument
 import com.aggin.carcost.data.local.database.entities.DocumentType
 import com.aggin.carcost.data.local.repository.CarDocumentRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.domain.gamification.AchievementChecker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -18,9 +20,9 @@ data class DocumentsUiState(
 
 class DocumentsViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = CarDocumentRepository(
-        AppDatabase.getDatabase(application).carDocumentDao()
-    )
+    private val db = AppDatabase.getDatabase(application)
+    private val repository = CarDocumentRepository(db.carDocumentDao())
+    private val supabaseAuth = SupabaseAuthRepository()
 
     private val _uiState = MutableStateFlow(DocumentsUiState())
     val uiState: StateFlow<DocumentsUiState> = _uiState.asStateFlow()
@@ -54,6 +56,16 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
                 notes = notes
             )
             repository.addDocument(doc)
+            // Check FIRST_DOCUMENT achievement
+            try {
+                val userId = supabaseAuth.getUserId()
+                if (userId != null) {
+                    AchievementChecker(db.achievementDao(), db.expenseDao())
+                        .checkAfterDocumentAdded(userId)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("DocumentsViewModel", "Achievement check failed", e)
+            }
         }
     }
 

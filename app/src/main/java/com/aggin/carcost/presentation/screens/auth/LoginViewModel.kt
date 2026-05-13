@@ -13,6 +13,14 @@ import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
 import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseFluidLevelRepository
+import com.aggin.carcost.data.remote.repository.SupabaseGpsTripRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarIncidentRepository
+import com.aggin.carcost.data.remote.repository.SupabaseInsurancePolicyRepository
+import com.aggin.carcost.data.remote.repository.SupabaseSavingsGoalRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCategoryBudgetRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarDocumentRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAchievementRepository
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.local.repository.ExpenseRepository
 import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
@@ -49,13 +57,13 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
     private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
     private val supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth)
-    private val supabasePlannedExpenseRepo = SupabasePlannedExpenseRepository(supabaseAuth) // ✅ ДОБАВЛЕНО
+    private val supabasePlannedExpenseRepo = SupabasePlannedExpenseRepository(supabaseAuth)
 
     private val localCarRepo = CarRepository(database.carDao())
     private val localExpenseRepo = ExpenseRepository(database.expenseDao())
     private val localReminderRepo = MaintenanceReminderRepository(database.maintenanceReminderDao())
     private val localTagRepo = ExpenseTagRepository(database.expenseTagDao())
-    private val localPlannedExpenseRepo = PlannedExpenseRepository(database.plannedExpenseDao()) // ✅ ДОБАВЛЕНО
+    private val localPlannedExpenseRepo = PlannedExpenseRepository(database.plannedExpenseDao())
 
     private val syncRepo = SyncRepository(
         localCarRepo = localCarRepo,
@@ -63,13 +71,22 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         localReminderRepo = localReminderRepo,
         localTagRepo = localTagRepo,
         localTagDao = database.expenseTagDao(),
-        localPlannedExpenseRepo = localPlannedExpenseRepo, // ✅ ДОБАВЛЕНО
+        localPlannedExpenseRepo = localPlannedExpenseRepo,
         supabaseAuthRepo = supabaseAuth,
         supabaseCarRepo = supabaseCarRepo,
         supabaseExpenseRepo = supabaseExpenseRepo,
         supabaseReminderRepo = supabaseReminderRepo,
         supabaseTagRepo = supabaseTagRepo,
-        supabasePlannedExpenseRepo = supabasePlannedExpenseRepo // ✅ ДОБАВЛЕНО
+        supabasePlannedExpenseRepo = supabasePlannedExpenseRepo,
+        localDb = database,
+        supabaseFluidLevelRepo = SupabaseFluidLevelRepository(supabaseAuth),
+        supabaseGpsTripRepo = SupabaseGpsTripRepository(supabaseAuth),
+        supabaseIncidentRepo = SupabaseCarIncidentRepository(supabaseAuth),
+        supabaseInsuranceRepo = SupabaseInsurancePolicyRepository(supabaseAuth),
+        supabaseSavingsGoalRepo = SupabaseSavingsGoalRepository(supabaseAuth),
+        supabaseCategoryBudgetRepo = SupabaseCategoryBudgetRepository(supabaseAuth),
+        supabaseCarDocumentRepo = SupabaseCarDocumentRepository(supabaseAuth),
+        supabaseAchievementRepo = SupabaseAchievementRepository(supabaseAuth)
     )
 
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

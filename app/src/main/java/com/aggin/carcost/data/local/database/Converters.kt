@@ -145,4 +145,12 @@ class Converters {
     @TypeConverter
     fun toFavoritePlaceType(value: String): FavoritePlaceType =
         try { FavoritePlaceType.valueOf(value) } catch (e: IllegalArgumentException) { FavoritePlaceType.OTHER }
+
+    // FluidType converters
+    @TypeConverter
+    fun fromFluidType(value: FluidType): String = value.name
+
+    @TypeConverter
+    fun toFluidType(value: String): FluidType =
+        try { FluidType.valueOf(value) } catch (e: IllegalArgumentException) { FluidType.ENGINE_OIL }
 }

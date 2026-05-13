@@ -158,6 +158,14 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Warning, null) }
                             )
                             DropdownMenuItem(
+                                text = { Text("💧 Уровни жидкостей") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.FluidLevels.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.WaterDrop, null) }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Экспорт данных") },
                                 onClick = {
                                     showMenu = false

@@ -14,7 +14,9 @@ import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
 import com.aggin.carcost.data.notifications.DocumentExpiryWorker
 import com.aggin.carcost.data.notifications.InsuranceExpiryWorker
+import com.aggin.carcost.data.notifications.FluidCheckWorker
 import com.aggin.carcost.data.notifications.WeeklySummaryWorker
+import com.aggin.carcost.data.notifications.YearOwnerCheckWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
 import com.aggin.carcost.data.sync.RealtimeSyncManager
@@ -69,6 +71,8 @@ class App : Application() {
         scheduleDocumentExpiryCheck()
         scheduleWeeklySummary()
         scheduleBudgetAlert()
+        scheduleFluidCheck()
+        scheduleYearOwnerCheck()
         BackgroundSyncWorker.schedule(this)
 
         // Глобальная страховка: SocketException из любой корутины не должна крашить приложение.
@@ -163,6 +167,26 @@ class App : Application() {
             .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             BudgetAlertWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    private fun scheduleYearOwnerCheck() {
+        val workRequest = PeriodicWorkRequestBuilder<YearOwnerCheckWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            YearOwnerCheckWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    private fun scheduleFluidCheck() {
+        val workRequest = PeriodicWorkRequestBuilder<FluidCheckWorker>(7, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            FluidCheckWorker.WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
         )

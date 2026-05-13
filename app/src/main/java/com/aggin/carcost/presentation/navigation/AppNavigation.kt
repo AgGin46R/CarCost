@@ -56,6 +56,8 @@ import com.aggin.carcost.presentation.screens.maintenance_dashboard.EditMaintena
 import com.aggin.carcost.presentation.screens.search.SearchScreen
 import com.aggin.carcost.presentation.screens.navigator.NavigatorScreen
 import com.aggin.carcost.presentation.screens.fuel_calculator.FuelCalculatorScreen
+import com.aggin.carcost.presentation.screens.fluid_levels.FluidLevelsScreen
+import com.aggin.carcost.presentation.screens.carbot.CarBotScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -195,6 +197,12 @@ sealed class Screen(val route: String) {
     }
 
     object Navigator : Screen("navigator")
+
+    object FluidLevels : Screen("fluid_levels/{carId}") {
+        fun createRoute(carId: String) = "fluid_levels/$carId"
+    }
+
+    object CarBot : Screen("carbot")
 
     object FuelCalculator : Screen("fuel_calculator?distance={distance}&avgL100={avgL100}&pricePerL={pricePerL}") {
         fun createRoute(
@@ -589,6 +597,20 @@ fun AppNavigation(
                 initialAvgL100    = back.arguments?.getFloat("avgL100")?.toDouble() ?: 0.0,
                 initialPricePerL  = back.arguments?.getFloat("pricePerL")?.toDouble() ?: 0.0
             )
+        }
+
+        // Уровни жидкостей
+        composable(
+            route = Screen.FluidLevels.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            FluidLevelsScreen(carId = carId, navController = navController)
+        }
+
+        // CarBot
+        composable(Screen.CarBot.route) {
+            CarBotScreen(navController = navController)
         }
 
         // Создание/редактирование напоминания ТО

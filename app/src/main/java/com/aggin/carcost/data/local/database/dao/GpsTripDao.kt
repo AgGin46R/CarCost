@@ -9,6 +9,9 @@ interface GpsTripDao {
     @Query("SELECT * FROM gps_trips WHERE carId = :carId ORDER BY startTime DESC")
     fun getTripsByCarId(carId: String): Flow<List<GpsTrip>>
 
+    @Query("SELECT * FROM gps_trips WHERE carId = :carId ORDER BY startTime DESC")
+    suspend fun getTripsByCarIdSync(carId: String): List<GpsTrip>
+
     @Query("SELECT SUM(distanceKm) FROM gps_trips WHERE carId = :carId")
     suspend fun getTotalDistance(carId: String): Double?
 

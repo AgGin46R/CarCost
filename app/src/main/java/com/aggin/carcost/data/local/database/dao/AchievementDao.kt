@@ -18,4 +18,10 @@ interface AchievementDao {
 
     @Query("SELECT COUNT(*) FROM achievements WHERE userId = :userId")
     fun getCount(userId: String): Flow<Int>
+
+    @Query("SELECT * FROM achievements WHERE userId = :userId ORDER BY unlockedAt DESC")
+    suspend fun getAchievementsSync(userId: String): List<Achievement>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(achievement: Achievement)
 }

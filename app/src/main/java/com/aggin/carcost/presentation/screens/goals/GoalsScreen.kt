@@ -25,6 +25,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.SavingsGoal
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.domain.gamification.AchievementChecker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -38,7 +40,8 @@ class GoalsViewModel(
     application: Application,
     private val carId: String
 ) : AndroidViewModel(application) {
-    private val dao = AppDatabase.getDatabase(application).savingsGoalDao()
+    private val db = AppDatabase.getDatabase(application)
+    private val dao = db.savingsGoalDao()
 
     val uiState: StateFlow<GoalsUiState> = dao.getGoalsByCarId(carId)
         .map { GoalsUiState(goals = it, isLoading = false) }
@@ -59,6 +62,18 @@ class GoalsViewModel(
                 isCompleted = completed,
                 updatedAt = System.currentTimeMillis()
             ))
+            // Check SAVINGS_GOAL_COMPLETE achievement when goal is first completed
+            if (completed && !goal.isCompleted) {
+                try {
+                    val userId = SupabaseAuthRepository().getUserId()
+                    if (userId != null) {
+                        AchievementChecker(db.achievementDao(), db.expenseDao())
+                            .checkAfterGoalCompleted(userId)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("GoalsViewModel", "Achievement check failed", e)
+                }
+            }
         }
     }
 

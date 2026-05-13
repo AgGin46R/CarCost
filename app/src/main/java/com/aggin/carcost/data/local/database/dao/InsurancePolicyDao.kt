@@ -10,6 +10,9 @@ interface InsurancePolicyDao {
     @Query("SELECT * FROM insurance_policies WHERE carId = :carId ORDER BY endDate ASC")
     fun getPoliciesForCar(carId: String): Flow<List<InsurancePolicy>>
 
+    @Query("SELECT * FROM insurance_policies WHERE carId = :carId ORDER BY endDate ASC")
+    suspend fun getPoliciesForCarSync(carId: String): List<InsurancePolicy>
+
     @Query("SELECT * FROM insurance_policies WHERE carId = :carId AND endDate >= :now ORDER BY endDate ASC")
     fun getActivePoliciesForCar(carId: String, now: Long = System.currentTimeMillis()): Flow<List<InsurancePolicy>>
 

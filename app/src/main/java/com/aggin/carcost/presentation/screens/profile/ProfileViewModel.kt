@@ -23,6 +23,14 @@ import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
 import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseFluidLevelRepository
+import com.aggin.carcost.data.remote.repository.SupabaseGpsTripRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarIncidentRepository
+import com.aggin.carcost.data.remote.repository.SupabaseInsurancePolicyRepository
+import com.aggin.carcost.data.remote.repository.SupabaseSavingsGoalRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCategoryBudgetRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarDocumentRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAchievementRepository
 import com.aggin.carcost.data.sync.SyncRepository
 import com.aggin.carcost.domain.gamification.DriverScore
 import com.aggin.carcost.domain.gamification.DriverScoreCalculator
@@ -77,7 +85,16 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth),
         supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth),
         supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth),
-        supabasePlannedExpenseRepo = SupabasePlannedExpenseRepository(supabaseAuth)
+        supabasePlannedExpenseRepo = SupabasePlannedExpenseRepository(supabaseAuth),
+        localDb = database,
+        supabaseFluidLevelRepo = SupabaseFluidLevelRepository(supabaseAuth),
+        supabaseGpsTripRepo = SupabaseGpsTripRepository(supabaseAuth),
+        supabaseIncidentRepo = SupabaseCarIncidentRepository(supabaseAuth),
+        supabaseInsuranceRepo = SupabaseInsurancePolicyRepository(supabaseAuth),
+        supabaseSavingsGoalRepo = SupabaseSavingsGoalRepository(supabaseAuth),
+        supabaseCategoryBudgetRepo = SupabaseCategoryBudgetRepository(supabaseAuth),
+        supabaseCarDocumentRepo = SupabaseCarDocumentRepository(supabaseAuth),
+        supabaseAchievementRepo = SupabaseAchievementRepository(supabaseAuth)
     )
 
     var tempCameraUri: Uri? = null

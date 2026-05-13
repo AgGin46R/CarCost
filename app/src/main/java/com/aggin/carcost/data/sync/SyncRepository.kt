@@ -16,6 +16,14 @@ import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
 import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
+import com.aggin.carcost.data.remote.repository.SupabaseFluidLevelRepository
+import com.aggin.carcost.data.remote.repository.SupabaseGpsTripRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarIncidentRepository
+import com.aggin.carcost.data.remote.repository.SupabaseInsurancePolicyRepository
+import com.aggin.carcost.data.remote.repository.SupabaseSavingsGoalRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCategoryBudgetRepository
+import com.aggin.carcost.data.remote.repository.SupabaseCarDocumentRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAchievementRepository
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
@@ -46,13 +54,23 @@ class SyncRepository(
     private val localReminderRepo: MaintenanceReminderRepository,
     private val localTagRepo: ExpenseTagRepository,
     private val localTagDao: com.aggin.carcost.data.local.database.dao.ExpenseTagDao,
-    private val localPlannedExpenseRepo: PlannedExpenseRepository, // ✅ ДОБАВЛЕНО
+    private val localPlannedExpenseRepo: PlannedExpenseRepository,
     private val supabaseAuthRepo: SupabaseAuthRepository,
     private val supabaseCarRepo: SupabaseCarRepository,
     private val supabaseExpenseRepo: SupabaseExpenseRepository,
     private val supabaseReminderRepo: SupabaseMaintenanceReminderRepository,
     private val supabaseTagRepo: SupabaseExpenseTagRepository,
-    private val supabasePlannedExpenseRepo: SupabasePlannedExpenseRepository // ✅ ДОБАВЛЕНО
+    private val supabasePlannedExpenseRepo: SupabasePlannedExpenseRepository,
+    // ── Extended sync ────────────────────────────────────────────────────────
+    private val localDb: com.aggin.carcost.data.local.database.AppDatabase? = null,
+    private val supabaseFluidLevelRepo: SupabaseFluidLevelRepository? = null,
+    private val supabaseGpsTripRepo: SupabaseGpsTripRepository? = null,
+    private val supabaseIncidentRepo: SupabaseCarIncidentRepository? = null,
+    private val supabaseInsuranceRepo: SupabaseInsurancePolicyRepository? = null,
+    private val supabaseSavingsGoalRepo: SupabaseSavingsGoalRepository? = null,
+    private val supabaseCategoryBudgetRepo: SupabaseCategoryBudgetRepository? = null,
+    private val supabaseCarDocumentRepo: SupabaseCarDocumentRepository? = null,
+    private val supabaseAchievementRepo: SupabaseAchievementRepository? = null
 ) {
 
     companion object {
@@ -80,8 +98,16 @@ class SyncRepository(
             syncExpenses()
             syncReminders()
             syncTags()
-            syncTagLinks() // Синхронизируем связи тегов ПОСЛЕ тегов и расходов
-            syncPlannedExpenses() // ✅ ДОБАВЛЕНО: Синхронизация запланированных покупок
+            syncTagLinks()
+            syncPlannedExpenses()
+            syncFluidLevels()
+            syncGpsTrips()
+            syncIncidents()
+            syncInsurancePolicies()
+            syncSavingsGoals()
+            syncCategoryBudgets()
+            syncCarDocuments()
+            syncAchievements()
 
             _syncState.value = SyncState.Success()
             Log.d(TAG, "Full sync completed successfully")
@@ -343,42 +369,18 @@ class SyncRepository(
      * Синхронизация связей тегов с расходами
      */
     private suspend fun syncTagLinks() {
-        Log.d(TAG, "Syncing tag links...")
-
-        val userId = supabaseAuthRepo.getUserId() ?: return
-
+        Log.d(TAG, "Syncing tag links (batch)...")
         try {
-            // Получаем все расходы из Supabase для пользователя
-            val remoteExpensesResult = supabaseExpenseRepo.getAllUserExpenses()
-            val remoteExpenses = remoteExpensesResult.getOrNull() ?: emptyList()
-
-            Log.d(TAG, "Found ${remoteExpenses.size} expenses to sync tag links")
-
-            for (expense in remoteExpenses) {
-                // Получаем теги для этого расхода из Supabase
-                val remoteTagsResult = supabaseTagRepo.getTagsForExpense(expense.id)
-                val remoteTags = remoteTagsResult.getOrNull() ?: emptyList()
-
-                if (remoteTags.isNotEmpty()) {
-                    Log.d(TAG, "Expense ${expense.id} has ${remoteTags.size} tags")
-
-                    // Сохраняем связи локально
-                    for (tag in remoteTags) {
-                        try {
-                            localTagDao.insertExpenseTagCrossRef(
-                                com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef(
-                                    expenseId = expense.id,
-                                    tagId = tag.id
-                                )
-                            )
-                            Log.d(TAG, "✅ Tag link saved: expense=${expense.id}, tag=${tag.id}")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "❌ Failed to save tag link: ${e.message}")
-                        }
-                    }
+            // Single API call instead of N+1 — fetch all cross-refs the user can see
+            val crossRefs = supabaseTagRepo.getAllCrossRefs().getOrNull() ?: return
+            Log.d(TAG, "Found ${crossRefs.size} tag cross-refs from Supabase")
+            for (ref in crossRefs) {
+                try {
+                    localTagDao.insertExpenseTagCrossRef(ref)
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Failed to save tag link: ${e.message}")
                 }
             }
-
             Log.d(TAG, "✅ Tag links sync completed")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Tag links sync failed", e)
@@ -574,6 +576,151 @@ class SyncRepository(
         }
     }
 
+    // ── Extended sync methods ─────────────────────────────────────────────────
+
+    private suspend fun syncFluidLevels() {
+        val db = localDb ?: return
+        val repo = supabaseFluidLevelRepo ?: return
+        val cars = localCarRepo.getAllCars().first()
+        for (car in cars) {
+            val remote = repo.getFluidLevelsByCarId(car.id).getOrNull() ?: continue
+            val local = db.fluidLevelDao().getFluidLevelsByCarIdSync(car.id)
+            // Push local → remote
+            for (item in local) {
+                if (remote.none { it.id == item.id } || remote.firstOrNull { it.id == item.id }?.updatedAt?.let { it < item.updatedAt } == true) {
+                    repo.upsertFluidLevel(item)
+                }
+            }
+            // Pull remote → local
+            for (item in remote) {
+                val existing = local.firstOrNull { it.id == item.id }
+                if (existing == null) db.fluidLevelDao().insert(item)
+                else if (item.updatedAt > existing.updatedAt) db.fluidLevelDao().update(item)
+            }
+        }
+    }
+
+    private suspend fun syncGpsTrips() {
+        val db = localDb ?: return
+        val repo = supabaseGpsTripRepo ?: return
+        val cars = localCarRepo.getAllCars().first()
+        for (car in cars) {
+            val remote = repo.getByCarId(car.id).getOrNull() ?: continue
+            val local = db.gpsTripDao().getTripsByCarIdSync(car.id)
+            for (item in local) {
+                if (remote.none { it.id == item.id }) repo.upsert(item)
+            }
+            for (item in remote) {
+                if (local.none { it.id == item.id }) db.gpsTripDao().insert(item)
+            }
+        }
+    }
+
+    private suspend fun syncIncidents() {
+        val db = localDb ?: return
+        val repo = supabaseIncidentRepo ?: return
+        val cars = localCarRepo.getAllCars().first()
+        for (car in cars) {
+            val remote = repo.getByCarId(car.id).getOrNull() ?: continue
+            val local = db.carIncidentDao().getIncidentsByCarIdSync(car.id)
+            for (item in local) {
+                if (remote.none { it.id == item.id }) repo.upsert(item)
+            }
+            for (item in remote) {
+                if (local.none { it.id == item.id }) db.carIncidentDao().insertIncident(item)
+            }
+        }
+    }
+
+    private suspend fun syncInsurancePolicies() {
+        val db = localDb ?: return
+        val repo = supabaseInsuranceRepo ?: return
+        val cars = localCarRepo.getAllCars().first()
+        for (car in cars) {
+            val remote = repo.getByCarId(car.id).getOrNull() ?: continue
+            val local = db.insurancePolicyDao().getPoliciesForCarSync(car.id)
+            for (item in local) {
+                if (remote.none { it.id == item.id }) repo.upsert(item)
+            }
+            for (item in remote) {
+                if (local.none { it.id == item.id }) db.insurancePolicyDao().insert(item)
+            }
+        }
+    }
+
+    private suspend fun syncSavingsGoals() {
+        val db = localDb ?: return
+        val repo = supabaseSavingsGoalRepo ?: return
+        val cars = localCarRepo.getAllCars().first()
+        for (car in cars) {
+            val remote = repo.getByCarId(car.id).getOrNull() ?: continue
+            val local = db.savingsGoalDao().getGoalsByCarIdSync(car.id)
+            for (item in local) {
+                val remoteItem = remote.firstOrNull { it.id == item.id }
+                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item)
+            }
+            for (item in remote) {
+                val localItem = local.firstOrNull { it.id == item.id }
+                if (localItem == null) db.savingsGoalDao().insert(item)
+                else if (item.updatedAt > localItem.updatedAt) db.savingsGoalDao().update(item)
+            }
+        }
+    }
+
+    private suspend fun syncCategoryBudgets() {
+        val db = localDb ?: return
+        val repo = supabaseCategoryBudgetRepo ?: return
+        val cars = localCarRepo.getAllCars().first()
+        for (car in cars) {
+            val remote = repo.getByCarId(car.id).getOrNull() ?: continue
+            val local = db.categoryBudgetDao().getAllForCarSync(car.id)
+            for (item in local) {
+                val remoteItem = remote.firstOrNull { it.id == item.id }
+                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item)
+            }
+            for (item in remote) {
+                val localItem = local.firstOrNull { it.id == item.id }
+                if (localItem == null) db.categoryBudgetDao().insertBudget(item)
+                else if (item.updatedAt > localItem.updatedAt) db.categoryBudgetDao().updateBudget(item)
+            }
+        }
+    }
+
+    private suspend fun syncCarDocuments() {
+        val db = localDb ?: return
+        val repo = supabaseCarDocumentRepo ?: return
+        val cars = localCarRepo.getAllCars().first()
+        for (car in cars) {
+            val remote = repo.getByCarId(car.id).getOrNull() ?: continue
+            val local = db.carDocumentDao().getDocumentsByCarIdSync(car.id)
+            for (item in local) {
+                val remoteItem = remote.firstOrNull { it.id == item.id }
+                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item)
+            }
+            for (item in remote) {
+                val localItem = local.firstOrNull { it.id == item.id }
+                if (localItem == null) db.carDocumentDao().insertDocument(item)
+                else if (item.updatedAt > localItem.updatedAt) db.carDocumentDao().updateDocument(item)
+            }
+        }
+    }
+
+    private suspend fun syncAchievements() {
+        val db = localDb ?: return
+        val repo = supabaseAchievementRepo ?: return
+        val userId = supabaseAuthRepo.getUserId() ?: return
+        val remote = repo.getByUserId(userId).getOrNull() ?: return
+        val local = db.achievementDao().getAchievementsSync(userId)
+        // Push local → remote (achievements are append-only)
+        for (item in local) {
+            if (remote.none { it.id == item.id }) repo.upsert(item)
+        }
+        // Pull remote → local
+        for (item in remote) {
+            if (local.none { it.id == item.id }) db.achievementDao().upsert(item)
+        }
+    }
+
     /**
      * Очистка локальных данных при выходе
      */
@@ -605,7 +752,15 @@ class SyncRepository(
             try { syncExpenses(); Log.d(TAG, "✅ Expenses synced") } catch (e: Exception) { Log.e(TAG, "❌ Expenses failed", e) }
             try { syncReminders(); Log.d(TAG, "✅ Reminders synced") } catch (e: Exception) { Log.e(TAG, "❌ Reminders failed", e) }
             try { syncTags(); Log.d(TAG, "✅ Tags synced") } catch (e: Exception) { Log.e(TAG, "❌ Tags failed", e) }
-            try { syncPlannedExpenses(); Log.d(TAG, "✅ Planned expenses synced") } catch (e: Exception) { Log.e(TAG, "❌ Planned expenses failed", e) } // ✅ ДОБАВЛЕНО
+            try { syncPlannedExpenses(); Log.d(TAG, "✅ Planned expenses synced") } catch (e: Exception) { Log.e(TAG, "❌ Planned expenses failed", e) }
+            try { syncFluidLevels(); Log.d(TAG, "✅ Fluid levels synced") } catch (e: Exception) { Log.e(TAG, "❌ Fluid levels failed", e) }
+            try { syncGpsTrips(); Log.d(TAG, "✅ GPS trips synced") } catch (e: Exception) { Log.e(TAG, "❌ GPS trips failed", e) }
+            try { syncIncidents(); Log.d(TAG, "✅ Incidents synced") } catch (e: Exception) { Log.e(TAG, "❌ Incidents failed", e) }
+            try { syncInsurancePolicies(); Log.d(TAG, "✅ Insurance synced") } catch (e: Exception) { Log.e(TAG, "❌ Insurance failed", e) }
+            try { syncSavingsGoals(); Log.d(TAG, "✅ Goals synced") } catch (e: Exception) { Log.e(TAG, "❌ Goals failed", e) }
+            try { syncCategoryBudgets(); Log.d(TAG, "✅ Budgets synced") } catch (e: Exception) { Log.e(TAG, "❌ Budgets failed", e) }
+            try { syncCarDocuments(); Log.d(TAG, "✅ Documents synced") } catch (e: Exception) { Log.e(TAG, "❌ Documents failed", e) }
+            try { syncAchievements(); Log.d(TAG, "✅ Achievements synced") } catch (e: Exception) { Log.e(TAG, "❌ Achievements failed", e) }
 
             _syncState.value = SyncState.Success()
             Log.d(TAG, "✅ Safe initial sync completed")

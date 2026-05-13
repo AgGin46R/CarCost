@@ -13,6 +13,9 @@ interface CarDocumentDao {
     @Query("SELECT * FROM car_documents WHERE carId = :carId ORDER BY createdAt DESC")
     fun getDocumentsByCarId(carId: String): Flow<List<CarDocument>>
 
+    @Query("SELECT * FROM car_documents WHERE carId = :carId ORDER BY createdAt DESC")
+    suspend fun getDocumentsByCarIdSync(carId: String): List<CarDocument>
+
     @Query("SELECT * FROM car_documents WHERE id = :id")
     suspend fun getDocumentById(id: String): CarDocument?
 

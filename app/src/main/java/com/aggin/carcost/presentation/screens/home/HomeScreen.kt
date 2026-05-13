@@ -1,9 +1,6 @@
 package com.aggin.carcost.presentation.screens.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,8 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.sp
-import com.aggin.carcost.presentation.screens.home.SmartHint
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
@@ -64,7 +59,7 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("CarCost") },
+                title = {},
                 actions = {
                     // Навигатор
                     IconButton(onClick = { navController.navigate(Screen.Navigator.route) }) {
@@ -77,6 +72,10 @@ fun HomeScreen(
                     // Таймер парковки
                     IconButton(onClick = { navController.navigate(Screen.ParkingTimer.route) }) {
                         Icon(Icons.Default.LocalParking, contentDescription = "Таймер парковки")
+                    }
+                    // CarBot
+                    IconButton(onClick = { navController.navigate(Screen.CarBot.route) }) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "CarBot")
                     }
                     // Дашборд ТО
                     IconButton(onClick = { navController.navigate(Screen.MaintenanceDashboard.route) }) {
@@ -131,13 +130,6 @@ fun HomeScreen(
                     }
                     // Баннер отсутствия сети
                     OfflineBanner()
-                    // Smart hints strip
-                    if (uiState.smartHints.isNotEmpty()) {
-                        SmartHintsStrip(
-                            hints = uiState.smartHints,
-                            onDismiss = { viewModel.dismissHint(it) }
-                        )
-                    }
                     // Incoming invitations banner
                     uiState.pendingInvitations.forEach { inv ->
                         InvitationBanner(
@@ -214,53 +206,6 @@ private fun InvitationBanner(
             }
             TextButton(onClick = onDismiss) { Text("Позже") }
             Button(onClick = onAccept) { Text("Принять") }
-        }
-    }
-}
-
-@Composable
-fun SmartHintsStrip(
-    hints: List<SmartHint>,
-    onDismiss: (SmartHint) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        hints.forEach { hint ->
-            var visible by remember(hint) { mutableStateOf(true) }
-            AnimatedVisibility(
-                visible = visible,
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .background(
-                            MaterialTheme.colorScheme.secondaryContainer,
-                            RoundedCornerShape(12.dp)
-                        )
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        hint.message,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(
-                        onClick = { visible = false; onDismiss(hint) },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Скрыть",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
         }
     }
 }

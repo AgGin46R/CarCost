@@ -46,6 +46,8 @@ import com.aggin.carcost.data.local.database.entities.CarIncident
 import com.aggin.carcost.data.local.database.entities.ChatReaction
 import com.aggin.carcost.data.local.database.entities.FavoritePlace
 import com.aggin.carcost.data.local.database.entities.PendingWrite
+import com.aggin.carcost.data.local.database.entities.FluidLevel
+import com.aggin.carcost.data.local.database.dao.FluidLevelDao
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -476,6 +478,24 @@ val MIGRATION_34_35 = object : Migration(34, 35) {
  * поэтому каждый ALTER TABLE обёрнут в try-catch: если столбец
  * уже существует — SQLiteException игнорируется.
  */
+val MIGRATION_36_37 = object : Migration(36, 37) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS fluid_levels (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                type TEXT NOT NULL,
+                level REAL NOT NULL,
+                checkedAt INTEGER NOT NULL,
+                notes TEXT,
+                updatedAt INTEGER NOT NULL,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_fluid_levels_carId ON fluid_levels(carId)")
+    }
+}
+
 val MIGRATION_35_36 = object : Migration(35, 36) {
     private fun SupportSQLiteDatabase.tryExec(sql: String) {
         try { execSQL(sql) } catch (e: Exception) { /* column/table already exists */ }
@@ -639,9 +659,10 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         CarIncident::class,
         ChatReaction::class,
         FavoritePlace::class,
-        PendingWrite::class
+        PendingWrite::class,
+        FluidLevel::class
     ],
-    version = 36,
+    version = 37,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -666,6 +687,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun chatReactionDao(): ChatReactionDao
     abstract fun favoritePlaceDao(): FavoritePlaceDao
     abstract fun pendingWriteDao(): PendingWriteDao
+    abstract fun fluidLevelDao(): FluidLevelDao
 
     companion object {
         @Volatile
@@ -705,7 +727,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_32_33,
                         MIGRATION_33_34,
                         MIGRATION_34_35,
-                        MIGRATION_35_36
+                        MIGRATION_35_36,
+                        MIGRATION_36_37
                     )
                     .build()
                 INSTANCE = instance

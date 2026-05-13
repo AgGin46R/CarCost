@@ -4,7 +4,9 @@
       "PowerShell($env:USERPROFILE; $env:ANDROID_HOME; $env:ANDROID_SDK_ROOT)",
       "PowerShell($env:USERPROFILE)",
       "PowerShell($env:ANDROID_HOME)",
-      "PowerShell($env:ANDROID_SDK_ROOT)"
+      "PowerShell($env:ANDROID_SDK_ROOT)",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__list_tables",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__apply_migration"
     ]
   }
 }

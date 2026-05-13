@@ -98,6 +98,21 @@ class SupabaseExpenseTagRepository(private val authRepository: SupabaseAuthRepos
         }
     }
 
+    /** Fetch ALL expense-tag cross-refs accessible to the current user in one call.
+     *  Replaces the N+1 pattern where we called getTagsForExpense() for every expense. */
+    suspend fun getAllCrossRefs(): Result<List<ExpenseTagCrossRef>> = withContext(Dispatchers.IO) {
+        try {
+            val dtos = supabase.from("expense_tag_cross_ref")
+                .select()
+                .decodeList<ExpenseTagCrossRefDto>()
+            Result.success(dtos.map {
+                ExpenseTagCrossRef(expenseId = it.expenseId, tagId = it.tagId)
+            })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateTag(tag: ExpenseTag): Result<ExpenseTag> = withContext(Dispatchers.IO) {
         try {
             val userId = authRepository.getUserId()

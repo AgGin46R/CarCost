@@ -480,8 +480,12 @@ class AddExpenseViewModel(
                 try {
                     val userId = supabaseAuth.getUserId()
                     if (userId != null) {
-                        AchievementChecker(database.achievementDao(), database.expenseDao())
-                            .checkAfterExpenseAdded(userId, carId)
+                        AchievementChecker(
+                            database.achievementDao(),
+                            database.expenseDao(),
+                            database.categoryBudgetDao(),
+                            database.carDao()
+                        ).checkAfterExpenseAdded(userId, carId)
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("AddExpense", "Achievement check failed", e)
