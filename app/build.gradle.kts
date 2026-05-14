@@ -22,8 +22,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 58
-        versionName = "3.7.6"
+        versionCode = 59
+        versionName = "3.7.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -156,6 +156,9 @@ dependencies {
 
     // Drag-and-drop reorderable list
     implementation("sh.calvin.reorderable:reorderable:2.4.0")
+
+    // Shimmer loading effect
+    implementation("com.valentinilk.shimmer:compose-shimmer:1.3.0")
 
     // Accompanist
     implementation("com.google.accompanist:accompanist-permissions:0.33.2-alpha")

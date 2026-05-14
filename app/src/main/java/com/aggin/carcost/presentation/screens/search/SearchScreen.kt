@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.presentation.components.EmptyState
 import com.aggin.carcost.presentation.navigation.Screen
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -80,47 +81,21 @@ fun SearchScreen(
                 }
 
                 uiState.query.length < 2 && !uiState.hasSearched -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Search,
-                            null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Введите минимум 2 символа",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                    }
+                    EmptyState(
+                        icon = Icons.Default.Search,
+                        title = "Поиск по расходам",
+                        subtitle = "Введите минимум 2 символа для поиска",
+                        modifier = Modifier.align(Alignment.Center)
+                    )
                 }
 
                 uiState.hasSearched && uiState.results.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Search,
-                            null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Ничего не найдено",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            "Попробуйте другой запрос",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                    }
+                    EmptyState(
+                        icon = Icons.Default.Search,
+                        title = "Ничего не найдено",
+                        subtitle = "Попробуйте изменить запрос или проверьте написание",
+                        modifier = Modifier.align(Alignment.Center)
+                    )
                 }
 
                 uiState.results.isNotEmpty() -> {

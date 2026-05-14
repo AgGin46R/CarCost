@@ -31,6 +31,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.presentation.components.EmptyState
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
@@ -110,7 +111,13 @@ fun EnhancedAnalyticsScreen(
                 com.aggin.carcost.presentation.components.SkeletonCardList(count = 4, cardHeight = 160.dp)
             }
         } else if (uiState.expenses.isEmpty() && uiState.gpsTripStats == null) {
-            EmptyAnalyticsState(Modifier.fillMaxSize())
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                EmptyState(
+                    icon = Icons.Default.Analytics,
+                    title = "Нет данных для аналитики",
+                    subtitle = "Добавьте расходы, чтобы увидеть статистику и графики"
+                )
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -871,21 +878,6 @@ fun AnomalyCard(anomalies: List<com.aggin.carcost.presentation.screens.analytics
     }
 }
 
-@Composable
-fun EmptyAnalyticsState(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.Analytics, null,
-                modifier = Modifier.size(100.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-            )
-            Spacer(Modifier.height(16.dp))
-            Text("Нет данных для аналитики", style = MaterialTheme.typography.titleLarge)
-            Text("Добавьте расходы, чтобы увидеть статистику", style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
 
 fun getCategoryColor(category: ExpenseCategory): Color {
     return when (category) {

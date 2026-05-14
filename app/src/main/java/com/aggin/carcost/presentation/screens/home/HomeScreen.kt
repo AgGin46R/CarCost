@@ -1,12 +1,19 @@
 package com.aggin.carcost.presentation.screens.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -254,7 +261,7 @@ fun CarsList(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(cars) { car ->
+        items(cars, key = { it.id }) { car ->
             CarCard(
                 car = car,
                 reminders = reminders[car.id] ?: emptyList(),
@@ -264,7 +271,8 @@ fun CarsList(
                     expandedCarId = if (expandedCarId == car.id) null else car.id
                 },
                 monthlyExpense = monthlyExpensePerCar[car.id],
-                unreadChatCount = unreadChatCountPerCar[car.id] ?: 0
+                unreadChatCount = unreadChatCountPerCar[car.id] ?: 0,
+                modifier = Modifier.animateItem()
             )
         }
     }
@@ -279,16 +287,33 @@ fun CarCard(
     onClick: () -> Unit,
     onExpandToggle: () -> Unit,
     monthlyExpense: Double? = null,
-    unreadChatCount: Int = 0
+    unreadChatCount: Int = 0,
+    modifier: Modifier = Modifier
 ) {
-    // Parse car.color as hex for accent stripe
+    // Parse car.color as hex for accent stripe & gradient placeholder
     val carAccentColor: Color? = car.color?.let { hex ->
         try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { null }
     }
+    val placeholderColor = carAccentColor ?: MaterialTheme.colorScheme.primary
+
+    // Animated rotating arrow for expand/collapse
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(300),
+        label = "expandArrow"
+    )
+
+    // Animated monthly expense amount (animates 0 → value on first composition)
+    val animatedAmount by animateFloatAsState(
+        targetValue = monthlyExpense?.toFloat() ?: 0f,
+        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        label = "monthlyAmount"
+    )
 
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp, pressedElevation = 6.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             // Color stripe on left edge
@@ -331,12 +356,30 @@ fun CarCard(
                             contentScale = ContentScale.Crop
                         )
                     } else {
-                        Icon(
-                            imageVector = Icons.Default.DirectionsCar,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                        // Gradient circle placeholder using car's accent color
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(
+                                            placeholderColor,
+                                            placeholderColor.copy(alpha = 0.55f)
+                                        ),
+                                        start = Offset(0f, 0f),
+                                        end = Offset(64f, 64f)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsCar,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = Color.White
+                            )
+                        }
                     }
                     if (unreadChatCount > 0) {
                         BadgedBox(
@@ -382,7 +425,7 @@ fun CarCard(
                 InfoChip(
                     label = "За месяц",
                     value = if (monthlyExpense != null && monthlyExpense > 0)
-                        "${"%.0f".format(monthlyExpense)} ₽"
+                        "${"%.0f".format(animatedAmount)} ₽"
                     else "—"
                 )
             }
@@ -396,9 +439,11 @@ fun CarCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        imageVector = Icons.Default.ExpandMore,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier
+                            .size(20.dp)
+                            .rotate(arrowRotation)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(

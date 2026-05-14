@@ -25,6 +25,7 @@ import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.database.entities.MemberRole
 import com.aggin.carcost.presentation.navigation.Screen
+import com.aggin.carcost.presentation.components.EmptyState
 import com.aggin.carcost.presentation.components.ExpenseFilterDialog
 import com.aggin.carcost.presentation.components.OfflineBanner
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -798,33 +799,14 @@ fun ExpensesHeader(
 
 @Composable
 fun EmptyExpensesState(isFiltered: Boolean) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            Icons.Default.Receipt,
-            null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = if (isFiltered) "Нет расходов по фильтру" else "Нет расходов",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-        )
-        if (!isFiltered) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Добавьте первый расход",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
-        }
-    }
+    EmptyState(
+        icon = Icons.Default.Receipt,
+        title = if (isFiltered) "Нет расходов по фильтру" else "Расходов пока нет",
+        subtitle = if (isFiltered)
+            "Попробуйте изменить фильтры или выбрать другой период"
+        else
+            "Добавьте первый расход, нажав кнопку + внизу экрана"
+    )
 }
 
 fun getCategoryIcon(category: ExpenseCategory) = when (category) {

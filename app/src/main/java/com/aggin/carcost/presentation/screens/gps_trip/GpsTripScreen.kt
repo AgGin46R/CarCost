@@ -44,6 +44,7 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.gps.GpsTripService
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.GpsTrip
+import com.aggin.carcost.presentation.components.EmptyState
 import com.aggin.carcost.presentation.navigation.Screen
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -259,6 +260,14 @@ fun GpsTripScreen(
                         dateFmt = dateFmt,
                         onDelete = { viewModel.deleteTrip(trip) },
                         onShowMap = { navController.navigate(Screen.TripMap.createRoute(trip.id)) }
+                    )
+                }
+            } else if (!uiState.isRecording) {
+                item {
+                    EmptyState(
+                        icon = Icons.Default.Route,
+                        title = "Поездки не отслеживались",
+                        subtitle = "Нажмите «Старт», чтобы начать запись первой поездки"
                     )
                 }
             }
