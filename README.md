@@ -95,48 +95,6 @@
 
 ---
 
-## 🚀 Сборка
-
-### Требования
-- Android Studio Ladybug или новее
-- JDK 17
-- Android SDK 35
-
-### Шаги
-
-```bash
-# 1. Клонировать репозиторий
-git clone https://github.com/your-username/CarCost.git
-cd CarCost
-
-# 2. Создать local.properties с ключами
-cat >> local.properties << EOF
-supabase.url=https://your-project.supabase.co
-supabase.anon_key=your-anon-key
-google.web_client_id=your-google-client-id
-yandex.maps.api_key=your-yandex-maps-key
-EOF
-
-# 3. Добавить google-services.json для Firebase
-# Положить файл в app/google-services.json
-
-# 4. Собрать debug-версию
-./gradlew assembleDebug
-```
-
-### Переменные окружения
-
-| Ключ | Где взять |
-|------|-----------|
-| `supabase.url` | [supabase.com](https://supabase.com) → Settings → API |
-| `supabase.anon_key` | [supabase.com](https://supabase.com) → Settings → API |
-| `google.web_client_id` | Google Cloud Console → OAuth 2.0 |
-| `yandex.maps.api_key` | [developer.tech.yandex.ru](https://developer.tech.yandex.ru) |
-
-> **Примечание:** без ключей приложение соберётся с дефолтными значениями из `build.gradle.kts`, но синхронизация и карты работать не будут.
-
----
-
 ## 🏗 Архитектура
 
 ```
