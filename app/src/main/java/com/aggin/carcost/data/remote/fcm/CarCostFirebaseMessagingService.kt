@@ -38,6 +38,16 @@ class CarCostFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
+
+        // ── Обновление приложения ─────────────────────────────────────────────
+        if (data["type"] == "new_version") {
+            val versionName = data["version_name"] ?: ""
+            val releaseNotes = data["release_notes"] ?: ""
+            Log.d(TAG, "FCM update notification: version=$versionName")
+            NotificationHelper.sendUpdateNotification(applicationContext, versionName, releaseNotes)
+            return
+        }
+
         val title = data["title"] ?: return
         val body = data["body"] ?: return
         val carId = data["car_id"] ?: ""

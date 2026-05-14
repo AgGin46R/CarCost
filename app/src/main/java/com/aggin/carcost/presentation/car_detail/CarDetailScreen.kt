@@ -65,8 +65,9 @@ fun CarDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.PlannedExpenses.createRoute(carId)) }) {
-                        Icon(Icons.Default.Assignment, "Планы покупок")
+                    // Chat moved here for quick access — Planned Purchases moved to overflow menu
+                    IconButton(onClick = { navController.navigate(Screen.Chat.createRoute(carId)) }) {
+                        Icon(Icons.Default.Chat, "Чат")
                     }
                     IconButton(onClick = { navController.navigate(Screen.Map.createRoute(carId)) }) {
                         Icon(Icons.Default.Map, "Карта")
@@ -93,6 +94,14 @@ fun CarDetailScreen(
                                     leadingIcon = { Icon(Icons.Default.Edit, null) }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text("Планы покупок") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.PlannedExpenses.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Assignment, null) }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Документы и страховки") },
                                 onClick = {

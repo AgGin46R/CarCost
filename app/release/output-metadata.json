@@ -16,8 +16,8 @@
         }
       ],
       "attributes": [],
-      "versionCode": 51,
-      "versionName": "3.6.0",
+      "versionCode": 58,
+      "versionName": "3.7.6",
       "outputFile": "app-arm64-v8a-release.apk"
     }
   ],

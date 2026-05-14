@@ -235,55 +235,19 @@ class CarDetailViewModel(
                 result.fold(
                     onSuccess = { expenses ->
                         expenses.forEach { expense ->
-                            // Only overwrite if the remote record is newer than the local one.
-                            // This prevents syncData() from reverting local edits when the
-                            // Supabase update failed (logged silently) and the remote still has
-                            // the old version.
+                            // Use @Update for existing expenses to avoid triggering ON DELETE CASCADE
+                            // on expense_tag_cross_ref (which @Insert(REPLACE) would cause via DELETE+INSERT).
+                            // Only insert (REPLACE) when the expense doesn't exist locally yet.
                             val local = expenseRepository.getExpenseById(expense.id)
-                            if (local == null || expense.updatedAt >= local.updatedAt) {
-                                expenseRepository.insertExpense(expense)
+                            when {
+                                local == null -> expenseRepository.insertExpense(expense)
+                                expense.updatedAt > local.updatedAt -> expenseRepository.updateExpense(expense)
+                                // Equal or local is newer — skip, no-op
                             }
                         }
                         Log.d("CarDetail", "Synced ${expenses.size} expenses")
-
-                        // ✅ 2. Синхронизируем теги для каждого расхода
-                        val supabaseTagRepo = com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository(supabaseAuth)
-                        expenses.forEach { expense ->
-                            viewModelScope.launch {
-                                try {
-                                    val tagsResult = supabaseTagRepo.getTagsForExpense(expense.id)
-                                    tagsResult.fold(
-                                        onSuccess = { remoteTags ->
-                                            if (remoteTags.isNotEmpty()) {
-                                                // Сохраняем теги локально
-                                                remoteTags.forEach { tag ->
-                                                    database.expenseTagDao().insertTag(tag)
-                                                }
-
-                                                // Удаляем старые связи
-                                                database.expenseTagDao().deleteExpenseTagsByExpenseId(expense.id)
-
-                                                // Создаём новые связи
-                                                remoteTags.forEach { tag ->
-                                                    database.expenseTagDao().insertExpenseTagCrossRef(
-                                                        com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef(
-                                                            expenseId = expense.id,
-                                                            tagId = tag.id
-                                                        )
-                                                    )
-                                                }
-                                                Log.d("CarDetail", "✅ Synced ${remoteTags.size} tags for expense ${expense.id}")
-                                            }
-                                        },
-                                        onFailure = { error ->
-                                            Log.e("CarDetail", "Failed to sync tags for expense ${expense.id}", error)
-                                        }
-                                    )
-                                } catch (e: Exception) {
-                                    Log.e("CarDetail", "Exception syncing tags for expense ${expense.id}", e)
-                                }
-                            }
-                        }
+                        // Tag cross-refs are synced globally by SyncRepository.syncTagLinks()
+                        // (batch call via getAllCrossRefs). No per-expense N+1 sync here.
                     },
                     onFailure = { error ->
                         Log.e("CarDetail", "Sync failed", error)

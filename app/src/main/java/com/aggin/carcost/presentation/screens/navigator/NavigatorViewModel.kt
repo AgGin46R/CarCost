@@ -1,6 +1,7 @@
 package com.aggin.carcost.presentation.screens.navigator
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
@@ -74,7 +75,10 @@ data class PoiItem(
 enum class PoiCategory(val label: String, val query: String) {
     GAS_STATION("Заправки", "АЗС"),
     SERVICE("Сервис", "автосервис"),
-    PARKING("Парковки", "парковка")
+    PARKING("Парковки", "парковка"),
+    CAFE("Кафе", "кафе ресторан"),
+    BANK("Банкомат", "банкомат банк"),
+    SUPERMARKET("Магазин", "супермаркет")
 }
 
 data class NavigatorUiState(
@@ -90,6 +94,7 @@ data class NavigatorUiState(
     val routeTimeMin: Int? = null,
     val etaString: String = "",               // e.g. "14:38"
     val fuelCostEstimate: Double? = null,
+    val fuelConsumptionDisplay: String? = null,  // e.g. "8.5 л/100км"
     val currentSpeedKmh: Int = 0,
     val currentLat: Double? = null,
     val currentLon: Double? = null,
@@ -112,6 +117,12 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     private val carDao = db.carDao()
     private val expenseDao = db.expenseDao()
     private val gpsTripDao = db.gpsTripDao()
+
+    private var speaker: YandexSpeaker? = null
+
+    fun initSpeaker(context: Context) {
+        if (speaker == null) speaker = YandexSpeaker(context)
+    }
 
     private var lastDeviationCheckMs = 0L
     private val DEVIATION_CHECK_INTERVAL = 10_000L
@@ -421,14 +432,32 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     private fun estimateFuelCost(distanceKm: Double) {
         val carId = _uiState.value.selectedCarId.ifBlank { return }
         viewModelScope.launch {
-            val refuels = expenseDao.getFullTankRefuels(carId, 5).firstOrNull() ?: emptyList()
+            val refuels = expenseDao.getFullTankRefuels(carId, 10).firstOrNull() ?: emptyList()
             if (refuels.isNotEmpty()) {
+                // Price per liter from recent fill-ups
                 val totalLiters = refuels.sumOf { it.fuelLiters ?: 0.0 }
                 val totalSpend = refuels.sumOf { it.amount }
                 val pricePerLiter = if (totalLiters > 0) totalSpend / totalLiters else 55.0
-                val avgConsumption = 10.0
+
+                // Average consumption from consecutive full-tank pairs
+                val sorted = refuels.sortedBy { it.date }
+                val consumptions = sorted.zipWithNext { a, b ->
+                    val km = (b.odometer - a.odometer).toDouble()
+                    val lt = b.fuelLiters ?: 0.0
+                    if (km > 30 && lt > 0) (lt / km) * 100.0 else null
+                }.filterNotNull()
+                    .filter { it in 2.0..30.0 }   // sanity filter
+
+                val avgConsumption = if (consumptions.isNotEmpty()) consumptions.average() else 10.0
+                val displayConsumption = "%.1f л/100км".format(avgConsumption)
+
                 val cost = (distanceKm / 100.0 * avgConsumption) * pricePerLiter
-                _uiState.update { it.copy(fuelCostEstimate = cost) }
+                _uiState.update {
+                    it.copy(
+                        fuelCostEstimate = cost,
+                        fuelConsumptionDisplay = displayConsumption
+                    )
+                }
             }
         }
     }
@@ -439,6 +468,8 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         val dest = _uiState.value.destinationPoint ?: return
         val carId = _uiState.value.selectedCarId
         val destName = _uiState.value.destinationName
+
+        speaker?.speak("Начинаем маршрут. $destName")
 
         val intent = Intent(getApplication(), NavigationService::class.java).apply {
             action = NavigationService.ACTION_START
@@ -475,6 +506,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                 routeTimeMin = null,
                 etaString = "",
                 fuelCostEstimate = null,
+                fuelConsumptionDisplay = null,
                 poiItems = emptyList(),
                 activePoiCategory = null,
                 isCameraLocked = true
@@ -516,7 +548,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         val minDist = pts.minOf { pt -> haversineMeters(lat, lon, pt.latitude, pt.longitude) }
         if (minDist > DEVIATION_THRESHOLD_M) {
             val dest = _uiState.value.destinationPoint ?: return
-            // Recalculate from current position
+            speaker?.speak("Перестраиваю маршрут")
             buildRoute(dest)
         }
     }
@@ -613,5 +645,6 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         drivingSession?.cancel()
         poiSearchSession?.cancel()
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        speaker?.shutdown()
     }
 }

@@ -17,8 +17,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -57,10 +59,16 @@ fun NavigatorScreen(
         onDispose { MapKitFactory.getInstance().onStop() }
     }
 
+    // Init TTS speaker
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { viewModel.initSpeaker(context) }
+
     // Map refs — must be declared before LaunchedEffects that reference them
     var mapView by remember { mutableStateOf<MapView?>(null) }
     var mapObjects by remember { mutableStateOf<MapObjectCollection?>(null) }
     var routePolyline by remember { mutableStateOf<com.yandex.mapkit.map.PolylineMapObject?>(null) }
+    var traveledPolyline by remember { mutableStateOf<com.yandex.mapkit.map.PolylineMapObject?>(null) }
+    var remainingPolyline by remember { mutableStateOf<com.yandex.mapkit.map.PolylineMapObject?>(null) }
     val altRoutePolylines = remember { mutableListOf<com.yandex.mapkit.map.PolylineMapObject>() }
     var destMarker by remember { mutableStateOf<com.yandex.mapkit.map.PlacemarkMapObject?>(null) }
     val poiMarkers = remember { mutableListOf<com.yandex.mapkit.map.PlacemarkMapObject>() }
@@ -258,19 +266,25 @@ fun NavigatorScreen(
         AlertDialog(
             onDismissRequest = { showArrivalDialog = false; viewModel.clearDestination() },
             title = { Text("Вы прибыли! 🎉") },
-            text = { Text("Добавить расход за поездку?") },
+            text = { Text("Что делаем дальше?") },
             confirmButton = {
-                TextButton(onClick = {
-                    showArrivalDialog = false
-                    val carId = uiState.selectedCarId.ifBlank { return@TextButton }
-                    navController.navigate(Screen.AddExpense.createRoute(carId))
-                }) { Text("Добавить расход") }
+                Column {
+                    TextButton(onClick = {
+                        showArrivalDialog = false
+                        val carId = uiState.selectedCarId.ifBlank { return@TextButton }
+                        navController.navigate(Screen.AddExpense.createRoute(carId))
+                    }) { Text("Записать расход") }
+                    TextButton(onClick = {
+                        showArrivalDialog = false
+                        navController.navigate(Screen.ParkingTimer.route)
+                    }) { Text("Таймер парковки") }
+                }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showArrivalDialog = false
                     viewModel.clearDestination()
-                }) { Text("Нет, спасибо") }
+                }) { Text("Закрыть") }
             }
         )
     }
@@ -334,6 +348,56 @@ fun NavigatorScreen(
             update = { mv -> mapView = mv },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Dark theme for map
+        val isDarkTheme = isSystemInDarkTheme()
+        LaunchedEffect(isDarkTheme, mapView) {
+            mapView?.mapWindow?.map?.isNightModeEnabled = isDarkTheme
+        }
+
+        // Traveled / remaining path split during navigation
+        LaunchedEffect(uiState.currentLat, uiState.currentLon, uiState.mode) {
+            if (uiState.mode != NavigatorMode.NAVIGATING) return@LaunchedEffect
+            val route = uiState.allRoutes.getOrNull(uiState.selectedRouteIndex) ?: return@LaunchedEffect
+            val lat = uiState.currentLat ?: return@LaunchedEffect
+            val lon = uiState.currentLon ?: return@LaunchedEffect
+            val map = mapView?.mapWindow?.map ?: return@LaunchedEffect
+            val objects = mapObjects ?: map.mapObjects.also { mapObjects = it }
+
+            val points = route.geometry.points
+            if (points.size < 2) return@LaunchedEffect
+
+            val closestIdx = points.indices.minByOrNull { i ->
+                val dLat = lat - points[i].latitude
+                val dLon = lon - points[i].longitude
+                dLat * dLat + dLon * dLon
+            } ?: 0
+
+            traveledPolyline?.let { objects.remove(it) }
+            remainingPolyline?.let { objects.remove(it) }
+            routePolyline?.let { objects.remove(it) }
+            routePolyline = null
+
+            if (closestIdx > 0) {
+                traveledPolyline = objects.addPolyline(
+                    com.yandex.mapkit.geometry.Polyline(points.subList(0, closestIdx + 1))
+                ).apply {
+                    setStrokeColor(android.graphics.Color.argb(120, 150, 150, 150))
+                    strokeWidth = 8f
+                }
+            }
+
+            if (closestIdx < points.size - 1) {
+                remainingPolyline = objects.addPolyline(
+                    com.yandex.mapkit.geometry.Polyline(points.subList(closestIdx, points.size))
+                ).apply {
+                    setStrokeColor(android.graphics.Color.argb(230, 26, 115, 232))
+                    strokeWidth = 8f
+                    setOutlineColor(android.graphics.Color.argb(80, 255, 255, 255))
+                    outlineWidth = 3f
+                }
+            }
+        }
 
         // ── BACK BUTTON (non-navigation modes) ───────────────────────────────
         if (uiState.mode != NavigatorMode.NAVIGATING) {
@@ -621,9 +685,12 @@ fun NavigatorScreen(
                         label = { Text(cat.label, style = MaterialTheme.typography.labelMedium) },
                         leadingIcon = {
                             Text(when (cat) {
-                                PoiCategory.GAS_STATION -> "⛽"
-                                PoiCategory.SERVICE    -> "🔧"
-                                PoiCategory.PARKING    -> "🅿️"
+                                PoiCategory.GAS_STATION  -> "⛽"
+                                PoiCategory.SERVICE      -> "🔧"
+                                PoiCategory.PARKING      -> "🅿️"
+                                PoiCategory.CAFE         -> "🍴"
+                                PoiCategory.BANK         -> "🏦"
+                                PoiCategory.SUPERMARKET  -> "🛒"
                             }, fontSize = 12.sp)
                         }
                     )
@@ -737,6 +804,7 @@ fun NavigatorScreen(
                 timeMin = uiState.routeTimeMin,
                 etaString = uiState.etaString,
                 fuelCost = uiState.fuelCostEstimate,
+                fuelConsumptionDisplay = uiState.fuelConsumptionDisplay,
                 isLoading = uiState.isLoadingRoute,
                 allRoutes = uiState.allRoutes,
                 selectedRouteIndex = uiState.selectedRouteIndex,
@@ -887,6 +955,7 @@ private fun RouteInfoCard(
     timeMin: Int?,
     etaString: String,
     fuelCost: Double?,
+    fuelConsumptionDisplay: String? = null,
     isLoading: Boolean,
     allRoutes: List<com.yandex.mapkit.directions.driving.DrivingRoute> = emptyList(),
     selectedRouteIndex: Int = 0,
@@ -996,7 +1065,10 @@ private fun RouteInfoCard(
                         RouteStatItem(value = "%.1f км".format(d), label = "расстояние")
                     }
                     fuelCost?.let { c ->
-                        RouteStatItem(value = "~${c.roundToInt()} ₽", label = "топливо")
+                        RouteStatItem(
+                            value = "~${c.roundToInt()} ₽",
+                            label = fuelConsumptionDisplay ?: "топливо"
+                        )
                     }
                 }
 

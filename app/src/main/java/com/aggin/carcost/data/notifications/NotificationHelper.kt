@@ -20,6 +20,7 @@ object NotificationHelper {
     const val NAV_TYPE_ADD_EXPENSE = "add_expense"
     const val NAV_TYPE_GPS_TRIP = "gps_trip"
     const val NAV_TYPE_NAVIGATOR = "navigator"
+    const val NAV_TYPE_UPDATE = "update"
 
     // ── Channels ────────────────────────────────────────────────────────────────
     const val CHANNEL_ID = "maintenance_reminders"
@@ -31,6 +32,11 @@ object NotificationHelper {
     private const val CHANNEL_SOCIAL_DESCRIPTION =
         "Уведомления о расходах и ТО, добавленных другими участниками автомобиля"
 
+    const val CHANNEL_UPDATE_ID = "app_updates"
+    private const val CHANNEL_UPDATE_NAME = "Обновления приложения"
+    private const val CHANNEL_UPDATE_DESCRIPTION = "Уведомления о новых версиях CarCost"
+    const val NOTIF_ID_UPDATE = 99_000
+
     fun createChannel(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
@@ -40,6 +46,10 @@ object NotificationHelper {
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_SOCIAL_ID, CHANNEL_SOCIAL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
                 .apply { description = CHANNEL_SOCIAL_DESCRIPTION }
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_UPDATE_ID, CHANNEL_UPDATE_NAME, NotificationManager.IMPORTANCE_HIGH)
+                .apply { description = CHANNEL_UPDATE_DESCRIPTION }
         )
     }
 
@@ -154,6 +164,39 @@ object NotificationHelper {
             "Вас пригласили в автомобиль",
             "Новое приглашение: $carName. Откройте приложение, чтобы принять."
         )
+    }
+
+    // ── Обновление приложения ────────────────────────────────────────────────
+
+    fun sendUpdateNotification(
+        context: Context,
+        versionName: String,
+        releaseNotes: String = ""
+    ) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NAV_TYPE, NAV_TYPE_UPDATE)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, NOTIF_ID_UPDATE, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val body = if (releaseNotes.isNotBlank())
+            releaseNotes.take(120)
+        else
+            "Нажмите, чтобы установить обновление."
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notification = NotificationCompat.Builder(context, CHANNEL_UPDATE_ID)
+            .setSmallIcon(R.drawable.ic_notification_wrench)
+            .setContentTitle("Доступно обновление CarCost $versionName 🎉")
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+        manager.notify(NOTIF_ID_UPDATE, notification)
     }
 
     // ── FCM generic ─────────────────────────────────────────────────────────

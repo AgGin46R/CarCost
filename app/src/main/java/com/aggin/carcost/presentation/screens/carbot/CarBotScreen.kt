@@ -9,12 +9,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +44,8 @@ fun CarBotScreen(navController: NavController) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var showAiSetupDialog by remember { mutableStateOf(false) }
 
     // Auto-scroll to bottom when new message arrives
     LaunchedEffect(uiState.messages.size) {
@@ -52,20 +56,108 @@ fun CarBotScreen(navController: NavController) {
         }
     }
 
+    // AI setup dialog
+    if (showAiSetupDialog) {
+        AlertDialog(
+            onDismissRequest = { showAiSetupDialog = false },
+            title = { Text("Подключить AI-модель") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Локальная AI-модель Gemma 2B (~1 ГБ). Работает полностью офлайн.")
+                    if (GemmaModelManager.hasDirectUrl) {
+                        Text(
+                            "Нажмите «Скачать» — модель загрузится автоматически.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            "Ссылка для скачивания ещё не настроена. Обновите приложение позже.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (GemmaModelManager.hasDirectUrl) {
+                    Button(
+                        onClick = {
+                            showAiSetupDialog = false
+                            viewModel.downloadModel(context)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("⬇ Скачать (~1 ГБ)") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAiSetupDialog = false }) { Text("Закрыть") }
+            }
+        )
+    }
+
+    // Download progress dialog
+    if (uiState.isDownloadingModel) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Загрузка AI-модели...") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Gemma 2B скачивается (~1 ГБ). Не закрывайте приложение.")
+                    Spacer(Modifier.height(4.dp))
+                    if (uiState.modelDownloadProgress > 0) {
+                        LinearProgressIndicator(
+                            progress = { uiState.modelDownloadProgress / 100f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            "${uiState.modelDownloadProgress}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text("🤖 CarBot", fontWeight = FontWeight.Bold)
-                        if (uiState.cars.size > 1 && uiState.selectedCarId != null) {
-                            val car = uiState.cars.firstOrNull { it.id == uiState.selectedCarId }
-                            if (car != null) {
+                        when {
+                            uiState.isModelReady ->
                                 Text(
-                                    "${car.brand} ${car.model}",
+                                    "✨ AI активен",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.primary
                                 )
+                            uiState.isModelInitializing ->
+                                Text(
+                                    "⏳ AI запускается...",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                            uiState.modelInitError != null ->
+                                Text(
+                                    "⚠️ AI: ошибка запуска",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            uiState.cars.size > 1 && uiState.selectedCarId != null -> {
+                                val car = uiState.cars.firstOrNull { it.id == uiState.selectedCarId }
+                                if (car != null) {
+                                    Text(
+                                        "${car.brand} ${car.model}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -76,26 +168,56 @@ fun CarBotScreen(navController: NavController) {
                     }
                 },
                 actions = {
-                    // Car selector if multiple cars
-                    if (uiState.cars.size > 1) {
-                        var expanded by remember { mutableStateOf(false) }
-                        TextButton(onClick = { expanded = true }) {
+                    // AI setup button (when not downloaded and not downloading)
+                    if (!uiState.isModelDownloaded && !uiState.isDownloadingModel) {
+                        TextButton(onClick = { showAiSetupDialog = true }) {
+                            Text("✨ AI", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+
+                    // Retry button when engine init failed
+                    if (uiState.modelInitError != null && !uiState.isModelInitializing) {
+                        TextButton(onClick = { viewModel.retryInitGemma(context) }) {
                             Text(
-                                uiState.cars.firstOrNull { it.id == uiState.selectedCarId }
-                                    ?.let { "${it.brand} ${it.model}" } ?: "Авто",
-                                style = MaterialTheme.typography.labelMedium
+                                "↺ AI",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error
                             )
                         }
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    }
+
+                    // 3-dot menu: car selector + delete model
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Меню")
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        if (uiState.cars.size > 1) {
                             uiState.cars.forEach { car ->
                                 DropdownMenuItem(
-                                    text = { Text("${car.brand} ${car.model}") },
+                                    text = {
+                                        val selected = car.id == uiState.selectedCarId
+                                        Text(
+                                            "${if (selected) "✓ " else ""}${car.brand} ${car.model}",
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                        )
+                                    },
                                     onClick = {
                                         viewModel.selectCar(car.id)
-                                        expanded = false
+                                        menuExpanded = false
                                     }
                                 )
                             }
+                            HorizontalDivider()
+                        }
+                        if (uiState.isModelDownloaded) {
+                            DropdownMenuItem(
+                                text = { Text("Удалить AI-модель") },
+                                onClick = {
+                                    viewModel.deleteModel()
+                                    menuExpanded = false
+                                }
+                            )
                         }
                     }
                 }
@@ -107,7 +229,6 @@ fun CarBotScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Messages list
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),
@@ -129,7 +250,6 @@ fun CarBotScreen(navController: NavController) {
                 }
             }
 
-            // Quick suggestions (visible only when very few messages)
             if (uiState.messages.size <= 1 && !uiState.isProcessing) {
                 LazyRow(
                     modifier = Modifier
@@ -141,9 +261,7 @@ fun CarBotScreen(navController: NavController) {
                     items(suggestions) { suggestion ->
                         SuggestionChip(
                             onClick = { viewModel.sendSuggestion(suggestion) },
-                            label = {
-                                Text(suggestion, fontSize = 12.sp, maxLines = 1)
-                            }
+                            label = { Text(suggestion, fontSize = 12.sp, maxLines = 1) }
                         )
                     }
                 }
@@ -151,7 +269,6 @@ fun CarBotScreen(navController: NavController) {
 
             HorizontalDivider()
 
-            // Input row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -222,8 +339,15 @@ private fun MessageBubble(message: BotMessage) {
                 .background(bgColor)
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            // Render markdown-style **bold** text
             MarkdownText(text = message.text, color = textColor)
+            if (message.isAiGenerated) {
+                Text(
+                    "✨",
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 10.sp
+                )
+            }
         }
     }
 }
@@ -234,7 +358,6 @@ private fun MarkdownText(
     color: androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier
 ) {
-    // Simple **bold** support using AnnotatedString
     val annotated = buildBoldAnnotatedString(text, color)
     Text(
         text = annotated,

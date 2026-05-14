@@ -44,3 +44,21 @@
 # ML Kit
 -keep class com.google.mlkit.** { *; }
 -dontwarn com.google.mlkit.**
+
+# MediaPipe Tasks GenAI (Gemma on-device inference)
+-keep class com.google.mediapipe.** { *; }
+-dontwarn com.google.mediapipe.**
+
+# Protobuf annotations used by MediaPipe (compile-time only, not in APK)
+-dontwarn com.google.protobuf.Internal$ProtoMethodMayReturnNull
+-dontwarn com.google.protobuf.Internal$ProtoNonnullApi
+-dontwarn com.google.protobuf.ProtoField
+-dontwarn com.google.protobuf.ProtoPresenceBits
+-dontwarn com.google.protobuf.ProtoPresenceCheckedField
+
+# javax.lang.model — annotation processing classes, not needed at runtime
+-dontwarn javax.lang.model.**
+
+# AutoValue / JavaPoet shaded inside MediaPipe (annotation processor, runtime-unused)
+-dontwarn autovalue.shaded.**
+-dontwarn com.google.auto.value.**

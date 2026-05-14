@@ -14,10 +14,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import com.aggin.carcost.data.local.settings.SettingsManager
+import com.aggin.carcost.data.notifications.NotificationHelper
 import com.aggin.carcost.data.update.AppUpdateManager
 import com.aggin.carcost.data.update.VersionInfo
 import com.aggin.carcost.presentation.navigation.AppNavigation
 import com.aggin.carcost.ui.theme.CarCostTheme
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -37,6 +39,9 @@ class MainActivity : ComponentActivity() {
             ?.getQueryParameter("token")
         pendingNavRoute = extractNavRoute(intent)
 
+        // Subscribe to FCM topic — receives push when new app version is released
+        FirebaseMessaging.getInstance().subscribeToTopic("app_updates")
+
         setContent {
             val settingsManager = SettingsManager(LocalContext.current)
             val theme by settingsManager.themeFlow.collectAsState(initial = "System")
@@ -44,8 +49,15 @@ class MainActivity : ComponentActivity() {
             var pendingUpdate by remember { mutableStateOf<VersionInfo?>(null) }
             val updateManager = remember { AppUpdateManager(this) }
 
+            // Check for update on start OR when opened from update push notification
             LaunchedEffect(Unit) {
                 pendingUpdate = updateManager.checkForUpdate()
+            }
+            LaunchedEffect(pendingNavRoute) {
+                if (pendingNavRoute == "__update__") {
+                    pendingUpdate = updateManager.checkForUpdate()
+                    pendingNavRoute = null
+                }
             }
 
             CarCostTheme(themeSetting = theme, accentSetting = accent) {
@@ -101,15 +113,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun extractNavRoute(intent: android.content.Intent?): String? {
-        val navType = intent?.getStringExtra(com.aggin.carcost.data.notifications.NotificationHelper.EXTRA_NAV_TYPE)
+        val navType = intent?.getStringExtra(NotificationHelper.EXTRA_NAV_TYPE)
             ?: return null
-        val carId = intent.getStringExtra(com.aggin.carcost.data.notifications.NotificationHelper.EXTRA_NAV_CAR_ID)
+        // Update notifications have no carId — handle first
+        if (navType == NotificationHelper.NAV_TYPE_UPDATE) return "__update__"
+        val carId = intent.getStringExtra(NotificationHelper.EXTRA_NAV_CAR_ID)
             ?: return null
         return when (navType) {
-            com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_CHAT -> "chat/$carId"
-            com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_ADD_EXPENSE -> "add_expense/$carId"
-            com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_GPS_TRIP -> "gps_trip/$carId"
-            com.aggin.carcost.data.notifications.NotificationHelper.NAV_TYPE_NAVIGATOR -> "navigator"
+            NotificationHelper.NAV_TYPE_CHAT        -> "chat/$carId"
+            NotificationHelper.NAV_TYPE_ADD_EXPENSE -> "add_expense/$carId"
+            NotificationHelper.NAV_TYPE_GPS_TRIP    -> "gps_trip/$carId"
+            NotificationHelper.NAV_TYPE_NAVIGATOR   -> "navigator"
             else -> "car_detail/$carId"
         }
     }

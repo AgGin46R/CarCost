@@ -22,8 +22,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 51
-        versionName = "3.6.0"
+        versionCode = 58
+        versionName = "3.7.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -188,7 +188,11 @@ dependencies {
     // Retrofit + OkHttp (for NHTSA VIN/Recall API)
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // MediaPipe GenAI — on-device LLM inference (Gemma 2 1B)
+    implementation("com.google.mediapipe:tasks-genai:0.10.22")
 
     // Lifecycle Service (for GPS ForegroundService)
     implementation("androidx.lifecycle:lifecycle-service:2.8.7")

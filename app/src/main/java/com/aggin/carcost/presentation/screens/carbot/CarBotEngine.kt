@@ -18,7 +18,10 @@ class CarBotEngine(private val db: AppDatabase) {
         maximumFractionDigits = 0
     }
 
-    suspend fun processQuery(text: String, carId: String?): String {
+    /**
+     * Rules-based query. Returns null when no rule matches (caller can then use AI fallback).
+     */
+    suspend fun rulesBasedQuery(text: String, carId: String?): String? {
         val lower = text.lowercase(Locale("ru"))
         val car = if (carId != null) db.carDao().getCarById(carId) else null
 
@@ -59,9 +62,68 @@ class CarBotEngine(private val db: AppDatabase) {
             lower.containsAny("дорогой месяц", "самый дорогой", "пик расходов") ->
                 answerPeakMonth(car)
 
-            else ->
-                "🤔 Я не понял вопрос. Попробуйте спросить иначе или нажмите **Помощь**, чтобы увидеть что я умею."
+            else -> null  // no rule matched → AI fallback
         }
+    }
+
+    /** Backward-compat wrapper that always returns a string. */
+    suspend fun processQuery(text: String, carId: String?): String =
+        rulesBasedQuery(text, carId)
+            ?: "🤔 Я не понял вопрос. Попробуйте спросить иначе или нажмите **Помощь**, чтобы увидеть что я умею."
+
+    /** Check for proactive alerts (overdue TO, expiring insurance, budget overflow). */
+    suspend fun checkProactiveAlerts(carId: String?): String? {
+        if (carId == null) return null
+        val car = db.carDao().getCarById(carId) ?: return null
+        val alerts = mutableListOf<String>()
+
+        // Overdue maintenance
+        try {
+            val reminders = db.maintenanceReminderDao().getRemindersByCarIdSync(car.id)
+            reminders.filter { it.isActive }.forEach { r ->
+                val kmLeft = r.nextChangeOdometer - car.currentOdometer
+                if (kmLeft <= 0) {
+                    alerts += "⚠️ **${r.type.displayName}** просрочено на ${ruFmt.format(-kmLeft)} км!"
+                } else if (kmLeft <= 500) {
+                    alerts += "🔶 **${r.type.displayName}** скоро: осталось ${ruFmt.format(kmLeft)} км."
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Expiring insurance
+        try {
+            val policies = db.insurancePolicyDao().getPoliciesForCarSync(car.id)
+            policies.forEach { p ->
+                val daysLeft = ((p.endDate - System.currentTimeMillis()) / 86_400_000L).toInt()
+                if (daysLeft in 0..30) {
+                    alerts += "📋 Страховка **${p.type}** истекает через $daysLeft дней."
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Budget overruns
+        try {
+            val cal = Calendar.getInstance()
+            val month = cal.get(Calendar.MONTH) + 1
+            val year = cal.get(Calendar.YEAR)
+            val budgets = db.categoryBudgetDao().getBudgetsSync(car.id, month, year)
+            val startDate = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            budgets.forEach { b ->
+                val spent = db.expenseDao()
+                    .getTotalByCategoryAndPeriod(car.id, b.category, startDate, System.currentTimeMillis()) ?: 0.0
+                val pct = (spent / b.monthlyLimit * 100).toInt()
+                if (pct >= 80) {
+                    alerts += "💸 Бюджет **${b.category.displayName}** потрачен на $pct%."
+                }
+            }
+        } catch (_: Exception) {}
+
+        return if (alerts.isEmpty()) null
+        else "🔔 **Важные уведомления для ${car.brand} ${car.model}:**\n\n" + alerts.joinToString("\n")
     }
 
     // ── Конкретные ответы ──────────────────────────────────────────────────
