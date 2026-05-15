@@ -1,12 +1,16 @@
 package com.aggin.carcost.presentation.screens.fluid_levels
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.FluidLevel
 import com.aggin.carcost.data.local.database.entities.FluidType
 import com.aggin.carcost.data.local.repository.FluidLevelRepository
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.SupabaseFluidLevelRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +39,7 @@ class FluidLevelsViewModel(
 
     private val db = AppDatabase.getDatabase(application)
     private val repository = FluidLevelRepository(db.fluidLevelDao())
+    private val supabaseRepo = SupabaseFluidLevelRepository(SupabaseAuthRepository())
 
     private val _dialogState = MutableStateFlow<FluidType?>(null)
 
@@ -62,6 +67,19 @@ class FluidLevelsViewModel(
         initialValue = FluidLevelsUiState(carId = carId)
     )
 
+    init {
+        // Синхронизируем данные из Supabase при открытии экрана
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                supabaseRepo.getFluidLevelsByCarId(carId).getOrNull()?.forEach { level ->
+                    repository.upsert(level)
+                }
+            } catch (e: Exception) {
+                Log.w("FluidLevelsVM", "Supabase sync on load failed", e)
+            }
+        }
+    }
+
     fun openUpdateDialog(type: FluidType) {
         _dialogState.value = type
     }
@@ -82,8 +100,18 @@ class FluidLevelsViewModel(
                 notes = notes.ifBlank { null },
                 updatedAt = System.currentTimeMillis()
             )
+            // Сохраняем в Room (немедленно)
             repository.upsert(entry)
             _dialogState.value = null
+
+            // Синхронизируем с Supabase в фоне
+            launch(Dispatchers.IO) {
+                try {
+                    supabaseRepo.upsertFluidLevel(entry)
+                } catch (e: Exception) {
+                    Log.w("FluidLevelsVM", "Supabase upsert failed", e)
+                }
+            }
         }
     }
 }

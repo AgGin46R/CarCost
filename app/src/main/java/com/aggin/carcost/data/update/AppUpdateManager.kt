@@ -5,44 +5,46 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.aggin.carcost.supabase
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.io.File
-import java.net.URL
 
+/** Информация об обновлении, полученная из Supabase-таблицы app_config */
 @Serializable
 data class VersionInfo(
-    @SerialName("version_code") val versionCode: Int,
-    @SerialName("version_name") val versionName: String,
-    @SerialName("apk_url") val apkUrl: String,
-    @SerialName("release_notes") val releaseNotes: String = ""
+    @SerialName("version_code")  val versionCode: Int,
+    @SerialName("version_name")  val versionName: String,
+    @SerialName("download_url")  val apkUrl: String,
+    @SerialName("release_notes") val releaseNotes: String = "",
+    @SerialName("force_update")  val forceUpdate: Boolean = false
 )
 
 class AppUpdateManager(private val context: Context) {
 
     companion object {
-        // Public URL to version.json in Supabase Storage bucket "releases"
-        private const val VERSION_JSON_URL =
-            "https://mkwwidzaovxosnhsjomy.supabase.co/storage/v1/object/public/releases/version.json"
         private const val TAG = "AppUpdateManager"
     }
 
-    private val json = Json { ignoreUnknownKeys = true }
-
-    /** Returns [VersionInfo] if a newer version is available, null otherwise. */
+    /**
+     * Проверяет наличие обновления через таблицу app_config в Supabase.
+     * Возвращает [VersionInfo] если доступна новая версия, иначе null.
+     */
     suspend fun checkForUpdate(): VersionInfo? = withContext(Dispatchers.IO) {
         try {
-            val raw = URL(VERSION_JSON_URL).readText()
-            val info = json.decodeFromString<VersionInfo>(raw)
+            val info = supabase
+                .from("app_config")
+                .select { filter { eq("id", "android") } }
+                .decodeSingle<VersionInfo>()
+
             val currentCode = context.packageManager
                 .getPackageInfo(context.packageName, 0).let {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
@@ -50,16 +52,25 @@ class AppUpdateManager(private val context: Context) {
                     else
                         @Suppress("DEPRECATION") it.versionCode
                 }
-            Log.d(TAG, "Current: $currentCode, Remote: ${info.versionCode}")
+
+            Log.d(TAG, "Текущая: $currentCode, Удалённая: ${info.versionCode}")
             if (info.versionCode > currentCode) info else null
         } catch (e: Exception) {
-            Log.w(TAG, "Update check failed: ${e.message}")
+            Log.w(TAG, "Проверка обновлений не удалась: ${e.message}")
             null
         }
     }
 
-    /** Downloads APK via system DownloadManager and installs when done. */
+    /**
+     * Скачивает APK через системный DownloadManager и запускает установку по завершении.
+     * Для скачивания нужно разрешение REQUEST_INSTALL_PACKAGES (уже есть в манифесте).
+     */
     fun downloadAndInstall(apkUrl: String) {
+        if (apkUrl.isBlank()) {
+            Log.w(TAG, "APK URL пустой — скачивание пропущено")
+            return
+        }
+
         val fileName = "carcost_update.apk"
         val dest = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
         if (dest.exists()) dest.delete()

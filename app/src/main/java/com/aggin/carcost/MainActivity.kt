@@ -39,9 +39,6 @@ class MainActivity : ComponentActivity() {
             ?.getQueryParameter("token")
         pendingNavRoute = extractNavRoute(intent)
 
-        // Subscribe to FCM topic — receives push when new app version is released
-        FirebaseMessaging.getInstance().subscribeToTopic("app_updates")
-
         setContent {
             val settingsManager = SettingsManager(LocalContext.current)
             val theme by settingsManager.themeFlow.collectAsState(initial = "System")
@@ -73,7 +70,7 @@ class MainActivity : ComponentActivity() {
 
                     pendingUpdate?.let { info ->
                         AlertDialog(
-                            onDismissRequest = { pendingUpdate = null },
+                            onDismissRequest = { if (!info.forceUpdate) pendingUpdate = null },
                             title = { Text("Доступно обновление ${info.versionName}") },
                             text = {
                                 Text(
@@ -89,12 +86,14 @@ class MainActivity : ComponentActivity() {
                             confirmButton = {
                                 TextButton(onClick = {
                                     updateManager.downloadAndInstall(info.apkUrl)
-                                    pendingUpdate = null
+                                    if (!info.forceUpdate) pendingUpdate = null
                                 }) { Text("Обновить") }
                             },
-                            dismissButton = {
-                                TextButton(onClick = { pendingUpdate = null }) {
-                                    Text("Позже")
+                            dismissButton = if (info.forceUpdate) null else {
+                                {
+                                    TextButton(onClick = { pendingUpdate = null }) {
+                                        Text("Позже")
+                                    }
                                 }
                             }
                         )

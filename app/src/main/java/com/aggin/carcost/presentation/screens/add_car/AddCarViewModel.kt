@@ -13,6 +13,7 @@ import com.aggin.carcost.data.local.database.entities.OdometerUnit
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
+import com.aggin.carcost.domain.gamification.AchievementChecker
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +53,12 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
+
+    private val achievementChecker = AchievementChecker(
+        achievementDao = database.achievementDao(),
+        expenseDao = database.expenseDao(),
+        carDao = database.carDao()
+    )
 
     private val _uiState = MutableStateFlow(AddCarUiState())
     val uiState: StateFlow<AddCarUiState> = _uiState.asStateFlow()
@@ -217,6 +224,9 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                 // 1. Сохраняем локально
                 val carId = carRepository.insertCar(car)
                 android.util.Log.d("AddCar", "Car saved locally with ID: $carId")
+
+                // 1a. Проверяем достижение «Автопарк» (2+ авто)
+                achievementChecker.checkAfterCarAdded(userId)
 
                 // 2. ✅ ИСПРАВЛЕНИЕ: Синхронизируем с Supabase БЕЗ локального ID
                 // НЕ передаём локальный ID - пусть Supabase сгенерирует свой!

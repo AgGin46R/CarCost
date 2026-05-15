@@ -34,6 +34,9 @@ class AchievementChecker(
         // EXPENSES_10
         if (totalCount >= 10) tryUnlock(userId, AchievementType.EXPENSES_10)
 
+        // EXPENSES_50
+        if (totalCount >= 50) tryUnlock(userId, AchievementType.EXPENSES_50)
+
         // EXPENSES_100
         if (totalCount >= 100) tryUnlock(userId, AchievementType.EXPENSES_100)
 
@@ -45,6 +48,43 @@ class AchievementChecker(
 
         // REGULAR_MAINTENANCE — 5+ planned maintenance entries
         checkRegularMaintenance(userId, carId)
+
+        // FUEL_VETERAN — 20+ fuel fill-ups
+        val fuelCount = expenses.count { it.category == ExpenseCategory.FUEL }
+        if (fuelCount >= 20) tryUnlock(userId, AchievementType.FUEL_VETERAN)
+
+        // NIGHT_DRIVER — expense added between 23:00 and 05:00
+        val lastExpense = expenses.maxByOrNull { it.createdAt }
+        if (lastExpense != null) {
+            val hour = Calendar.getInstance().apply { timeInMillis = lastExpense.createdAt }
+                .get(Calendar.HOUR_OF_DAY)
+            if (hour >= 23 || hour < 5) tryUnlock(userId, AchievementType.NIGHT_DRIVER)
+        }
+
+        // PHOTO_COLLECTOR — 10+ expenses with receipt photo
+        val photoCount = expenses.count { it.receiptPhotoUri != null }
+        if (photoCount >= 10) tryUnlock(userId, AchievementType.PHOTO_COLLECTOR)
+
+        // WORKSHOP_REGULAR — visited same workshop 5+ times
+        val workshopCounts = expenses
+            .mapNotNull { it.workshopName?.trim()?.lowercase() }
+            .groupingBy { it }
+            .eachCount()
+        if (workshopCounts.any { (_, count) -> count >= 5 }) {
+            tryUnlock(userId, AchievementType.WORKSHOP_REGULAR)
+        }
+
+        // HIGH_MILEAGE — odometer reached 100 000 km
+        val maxOdometer = expenses.maxOfOrNull { it.odometer } ?: 0
+        if (maxOdometer >= 100_000) tryUnlock(userId, AchievementType.HIGH_MILEAGE)
+    }
+
+    /**
+     * Check MULTI_CAR: user has 2+ cars. Call after adding a car.
+     */
+    suspend fun checkAfterCarAdded(userId: String) {
+        val activeCars = carDao?.getAllActiveCarsSync() ?: return
+        if (activeCars.size >= 2) tryUnlock(userId, AchievementType.MULTI_CAR)
     }
 
     suspend fun checkAfterDocumentAdded(userId: String) {

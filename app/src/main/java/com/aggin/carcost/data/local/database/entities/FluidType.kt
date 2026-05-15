@@ -8,7 +8,7 @@ enum class FluidType(
     ENGINE_OIL("Моторное масло", "🛢️", 90),
     BRAKE_FLUID("Тормозная жидкость", "🔴", 365),
     COOLANT("Охлаждающая жидкость", "🌡️", 365),
-    WINDSHIELD_WASHER("Омывайка", "💧", 30),
+    WINDSHIELD_WASHER("Омывайка", "🧴", 30),
     POWER_STEERING("Жидкость ГУР", "🔧", 365),
     TRANSMISSION("Трансмиссионное масло", "⚙️", 365)
 }
