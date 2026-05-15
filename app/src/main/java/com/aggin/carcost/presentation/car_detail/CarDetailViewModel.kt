@@ -54,7 +54,9 @@ data class CarDetailUiState(
     val isLoading: Boolean = true,
     val isSyncing: Boolean = false,
     val isOwner: Boolean = true, // default true to avoid UI flicker while loading
-    val userRole: MemberRole? = null  // null = owner who hasn't added members yet
+    val userRole: MemberRole? = null,  // null = owner who hasn't added members yet
+    val hasMoreExpenses: Boolean = false,  // есть ли ещё записи за пределами текущего лимита
+    val totalExpenseCount: Int = 0         // полное кол-во после фильтрации
 )
 
 class CarDetailViewModel(
@@ -81,6 +83,7 @@ class CarDetailViewModel(
     private val _isOwner = MutableStateFlow(true)
     private val _userRole = MutableStateFlow<MemberRole?>(null)
     private val _isSyncing = MutableStateFlow(false)
+    private val _displayLimit = MutableStateFlow(60)
 
     // Sources for health score — each emits lists from local DB
     private val _remindersFlow = database.maintenanceReminderDao().getAllRemindersByCarId(carId)
@@ -138,8 +141,16 @@ class CarDetailViewModel(
         )
     }
 
-    val uiState: StateFlow<CarDetailUiState> = combine(_baseState, _isOwner, _userRole, _isSyncing) { state, isOwner, role, syncing ->
-        state.copy(isOwner = isOwner, userRole = role, isSyncing = syncing)
+    val uiState: StateFlow<CarDetailUiState> = combine(_baseState, _isOwner, _userRole, _isSyncing, _displayLimit) { state, isOwner, role, syncing, displayLimit ->
+        val displayed = state.expenses.take(displayLimit)
+        state.copy(
+            isOwner = isOwner,
+            userRole = role,
+            isSyncing = syncing,
+            expenses = displayed,
+            hasMoreExpenses = state.expenses.size > displayLimit,
+            totalExpenseCount = state.expenses.size
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -288,11 +299,17 @@ class CarDetailViewModel(
     }
 
     fun applyFilter(filter: ExpenseFilter) {
+        _displayLimit.value = 60  // сброс при новом фильтре
         _currentFilter.value = filter
     }
 
     fun clearFilter() {
+        _displayLimit.value = 60
         _currentFilter.value = ExpenseFilter()
+    }
+
+    fun loadMoreExpenses() {
+        _displayLimit.update { it + 30 }
     }
 
     private fun applyFilters(

@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
@@ -181,7 +182,7 @@ fun GpsTripScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
@@ -405,12 +406,12 @@ private fun TripCard(
             }
 
             IconButton(onClick = onShowMap) {
-                Icon(Icons.Default.Map, null,
-                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Map, contentDescription = "Показать маршрут",
+                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null,
-                    tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Delete, contentDescription = "Удалить поездку",
+                    tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
             }
         }
     }

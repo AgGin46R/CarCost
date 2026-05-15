@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -261,7 +262,7 @@ fun CarBotScreen(navController: NavController) {
                     items(suggestions) { suggestion ->
                         SuggestionChip(
                             onClick = { viewModel.sendSuggestion(suggestion) },
-                            label = { Text(suggestion, fontSize = 12.sp, maxLines = 1) }
+                            label = { Text(suggestion, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                     }
                 }
@@ -272,6 +273,7 @@ fun CarBotScreen(navController: NavController) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .imePadding()
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

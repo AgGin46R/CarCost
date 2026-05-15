@@ -121,7 +121,7 @@ fun EnhancedAnalyticsScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item { CarSummaryCard(uiState) }
@@ -288,13 +288,13 @@ fun YearComparisonCard(yc: YearComparison) {
                     Icon(
                         if (isUp) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
                         null,
-                        tint = if (isUp) MaterialTheme.colorScheme.error else Color(0xFF4CAF50),
+                        tint = if (isUp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(28.dp)
                     )
                     Text(
                         "${if (isUp) "+" else ""}${"%.1f".format(yc.changePercent)}%",
                         fontWeight = FontWeight.Bold,
-                        color = if (isUp) MaterialTheme.colorScheme.error else Color(0xFF4CAF50),
+                        color = if (isUp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
                         fontSize = 13.sp
                     )
                 }
@@ -393,7 +393,7 @@ private fun CategoryTrendRow(trend: CategoryTrend) {
     val isNew = trend.previousAmount == 0.0
     val isUp = trend.changePercent > 0
     val color = if (isNew) MaterialTheme.colorScheme.primary
-    else if (isUp) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+    else if (isUp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -461,12 +461,16 @@ fun CarSummaryCard(uiState: AnalyticsUiState) {
                 Text(
                     "${uiState.car?.brand} ${uiState.car?.model}",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     "${uiState.car?.year} • ${uiState.car?.licensePlate}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (uiState.expenses.isNotEmpty()) {
                     Text(
@@ -516,13 +520,13 @@ fun MonthComparisonCard(uiState: AnalyticsUiState) {
                         Icon(
                             if (isUp) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
                             null,
-                            tint = if (isUp) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+                            tint = if (isUp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
                         )
                         Text(
                             "${if (isUp) "+" else ""}${"%.1f".format(uiState.monthComparison)}%",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = if (isUp) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+                            color = if (isUp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
                         )
                     }
                     Text(
@@ -781,7 +785,7 @@ fun ForecastCard(forecast: ExpenseForecast) {
                     }
                     val trendColor = when (forecast.trend) {
                         "increasing" -> MaterialTheme.colorScheme.error
-                        "decreasing" -> Color(0xFF4CAF50)
+                        "decreasing" -> MaterialTheme.colorScheme.tertiary
                         else -> MaterialTheme.colorScheme.onSecondaryContainer
                     }
                     Icon(trendIcon, null, tint = trendColor)
@@ -850,7 +854,7 @@ fun AnomalyCard(anomalies: List<com.aggin.carcost.presentation.screens.analytics
                             if (anomaly.changePercent > 0) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
                             null,
                             tint = if (anomaly.changePercent > 0) MaterialTheme.colorScheme.error
-                                   else Color(0xFF4CAF50),
+                                   else MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(6.dp))

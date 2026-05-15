@@ -44,6 +44,8 @@ data class ExpenseDto(
     val nextServiceDate: Long? = null,
     @SerialName("workshop_name")
     val workshopName: String? = null,
+    @SerialName("maintenance_parts")
+    val maintenanceParts: String? = null,
     @SerialName("created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @SerialName("updated_at")
@@ -156,6 +158,7 @@ private fun Expense.toDto(userId: String) = ExpenseDto(
     nextServiceOdometer = nextServiceOdometer,
     nextServiceDate = nextServiceDate,
     workshopName = workshopName,
+    maintenanceParts = maintenanceParts,
     createdAt = createdAt,
     updatedAt = updatedAt
 )
@@ -181,6 +184,7 @@ internal fun ExpenseDto.toExpense() = Expense(
     nextServiceOdometer = nextServiceOdometer,
     nextServiceDate = nextServiceDate,
     workshopName = workshopName,
+    maintenanceParts = maintenanceParts,
     createdAt = createdAt,
     updatedAt = updatedAt
 )

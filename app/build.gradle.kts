@@ -22,8 +22,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 59
-        versionName = "3.7.7"
+        versionCode = 60
+        versionName = "3.7.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -36,6 +36,10 @@ android {
             "\"${localProps.getProperty("supabase.anon_key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rd3dpZHphb3Z4b3NuaHNqb215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2NDgzNTEsImV4cCI6MjA3OTIyNDM1MX0.jycoe9IJe2xUv7QXP8aafubFBzebK6tsjKr0Ca4gh_M")}\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID",
             "\"${localProps.getProperty("google.web_client_id", "275357869761-tdmd17ql3oh7v0idrfe1770p81hbbmlu.apps.googleusercontent.com")}\"")
+        buildConfigField("String", "YANDEX_MAPKIT_KEY",
+            "\"${localProps.getProperty("yandex.mapkit_key", "9f9cb0c7-777a-4085-b75f-20758abb5abf")}\"")
+        manifestPlaceholders["yandexMapKitKey"] =
+            localProps.getProperty("yandex.mapkit_key", "9f9cb0c7-777a-4085-b75f-20758abb5abf")
     }
 
     buildTypes {

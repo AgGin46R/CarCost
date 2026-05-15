@@ -45,10 +45,10 @@
         android:theme="@style/Theme.CarCost"
         tools:targetApi="31">
 
-        <!-- YANDEX MAPKIT API KEY  -->
+        <!-- YANDEX MAPKIT API KEY (injected from local.properties via BuildConfig) -->
         <meta-data
             android:name="com.yandex.mapkit.ApiKey"
-            android:value="9f9cb0c7-777a-4085-b75f-20758abb5abf" />
+            android:value="${yandexMapKitKey}" />
 
         <activity
             android:name=".MainActivity"

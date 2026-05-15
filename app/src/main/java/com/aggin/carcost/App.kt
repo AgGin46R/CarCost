@@ -50,7 +50,7 @@ class App : Application() {
 
         try {
             // ✅ Инициализируем Yandex MapKit
-            MapKitFactory.setApiKey("9f9cb0c7-777a-4085-b75f-20758abb5abf")
+            MapKitFactory.setApiKey(BuildConfig.YANDEX_MAPKIT_KEY)
             MapKitFactory.initialize(this)
             Log.d(TAG, "Yandex MapKit initialized successfully")
         } catch (e: Exception) {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -58,7 +60,11 @@ fun CarDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(uiState.car?.let { "${it.brand} ${it.model}" } ?: "Загрузка...")
+                    Text(
+                        text = uiState.car?.let { "${it.brand} ${it.model}" } ?: "Загрузка...",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
@@ -227,7 +233,22 @@ fun CarDetailScreen(
             if (uiState.isSyncing) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
+            val listState = rememberLazyListState()
+
+            // Автоподгрузка: когда пользователь дошёл до последних 5 элементов
+            val shouldLoadMore by remember {
+                derivedStateOf {
+                    val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                    val total = listState.layoutInfo.totalItemsCount
+                    uiState.hasMoreExpenses && total > 0 && lastVisible >= total - 5
+                }
+            }
+            LaunchedEffect(shouldLoadMore) {
+                if (shouldLoadMore) viewModel.loadMoreExpenses()
+            }
+
             LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -242,7 +263,7 @@ fun CarDetailScreen(
 
             item {
                 ExpensesHeader(
-                    expenseCount = uiState.expenses.size,
+                    expenseCount = uiState.totalExpenseCount,
                     isFilterActive = uiState.currentFilter.isActive(),
                     onFilterClick = { showFilterDialog = true },
                     onClearFilter = { viewModel.clearFilter() }
@@ -277,6 +298,26 @@ fun CarDetailScreen(
                             navController.navigate(Screen.EditExpense.createRoute(expense.carId, expense.id))
                         }
                     )
+                }
+                // Индикатор подгрузки + счётчик скрытых записей
+                if (uiState.hasMoreExpenses) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                Text(
+                                    "Ещё ${uiState.totalExpenseCount - uiState.expenses.size}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -659,7 +700,9 @@ fun ExpenseCardContent(
                     Text(
                         text = getCategoryName(expense.category),
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = formatDate(expense.date),
@@ -677,14 +720,18 @@ fun ExpenseCardContent(
                         Text(
                             text = expense.description,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     if (expense.maintenanceParts?.isNotBlank() == true) {
                         Text(
                             text = "Детали: ${expense.maintenanceParts}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -884,11 +931,12 @@ private fun QuickAddRow(carId: String, navController: NavController, isMechanic:
 
 @Composable
 fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
+    val colorScheme = MaterialTheme.colorScheme
     val (label, color) = when {
-        score.total >= 85 -> "Отличное" to androidx.compose.ui.graphics.Color(0xFF2E7D32)
-        score.total >= 65 -> "Хорошее" to androidx.compose.ui.graphics.Color(0xFF1565C0)
-        score.total >= 40 -> "Среднее" to androidx.compose.ui.graphics.Color(0xFFEF6C00)
-        else              -> "Требует внимания" to androidx.compose.ui.graphics.Color(0xFFC62828)
+        score.total >= 85 -> "Отличное"        to colorScheme.tertiary
+        score.total >= 65 -> "Хорошее"         to colorScheme.primary
+        score.total >= 40 -> "Среднее"         to colorScheme.error.copy(alpha = 0.75f)
+        else              -> "Требует внимания" to colorScheme.error
     }
     var expanded by remember { mutableStateOf(false) }
 
@@ -981,9 +1029,9 @@ fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
                             color = if (factor.positive)
-                                androidx.compose.ui.graphics.Color(0xFF2E7D32)
+                                MaterialTheme.colorScheme.tertiary
                             else
-                                androidx.compose.ui.graphics.Color(0xFFC62828)
+                                MaterialTheme.colorScheme.error
                         )
                     }
                 }
@@ -994,10 +1042,10 @@ fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
 
 @Composable
 private fun HealthChip(text: String, danger: Boolean) {
-    val bg = if (danger) androidx.compose.ui.graphics.Color(0xFFFFCDD2)
-             else androidx.compose.ui.graphics.Color(0xFFC8E6C9)
-    val fg = if (danger) androidx.compose.ui.graphics.Color(0xFFB71C1C)
-             else androidx.compose.ui.graphics.Color(0xFF1B5E20)
+    val bg = if (danger) MaterialTheme.colorScheme.errorContainer
+             else MaterialTheme.colorScheme.tertiaryContainer
+    val fg = if (danger) MaterialTheme.colorScheme.onErrorContainer
+             else MaterialTheme.colorScheme.onTertiaryContainer
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
