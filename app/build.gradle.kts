@@ -14,6 +14,14 @@ val localProps = Properties()
 val localPropsFile = rootProject.file("local.properties")
 if (localPropsFile.exists()) localPropsFile.inputStream().use { localProps.load(it) }
 
+/**
+ * Ключ обязан быть в local.properties. Раньше здесь стояли захардкоженные
+ * фолбэки — из-за них реальные ключи попали в историю git и в каждый APK.
+ * Список нужных ключей — в README, раздел «Настройка local.properties».
+ */
+fun requiredProp(key: String): String = localProps.getProperty(key)?.takeIf { it.isNotBlank() }
+    ?: throw GradleException("В local.properties отсутствует '$key' — см. README, раздел «Настройка local.properties»")
+
 android {
     namespace = "com.aggin.carcost"
     compileSdk = 35
@@ -22,24 +30,35 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 61
-        versionName = "3.7.9"
+        versionCode = 65
+        versionName = "4.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
 
-        buildConfigField("String", "SUPABASE_URL",
-            "\"${localProps.getProperty("supabase.url", "https://mkwwidzaovxosnhsjomy.supabase.co")}\"")
-        buildConfigField("String", "SUPABASE_ANON_KEY",
-            "\"${localProps.getProperty("supabase.anon_key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rd3dpZHphb3Z4b3NuaHNqb215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2NDgzNTEsImV4cCI6MjA3OTIyNDM1MX0.jycoe9IJe2xUv7QXP8aafubFBzebK6tsjKr0Ca4gh_M")}\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID",
-            "\"${localProps.getProperty("google.web_client_id", "275357869761-tdmd17ql3oh7v0idrfe1770p81hbbmlu.apps.googleusercontent.com")}\"")
-        buildConfigField("String", "YANDEX_MAPKIT_KEY",
-            "\"${localProps.getProperty("yandex.mapkit_key", "9f9cb0c7-777a-4085-b75f-20758abb5abf")}\"")
-        manifestPlaceholders["yandexMapKitKey"] =
-            localProps.getProperty("yandex.mapkit_key", "9f9cb0c7-777a-4085-b75f-20758abb5abf")
+        val yandexMapKitKey = requiredProp("yandex.mapkit_key")
+
+        buildConfigField("String", "SUPABASE_URL", "\"${requiredProp("supabase.url")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${requiredProp("supabase.anon_key")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${requiredProp("google.web_client_id")}\"")
+        buildConfigField("String", "YANDEX_MAPKIT_KEY", "\"$yandexMapKitKey\"")
+        manifestPlaceholders["yandexMapKitKey"] = yandexMapKitKey
+
+        // VK ID: client_id публичен, client_secret тоже физически лежит в APK —
+        // этого требует сам VK ID SDK. Единственная реальная защита — серверная
+        // проверка токена в Edge Function vk-auth.
+        // Значения по умолчанию позволяют собрать приложение до регистрации на dev.vk.com:
+        // всё работает, кроме самого входа через VK.
+        val vkClientId = localProps.getProperty("vk.client_id")?.takeIf { it.isNotBlank() } ?: "0"
+        val vkClientSecret = localProps.getProperty("vk.client_secret") ?: ""
+
+        buildConfigField("String", "VK_CLIENT_ID", "\"$vkClientId\"")
+        manifestPlaceholders["VKIDClientID"] = vkClientId
+        manifestPlaceholders["VKIDClientSecret"] = vkClientSecret
+        manifestPlaceholders["VKIDRedirectHost"] = "vk.ru"
+        manifestPlaceholders["VKIDRedirectScheme"] = "vk$vkClientId"
     }
 
     buildTypes {
@@ -166,6 +185,9 @@ dependencies {
 
     // Accompanist
     implementation("com.google.accompanist:accompanist-permissions:0.33.2-alpha")
+
+    // VK ID SDK — вход через ВКонтакте (репозиторий VK объявлен в settings.gradle.kts)
+    implementation("com.vk.id:vkid:2.7.1")
 
     // Google Identity (Credential Manager) — для входа через Google
     implementation("androidx.credentials:credentials:1.3.0")

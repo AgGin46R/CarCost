@@ -54,6 +54,11 @@
 - Запись GPS-маршрутов с трекингом пробега
 - Визуализация поездки на карте
 
+### 🔑 Вход
+- Email + пароль
+- Вход через Google (Credential Manager)
+- Вход через ВКонтакте (VK ID)
+
 ### 👥 Совместное использование
 - Добавление совладельцев по email-приглашению
 - Чат участников с фото, голосовыми сообщениями и реакциями
@@ -94,6 +99,38 @@
 | **Шиммер** | Compose Shimmer |
 
 ---
+
+## ⚙️ Настройка local.properties
+
+Ключи не хранятся в репозитории — сборка **упадёт с внятной ошибкой**, если какого-то из них нет.
+Создайте `local.properties` в корне проекта (файл в `.gitignore`):
+
+```properties
+sdk.dir=C:\\путь\\к\\Android\\Sdk
+
+supabase.url=https://<project-ref>.supabase.co
+supabase.anon_key=<anon key из Supabase → Settings → API>
+google.web_client_id=<Web client ID из Google Cloud Console>
+yandex.mapkit_key=<ключ Yandex MapKit>
+
+# VK ID — App ID и «Защищённый ключ» с dev.vk.com.
+# Без них приложение собирается и работает, не работает только вход через VK.
+vk.client_id=0
+vk.client_secret=
+```
+
+**Настройка входа через ВКонтакте:**
+
+1. `dev.vk.com` → создать приложение, платформа Android
+2. Package name: `com.aggin.carcost`
+3. SHA-256 отпечатки **обоих** keystore — debug и release
+   (только debug → в release-сборке вход молча не работает):
+   ```bash
+   keytool -list -v -alias androiddebugkey -keystore "$USERPROFILE/.android/debug.keystore" -storepass android -keypass android
+   ```
+4. Доверенный Redirect URI: `vk<client_id>://vk.ru/blank.html` (домен **vk.ru**)
+5. Разрешить scope `email`
+6. Развернуть серверную часть — см. `supabase/vk_identities_setup.sql`
 
 ## 🏗 Архитектура
 
@@ -140,8 +177,8 @@ app/
 
 ## 🗺 Дорожная карта
 
-- [ ] Расход топлива L/100 км с графиком тренда
-- [ ] Напоминание о техосмотре по дате
+- [x] Расход топлива L/100 км с графиком тренда
+- [x] Напоминание о ТО по дате
 - [ ] Сезонная замена шин с историей
 - [ ] Калькулятор транспортного налога
 - [ ] Проверка штрафов ГИБДД

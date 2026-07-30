@@ -6,7 +6,9 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.auth.GoogleSignInHelper
+import com.aggin.carcost.data.auth.VkSignInHelper
 import com.aggin.carcost.data.local.database.AppDatabase
+import com.aggin.carcost.data.remote.api.VkAuthApi
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
@@ -253,6 +255,71 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                 )
             } catch (e: Exception) {
                 Log.e("LoginViewModel", "signInWithGoogle exception", e)
+                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
+            }
+        }
+    }
+
+    fun signInWithVk(context: Context) {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        // VK ID SDK показывает свой экран — стартуем с Main-потока
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+            try {
+                val authResult = VkSignInHelper.authorize(context)
+
+                if (authResult.isFailure) {
+                    val msg = authResult.exceptionOrNull()?.message
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = if (msg == VkSignInHelper.CANCELLED_MESSAGE) null
+                            else (msg ?: "Ошибка входа через VK")
+                        )
+                    }
+                    return@launch
+                }
+
+                val vkAuth = authResult.getOrThrow()
+
+                // Обмениваем VK-токен на сессию Supabase через Edge Function
+                val exchange = VkAuthApi.exchangeToken(vkAuth.accessToken, vkAuth.deviceId)
+                if (exchange.isFailure) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = exchange.exceptionOrNull()?.message ?: "Ошибка входа через VK"
+                        )
+                    }
+                    return@launch
+                }
+
+                val result = supabaseAuth.signInWithVk(exchange.getOrThrow().hashedToken)
+
+                result.fold(
+                    onSuccess = { userInfo ->
+                        Log.d("LoginViewModel", "Supabase VK sign-in success: ${userInfo.id}")
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            saveUserLocally(
+                                userId = userInfo.id,
+                                email = userInfo.email ?: "",
+                                displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"'),
+                                photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+                            )
+                        }
+                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                        backgroundScope.launch {
+                            try { syncRepo.fullSync() } catch (_: Exception) { }
+                        }
+                    },
+                    onFailure = { e ->
+                        Log.e("LoginViewModel", "Supabase VK sign-in failed", e)
+                        _uiState.update {
+                            it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка входа через VK")
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("LoginViewModel", "signInWithVk exception", e)
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
             }
         }

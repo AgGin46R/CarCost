@@ -58,7 +58,9 @@ data class ProfileUiState(
     val driverScore: DriverScore? = null,
     val isLoading: Boolean = true,
     val isUploadingPhoto: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Аккаунт заведён через ВКонтакте: пароля нет, email может быть синтетическим */
+    val isVkAccount: Boolean = false
 )
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
@@ -148,7 +150,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                                 totalOdometer = cars.sumOf { it.currentOdometer }
                             ),
                             driverScore = driverScore,
-                            isLoading = false
+                            isLoading = false,
+                            isVkAccount = supabaseAuth.isVkAccount()
                         )
                     } else {
                         _uiState.value = ProfileUiState(isLoading = false)
@@ -430,6 +433,23 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Инвалидирует токен VK ID. Ошибки не критичны — из приложения мы всё равно выходим. */
+    private suspend fun logoutFromVk() {
+        try {
+            com.vk.id.VKID.instance.logout(object : com.vk.id.logout.VKIDLogoutCallback {
+                override fun onSuccess() {
+                    android.util.Log.d("ProfileViewModel", "VK ID logout ok")
+                }
+
+                override fun onFail(fail: com.vk.id.logout.VKIDLogoutFail) {
+                    android.util.Log.w("ProfileViewModel", "VK ID logout failed: ${fail.description}")
+                }
+            })
+        } catch (e: Exception) {
+            android.util.Log.w("ProfileViewModel", "VK ID logout threw", e)
+        }
+    }
+
     fun signOut(navController: NavController) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -443,7 +463,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
                 // 2. Удаляем FCM токен чтобы не получать чужие уведомления после выхода
                 FcmTokenManager.deleteCurrentToken()
+
+                // Сессию VK нужно сбросить отдельно: иначе следующий вход через VK
+                // молча вернёт того же пользователя, без выбора аккаунта
+                val wasVkAccount = supabaseAuth.isVkAccount()
                 supabaseAuth.signOut()
+                if (wasVkAccount) logoutFromVk()
 
                 // 3. Очищаем ВСЕ локальные данные
                 try {

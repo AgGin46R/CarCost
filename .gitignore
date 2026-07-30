@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Не коммитить: конфигурация Firebase и артефакты сборки модулей
+app/google-services.json
+/shared/build
+

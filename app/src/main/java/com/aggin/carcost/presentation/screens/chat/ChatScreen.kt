@@ -153,7 +153,9 @@ data class ChatUiState(
     // Users who sent a message in the last 10 minutes (by userId)
     val onlineUserIds: Set<String> = emptySet(),
     // userId → cached profile for member card
-    val memberProfileCache: Map<String, MemberProfile> = emptyMap()
+    val memberProfileCache: Map<String, MemberProfile> = emptyMap(),
+    // userId → отображаемое имя отправителя (email — только запасной вариант)
+    val senderNames: Map<String, String> = emptyMap()
 )
 
 class ChatViewModel(
@@ -232,6 +234,54 @@ class ChatViewModel(
             db.carMemberDao().getMembersByCarId(carId).collect { members ->
                 _uiState.update { it.copy(memberEmails = members.map { m -> m.email }) }
             }
+        }
+
+        // Имена отправителей: подгружаем, как только в чате появляется новый участник
+        viewModelScope.launch {
+            _uiState
+                .map { state -> state.messages.map { it.userId }.distinct() }
+                .distinctUntilChanged()
+                .collect { userIds -> loadSenderNames(userIds) }
+        }
+    }
+
+    /**
+     * Подтягивает имена отправителей из профилей.
+     *
+     * Раньше в шапке сообщения показывался кусок email до «@». Для аккаунтов
+     * ВКонтакте без почты адрес синтетический (vk123456789@…), поэтому имя
+     * берём из таблицы users — заодно и у остальных вместо огрызка почты
+     * появляется нормальное имя.
+     */
+    private suspend fun loadSenderNames(userIds: List<String>) {
+        val known = _uiState.value.senderNames
+        val missing = userIds.filter { it.isNotBlank() && !known.containsKey(it) }
+        if (missing.isEmpty()) return
+
+        val resolved = mutableMapOf<String, String>()
+
+        missing.forEach { id ->
+            db.userDao().getUserById(id).firstOrNull()
+                ?.displayName?.takeIf { it.isNotBlank() }
+                ?.let { resolved[id] = it }
+        }
+
+        val stillMissing = missing.filterNot { resolved.containsKey(it) }
+        if (stillMissing.isNotEmpty()) {
+            try {
+                com.aggin.carcost.supabase.from("users")
+                    .select { filter { isIn("id", stillMissing) } }
+                    .decodeList<com.aggin.carcost.data.remote.repository.SupabaseUserDto>()
+                    .forEach { dto ->
+                        dto.displayName?.takeIf { it.isNotBlank() }?.let { resolved[dto.id] = it }
+                    }
+            } catch (_: Exception) {
+                // Офлайн — покажем email, ничего страшного
+            }
+        }
+
+        if (resolved.isNotEmpty()) {
+            _uiState.update { it.copy(senderNames = it.senderNames + resolved) }
         }
     }
 
@@ -1091,6 +1141,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                                 viewModel.fetchMemberProfile(message.userId, message.userEmail)
                                 selectedMemberProfile = message.userId to message.userEmail
                             }) else ({}),
+                            senderName = uiState.senderNames[message.userId],
                             onJumpToMessage = { targetId ->
                                 screenScope.launch {
                                     val grouped = uiState.messages.groupByDate()
@@ -1459,8 +1510,14 @@ private fun ChatBubble(
     currentUserId: String = "",
     onToggleReaction: (String) -> Unit = {},
     isOnline: Boolean = false,
-    onAvatarClick: () -> Unit = {}
+    onAvatarClick: () -> Unit = {},
+    senderName: String? = null
 ) {
+    // Имя из профиля, если оно известно. Email — запасной вариант: у пользователей,
+    // вошедших через VK без почты, адрес синтетический (vk123456789@…)
+    val senderLabel = senderName?.takeIf { it.isNotBlank() }
+        ?: message.userEmail.substringBefore("@")
+
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -1610,12 +1667,14 @@ private fun ChatBubble(
                     Box(modifier = Modifier.size(36.dp)) {
                         // Avatar circle — clickable to show profile card
                         Box(
+                            // Цвет по userId, а не по email: у VK-аккаунтов адреса
+                            // однотипные (vk123@…), цвета бы слиплись
                             modifier = Modifier.size(32.dp).clip(CircleShape)
-                                .background(avatarColor(message.userEmail))
+                                .background(avatarColor(message.userId))
                                 .clickable { onAvatarClick() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(message.userEmail.take(1).uppercase(), color = Color.White,
+                            Text(senderLabel.take(1).uppercase(), color = Color.White,
                                 fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                         // Online indicator dot (bottom-right)
@@ -1646,7 +1705,7 @@ private fun ChatBubble(
                 ) {
                     if (!isMe) {
                         Text(
-                            message.userEmail.substringBefore("@"),
+                            senderLabel,
                             fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)

@@ -213,6 +213,24 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Кнопка регистрации через ВКонтакте
+            OutlinedButton(
+                onClick = { viewModel.signInWithVk(context) },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = !uiState.isLoading
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_vk),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color.Unspecified
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Зарегистрироваться через VK", style = MaterialTheme.typography.titleSmall)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Кнопка входа
             TextButton(
                 onClick = { navController.popBackStack() },

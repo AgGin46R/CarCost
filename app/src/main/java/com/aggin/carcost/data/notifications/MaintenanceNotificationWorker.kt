@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.aggin.carcost.data.local.database.AppDatabase
+import java.util.concurrent.TimeUnit
 
 class MaintenanceNotificationWorker(
     appContext: Context,
@@ -14,6 +15,11 @@ class MaintenanceNotificationWorker(
         const val WORK_NAME = "maintenance_check"
         // Уведомлять если до ТО осталось менее 500 км
         private const val NOTIFICATION_THRESHOLD_KM = 500
+        // ...или менее 7 дней, если у напоминания задана дата
+        private const val NOTIFICATION_THRESHOLD_DAYS = 7
+        // Своя область id, чтобы не пересекаться с остальными уведомлениями
+        // (5000 — жидкости, 6000 — документы, 9001 — обновление, 50000+ — чат и расходы)
+        private const val DATE_NOTIFICATION_ID_BASE = 7000
     }
 
     override suspend fun doWork(): Result {
@@ -22,22 +28,53 @@ class MaintenanceNotificationWorker(
         val carDao = db.carDao()
 
         val reminders = reminderDao.getAllActiveReminders()
+        val now = System.currentTimeMillis()
 
         reminders.forEachIndexed { index, reminder ->
             val car = carDao.getCarById(reminder.carId) ?: return@forEachIndexed
+            val carName = "${car.brand} ${car.model}"
             val kmLeft = reminder.nextChangeOdometer - car.currentOdometer
 
             if (kmLeft <= NOTIFICATION_THRESHOLD_KM) {
                 NotificationHelper.sendMaintenanceNotification(
                     context = applicationContext,
                     notificationId = index + 1,
-                    carName = "${car.brand} ${car.model}",
+                    carName = carName,
                     serviceType = reminder.type.displayName,
                     kmLeft = kmLeft
+                )
+                return@forEachIndexed
+            }
+
+            // Напоминание по дате. Поля intervalDays/nextChangeDate давно есть
+            // в схеме и в UI, но до сих пор их не читал ни один воркер —
+            // напоминание по дате молча не срабатывало.
+            val dueDate = reminder.nextChangeDate ?: return@forEachIndexed
+            val daysLeft = TimeUnit.MILLISECONDS.toDays(dueDate - now)
+
+            if (daysLeft <= NOTIFICATION_THRESHOLD_DAYS) {
+                val body = when {
+                    daysLeft < 0 -> "${reminder.type.displayName} — просрочено на ${-daysLeft} ${dayWord(-daysLeft)}"
+                    daysLeft == 0L -> "${reminder.type.displayName} — сегодня"
+                    else -> "${reminder.type.displayName} — через $daysLeft ${dayWord(daysLeft)}"
+                }
+                NotificationHelper.sendGenericNotification(
+                    context = applicationContext,
+                    notificationId = DATE_NOTIFICATION_ID_BASE + index,
+                    title = "ТО по сроку: $carName",
+                    body = body,
+                    carId = reminder.carId,
+                    navType = NotificationHelper.NAV_TYPE_CAR
                 )
             }
         }
 
         return Result.success()
+    }
+
+    private fun dayWord(days: Long): String = when {
+        days % 10 == 1L && days % 100 != 11L -> "день"
+        days % 10 in 2..4 && days % 100 !in 12..14 -> "дня"
+        else -> "дней"
     }
 }

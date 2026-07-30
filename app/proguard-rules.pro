@@ -37,6 +37,12 @@
 -dontwarn io.ktor.**
 -dontwarn io.github.jan.supabase.**
 
+# VK ID SDK (включая vkid-captcha — он приходит уже обфусцированным,
+# R8 ругается на отсутствующие Companion; повторно его обфусцировать не нужно)
+-keep class com.vk.id.** { *; }
+-keep class com.vk.silentauth.** { *; }
+-dontwarn com.vk.id.**
+
 # Yandex MapKit
 -keep class com.yandex.** { *; }
 -dontwarn com.yandex.**

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Скруглённый квадрат фирменного синего цвета VK -->
+    <path
+        android:fillColor="#0077FF"
+        android:pathData="M6,1 L18,1 A5,5 0 0 1 23,6 L23,18 A5,5 0 0 1 18,23 L6,23 A5,5 0 0 1 1,18 L1,6 A5,5 0 0 1 6,1 Z"/>
+    <!-- V -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2.8,7.0 L5.0,7.0 L7.0,13.6 L9.0,7.0 L11.2,7.0 L8.1,17.0 L5.9,17.0 Z"/>
+    <!-- K — вертикальная стойка -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12.6,7.0 L14.8,7.0 L14.8,17.0 L12.6,17.0 Z"/>
+    <!-- K — лучи -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14.8,12.0 L18.0,7.0 L20.5,7.0 L17.0,12.0 L20.8,17.0 L18.2,17.0 Z"/>
+</vector>

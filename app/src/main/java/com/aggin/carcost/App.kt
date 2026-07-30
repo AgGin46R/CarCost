@@ -21,6 +21,7 @@ import com.aggin.carcost.data.notifications.YearOwnerCheckWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
 import com.aggin.carcost.data.sync.RealtimeSyncManager
+import com.vk.id.VKID
 import com.yandex.mapkit.MapKitFactory
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
@@ -56,6 +57,15 @@ class App : Application() {
             Log.d(TAG, "Yandex MapKit initialized successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize MapKit", e)
+        }
+
+        try {
+            // Если приложение ещё не заведено на dev.vk.com, init может упасть.
+            // Ловим здесь, иначе не запустится всё приложение, а не только вход через VK.
+            VKID.init(this)
+            Log.d(TAG, "VK ID initialized successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize VK ID", e)
         }
 
         try {

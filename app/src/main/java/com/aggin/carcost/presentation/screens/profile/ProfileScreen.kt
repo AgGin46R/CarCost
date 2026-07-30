@@ -39,6 +39,62 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.isGranted
 
+/** Домен синтетических адресов, которые Edge Function vk-auth выдаёт VK-аккаунтам без почты */
+private const val VK_EMAIL_DOMAIN = "vk.carcost.app"
+
+/**
+ * Приглашение в чужой автомобиль отправляется на email. У VK-пользователя без
+ * почты адрес синтетический, и пригласить его никто не сможет, пока он сам не
+ * сообщит этот адрес — поэтому даём его скопировать.
+ */
+@Composable
+private fun InvitationAddressCard(address: String) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = LocalContext.current
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Адрес для приглашений",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = address,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "Сообщите его тому, кто добавит вас в свой автомобиль",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = {
+                clipboard.setText(androidx.compose.ui.text.AnnotatedString(address))
+                android.widget.Toast
+                    .makeText(context, "Адрес скопирован", android.widget.Toast.LENGTH_SHORT)
+                    .show()
+            }) {
+                Icon(Icons.Default.ContentCopy, contentDescription = "Скопировать")
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ProfileScreen(
@@ -124,13 +180,23 @@ fun ProfileScreen(
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
         ) {
+            // У аккаунтов ВКонтакте без почты адрес синтетический — показывать его
+            // как «email пользователя» бессмысленно
+            val userEmail = uiState.user?.email ?: ""
+            val isSyntheticEmail = userEmail.endsWith("@$VK_EMAIL_DOMAIN")
+
             ProfileHeader(
                 displayName = uiState.user?.displayName ?: "Пользователь",
-                email = uiState.user?.email ?: "",
+                email = if (isSyntheticEmail) "Вход через ВКонтакте" else userEmail,
                 photoUrl = uiState.user?.photoUrl,
                 isUploading = uiState.isUploadingPhoto,
                 onPhotoClick = { showPhotoOptionsDialog = true }
             )
+
+            if (isSyntheticEmail) {
+                Spacer(modifier = Modifier.height(16.dp))
+                InvitationAddressCard(address = userEmail)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -173,7 +239,9 @@ fun ProfileScreen(
                 onEditProfile = { showEditDialog = true },
                 onChangePassword = { showPasswordDialog = true },
                 onChangeAppearance = { showAppearanceDialog = true },
-                onLogout = { showLogoutDialog = true }
+                onLogout = { showLogoutDialog = true },
+                // У аккаунта через VK пароля нет — смена пароля упала бы на сервере
+                showChangePassword = !uiState.isVkAccount
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -598,7 +666,8 @@ fun ActionsSection(
     onEditProfile: () -> Unit,
     onChangePassword: () -> Unit,
     onChangeAppearance: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    showChangePassword: Boolean = true
 ) {
     Column(
         modifier = Modifier
@@ -619,7 +688,9 @@ fun ActionsSection(
             onClick = { navController.navigate(Screen.ChatsList.route) }
         )
         ActionItem(icon = Icons.Default.Palette, title = "Внешний вид", onClick = onChangeAppearance)
-        ActionItem(icon = Icons.Default.Lock, title = "Сменить пароль", onClick = onChangePassword)
+        if (showChangePassword) {
+            ActionItem(icon = Icons.Default.Lock, title = "Сменить пароль", onClick = onChangePassword)
+        }
         ActionItem(
             icon = Icons.Default.Category,
             title = "Категории и теги",

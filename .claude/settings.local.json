@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"E:/CarCost\" log --all --oneline)",
+      "Bash(git -C \"E:/CarCost\" grep \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\" --all)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(adb logcat *)",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__list_projects",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__execute_sql",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__deploy_edge_function",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__get_project_url",
+      "mcp__adaca836-1e3f-4340-89f9-e237de78e5c9__get_publishable_keys"
+    ]
+  }
+}

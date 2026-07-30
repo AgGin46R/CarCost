@@ -11,6 +11,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -19,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.compose.material.icons.filled.DirectionsCar
+import com.aggin.carcost.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,6 +145,46 @@ fun LoginScreen(
                 } else {
                     Text("Войти", style = MaterialTheme.typography.titleMedium)
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            val context = LocalContext.current
+
+            // Вход через Google
+            OutlinedButton(
+                onClick = { viewModel.signInWithGoogle(context) },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = !uiState.isLoading
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_google),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color.Unspecified
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Войти через Google", style = MaterialTheme.typography.titleSmall)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Вход через ВКонтакте
+            OutlinedButton(
+                onClick = { viewModel.signInWithVk(context) },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = !uiState.isLoading
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_vk),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color.Unspecified
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Войти через VK", style = MaterialTheme.typography.titleSmall)
             }
 
             Spacer(modifier = Modifier.height(8.dp))

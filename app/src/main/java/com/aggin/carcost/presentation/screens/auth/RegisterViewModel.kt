@@ -6,8 +6,10 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.auth.GoogleSignInHelper
+import com.aggin.carcost.data.auth.VkSignInHelper
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.User
+import com.aggin.carcost.data.remote.api.VkAuthApi
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
@@ -269,6 +271,70 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     onFailure = { e ->
                         _uiState.update {
                             it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка регистрации через Google")
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
+            }
+        }
+    }
+
+    fun signInWithVk(context: Context) {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+            try {
+                val authResult = VkSignInHelper.authorize(context)
+
+                if (authResult.isFailure) {
+                    val msg = authResult.exceptionOrNull()?.message
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = if (msg == VkSignInHelper.CANCELLED_MESSAGE) null
+                            else (msg ?: "Ошибка входа через VK")
+                        )
+                    }
+                    return@launch
+                }
+
+                val vkAuth = authResult.getOrThrow()
+
+                val exchange = VkAuthApi.exchangeToken(vkAuth.accessToken, vkAuth.deviceId)
+                if (exchange.isFailure) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = exchange.exceptionOrNull()?.message ?: "Ошибка входа через VK"
+                        )
+                    }
+                    return@launch
+                }
+
+                val result = supabaseAuth.signInWithVk(exchange.getOrThrow().hashedToken)
+
+                result.fold(
+                    onSuccess = { userInfo ->
+                        val displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"')
+                        val photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+                        val user = User(
+                            uid = userInfo.id,
+                            email = userInfo.email ?: "",
+                            displayName = displayName ?: "Пользователь",
+                            photoUrl = photoUrl,
+                            lastLoginAt = System.currentTimeMillis()
+                        )
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            database.userDao().insertUser(user)
+                        }
+                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                        backgroundScope.launch {
+                            try { syncRepo.safeInitialSync() } catch (_: Exception) { }
+                        }
+                    },
+                    onFailure = { e ->
+                        _uiState.update {
+                            it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка регистрации через VK")
                         }
                     }
                 )

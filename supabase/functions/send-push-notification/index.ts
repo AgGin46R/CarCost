@@ -117,6 +117,26 @@ async function sendFcmMessage(
   }
 }
 
+// ── Проверка вызывающего ─────────────────────────────────────────────────────
+// Функция работает под service_role и обходит RLS, а вызывает её только
+// триггерная функция public.notify_push. Без этой проверки любой POST рассылал бы
+// произвольные title/body всем участникам любого автомобиля.
+//
+// Секрет задаётся в Project Settings → Edge Functions → Secrets как WEBHOOK_SECRET
+// и должен совпадать со значением в public.notify_push (см. supabase/webhook_secret_setup.sql).
+
+const webhookSecret = Deno.env.get('WEBHOOK_SECRET') ?? ''
+
+/** Сравнение за постоянное время — чтобы по времени ответа нельзя было подобрать секрет */
+function secretMatches(provided: string): boolean {
+  if (!webhookSecret || provided.length !== webhookSecret.length) return false
+  let diff = 0
+  for (let i = 0; i < webhookSecret.length; i++) {
+    diff |= webhookSecret.charCodeAt(i) ^ provided.charCodeAt(i)
+  }
+  return diff === 0
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -124,9 +144,14 @@ Deno.serve(async (req) => {
     return new Response('ok', {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-secret',
       },
     })
+  }
+
+  if (!secretMatches(req.headers.get('x-webhook-secret') ?? '')) {
+    console.warn('Rejected call with missing/invalid x-webhook-secret')
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
   }
 
   try {

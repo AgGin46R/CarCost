@@ -2,6 +2,7 @@ package com.aggin.carcost.data.remote.repository
 
 import android.util.Log
 import com.aggin.carcost.supabase
+import io.github.jan.supabase.gotrue.OtpType
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.Email
@@ -126,6 +127,57 @@ class SupabaseAuthRepository {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Вход через ВКонтакте.
+     *
+     * У GoTrue нет провайдера VK, поэтому токен VK проверяется на сервере —
+     * Edge Function `vk-auth` возвращает hashed_token магической ссылки,
+     * а GoTrue по нему создаёт и сохраняет сессию (verifyEmailOtp внутри
+     * сам вызывает importSession).
+     *
+     * @param hashedToken значение hashed_token из ответа Edge Function
+     */
+    suspend fun signInWithVk(hashedToken: String): Result<UserInfo> = withContext(Dispatchers.IO) {
+        try {
+            supabase.auth.verifyEmailOtp(
+                type = OtpType.Email.MAGIC_LINK,
+                tokenHash = hashedToken
+            )
+
+            val user = supabase.auth.currentUserOrNull()
+                ?: return@withContext Result.failure(Exception("Пользователь не найден"))
+
+            val displayName = user.userMetadata?.get("full_name")?.toString()?.trim('"')
+            val photoUrl = user.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+
+            val profile = buildJsonObject {
+                put("id", user.id)
+                put("email", user.email ?: "")
+                put("display_name", displayName)
+                put("photo_url", photoUrl)
+                put("last_login_at", System.currentTimeMillis())
+            }
+
+            try {
+                supabase.from("users").upsert(profile)
+            } catch (e: Exception) {
+                Log.w("SupabaseAuth", "Profile upsert failed (non-critical): ${e.message}")
+            }
+
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Аккаунт заведён через ВКонтакте.
+     * У таких пользователей нет пароля, а email может быть синтетическим.
+     */
+    fun isVkAccount(): Boolean {
+        return supabase.auth.currentUserOrNull()?.userMetadata?.get("vk_id") != null
     }
 
     /**
