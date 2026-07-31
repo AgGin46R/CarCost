@@ -24,6 +24,7 @@ import com.aggin.carcost.presentation.navigation.Screen
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import com.aggin.carcost.presentation.common.displayName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -291,23 +292,5 @@ private fun serviceLabel(expense: com.aggin.carcost.data.local.database.entities
     return expense.serviceType?.let { serviceTypeName(it) } ?: "Обслуживание"
 }
 
-private fun serviceTypeName(type: ServiceType) = when (type) {
-    ServiceType.OIL_CHANGE -> "Замена масла"
-    ServiceType.OIL_FILTER -> "Масляный фильтр"
-    ServiceType.AIR_FILTER -> "Воздушный фильтр"
-    ServiceType.CABIN_FILTER -> "Салонный фильтр"
-    ServiceType.FUEL_FILTER -> "Топливный фильтр"
-    ServiceType.SPARK_PLUGS -> "Свечи зажигания"
-    ServiceType.BRAKE_PADS -> "Тормозные колодки"
-    ServiceType.BRAKE_FLUID -> "Тормозная жидкость"
-    ServiceType.COOLANT -> "Охлаждающ��я жидкость"
-    ServiceType.TRANSMISSION_FLUID -> "Трансмиссионное масло"
-    ServiceType.TIMING_BELT -> "Ремень ГРМ"
-    ServiceType.TIRES -> "Шины"
-    ServiceType.BATTERY -> "Аккумулятор"
-    ServiceType.ALIGNMENT -> "Развал-схождение"
-    ServiceType.BALANCING -> "Балансировка"
-    ServiceType.INSPECTION -> "Техосмотр"
-    ServiceType.FULL_SERVICE -> "Полное ТО"
-    ServiceType.OTHER -> "Прочее"
-}
+private fun serviceTypeName(type: ServiceType) = type.displayName()
+

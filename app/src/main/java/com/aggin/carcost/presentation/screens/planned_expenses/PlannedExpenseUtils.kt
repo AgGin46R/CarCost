@@ -1,51 +1,24 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.aggin.carcost.data.local.database.entities.*
-import java.text.SimpleDateFormat
-import java.util.*
+import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.presentation.common.formatDateShort
+import com.aggin.carcost.presentation.common.icon
+import com.aggin.carcost.util.CurrencyUtils
 
-// Иконки категорий
-fun getCategoryIcon(category: ExpenseCategory): ImageVector = when (category) {
-    ExpenseCategory.FUEL -> Icons.Default.LocalGasStation
-    ExpenseCategory.MAINTENANCE -> Icons.Default.Build
-    ExpenseCategory.REPAIR -> Icons.Default.CarRepair
-    ExpenseCategory.INSURANCE -> Icons.Default.Security
-    ExpenseCategory.TAX -> Icons.Default.AttachMoney
-    ExpenseCategory.PARKING -> Icons.Default.LocalParking
-    ExpenseCategory.WASH -> Icons.Default.LocalCarWash
-    ExpenseCategory.FINE -> Icons.Default.Warning
-    ExpenseCategory.TOLL -> Icons.Default.Toll
-    ExpenseCategory.ACCESSORIES -> Icons.Default.ShoppingCart
-    ExpenseCategory.OTHER -> Icons.Default.MoreHoriz
-}
+// Подписи, иконки и форматы живут в presentation/common/Labels.kt — здесь только
+// привычные экрану имена, чтобы не переписывать десятки вызовов.
 
-// Названия категорий
-fun getCategoryName(category: ExpenseCategory): String = when (category) {
-    ExpenseCategory.FUEL -> "Топливо"
-    ExpenseCategory.MAINTENANCE -> "ТО"
-    ExpenseCategory.REPAIR -> "Ремонт"
-    ExpenseCategory.INSURANCE -> "Страховка"
-    ExpenseCategory.TAX -> "Налог"
-    ExpenseCategory.PARKING -> "Парковка"
-    ExpenseCategory.WASH -> "Мойка"
-    ExpenseCategory.FINE -> "Штраф"
-    ExpenseCategory.TOLL -> "Платная дорога"
-    ExpenseCategory.ACCESSORIES -> "Аксессуары"
-    ExpenseCategory.OTHER -> "Другое"
-}
+fun getCategoryIcon(category: ExpenseCategory): ImageVector = category.icon()
 
-// Форматирование даты
-fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd MMM yyyy", Locale("ru"))
-    return sdf.format(Date(timestamp))
-}
+fun getCategoryName(category: ExpenseCategory): String = category.displayName()
 
-// Форматирование валюты
-fun formatCurrency(amount: Double): String {
-    return String.format("%.0f ₽", amount)
-}
+fun formatDate(timestamp: Long): String = formatDateShort(timestamp)
+
+/**
+ * Раньше здесь был жёстко зашит ₽ — при валюте автомобиля, отличной от рубля,
+ * планируемые расходы показывали неверный символ.
+ */
+fun formatCurrency(amount: Double, currency: String = "RUB"): String =
+    CurrencyUtils.format(amount, currency)

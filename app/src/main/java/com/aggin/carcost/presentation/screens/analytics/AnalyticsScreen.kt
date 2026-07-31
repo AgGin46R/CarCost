@@ -39,6 +39,24 @@ import com.patrykandpatrick.vico.compose.chart.column.columnChart
 import com.patrykandpatrick.vico.compose.chart.line.lineChart
 import com.patrykandpatrick.vico.core.entry.entryModelOf
 import kotlin.math.abs
+import com.aggin.carcost.presentation.common.color
+import com.aggin.carcost.presentation.common.displayName
+
+/**
+ * Валюта текущего автомобиля.
+ *
+ * Раньше символ ₽ был захардкожен в 16 местах этого файла, и при валюте машины,
+ * отличной от рубля, весь экран показывал неверные подписи. Такую же правку
+ * проект уже пережил в планируемых расходах.
+ */
+private val LocalCarCurrency = androidx.compose.runtime.compositionLocalOf { "RUB" }
+
+@Composable
+private fun currencyFormat(amount: Double, decimals: Int = 0): String {
+    val symbol = com.aggin.carcost.util.CurrencyUtils.symbol(LocalCarCurrency.current)
+    return "%.${decimals}f $symbol".format(amount)
+}
+
 
 // --- ФАБРИКА ДЛЯ СОЗДАНИЯ VIEWMODEL С ПАРАМЕТРАМИ ---
 class AnalyticsViewModelFactory(
@@ -98,6 +116,7 @@ fun EnhancedAnalyticsScreen(
             )
         }
     ) { paddingValues ->
+      CompositionLocalProvider(LocalCarCurrency provides (uiState.car?.currency ?: "RUB")) {
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
             onRefresh = { viewModel.refresh() },
@@ -173,6 +192,7 @@ fun EnhancedAnalyticsScreen(
             }
         } // end else
         } // end PullToRefreshBox
+      } // end CompositionLocalProvider
     } // end Scaffold
 } // end EnhancedAnalyticsScreen
 
@@ -313,7 +333,7 @@ private fun YearBlock(year: String, amount: Double, primary: Boolean) {
             color = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "%.0f ₽".format(amount),
+            currencyFormat(amount),
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.bodyLarge,
             color = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
@@ -353,7 +373,7 @@ fun TopExpenseMonthsCard(topMonths: List<TopMonth>) {
                         Text("${tm.rank}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
                     }
                     Text(tm.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    Text("%.0f ₽".format(tm.amount), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                    Text(currencyFormat(tm.amount), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
                 }
                 if (index < topMonths.size - 1) HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
             }
@@ -411,7 +431,7 @@ private fun CategoryTrendRow(trend: CategoryTrend) {
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            "%.0f ₽".format(trend.recentAmount),
+            currencyFormat(trend.recentAmount),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -474,7 +494,7 @@ fun CarSummaryCard(uiState: AnalyticsUiState) {
                 )
                 if (uiState.expenses.isNotEmpty()) {
                     Text(
-                        "${uiState.expenses.size} записей • итого %.0f ₽".format(uiState.totalExpenses),
+                        "${uiState.expenses.size} записей • итого ${currencyFormat(uiState.totalExpenses)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -510,7 +530,7 @@ fun MonthComparisonCard(uiState: AnalyticsUiState) {
                 Column {
                     Text("Текущий месяц", style = MaterialTheme.typography.bodySmall)
                     Text(
-                        "%.0f ₽".format(uiState.currentMonthExpenses),
+                        currencyFormat(uiState.currentMonthExpenses),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -530,7 +550,7 @@ fun MonthComparisonCard(uiState: AnalyticsUiState) {
                         )
                     }
                     Text(
-                        "Прошлый: %.0f ₽".format(uiState.previousMonthExpenses),
+                        "Прошлый: ${currencyFormat(uiState.previousMonthExpenses)}",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -549,14 +569,14 @@ fun MainStatisticsCard(uiState: AnalyticsUiState) {
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(16.dp))
-            StatRow("Всего потрачено", "%.2f ₽".format(uiState.totalExpenses), Icons.Default.AccountBalanceWallet)
+            StatRow("Всего потрачено", currencyFormat(uiState.totalExpenses, 2), Icons.Default.AccountBalanceWallet)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            StatRow("В среднем в месяц", "%.0f ₽".format(uiState.averageExpensePerMonth), Icons.Default.CalendarMonth)
+            StatRow("В среднем в месяц", currencyFormat(uiState.averageExpensePerMonth), Icons.Default.CalendarMonth)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            StatRow("В среднем в день", "%.0f ₽".format(uiState.averageExpensePerDay), Icons.Default.Today)
+            StatRow("В среднем в день", currencyFormat(uiState.averageExpensePerDay), Icons.Default.Today)
             if (uiState.averageExpensePerKm > 0) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                StatRow("На 1 км", "%.2f ₽".format(uiState.averageExpensePerKm), Icons.Default.Speed)
+                StatRow("На 1 км", currencyFormat(uiState.averageExpensePerKm, 2), Icons.Default.Speed)
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             StatRow("Записей расходов", "${uiState.expenses.size}", Icons.Default.Receipt)
@@ -637,7 +657,7 @@ fun CategoryLegendItem(category: CategoryExpense) {
             Text(getCategoryName(category.category), style = MaterialTheme.typography.bodyMedium)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("%.0f ₽".format(category.amount), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+            Text(currencyFormat(category.amount), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             Text(
                 "${category.count} шт. • ${"%.1f".format(category.percentage)}%",
                 style = MaterialTheme.typography.bodySmall,
@@ -673,7 +693,7 @@ fun MonthlyChartCard(monthlyExpenses: List<MonthlyExpense>) {
                 if (peak != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Пик: ${peak.month} ${peak.year} — ${"%.0f ₽".format(peak.amount)}",
+                        "Пик: ${peak.month} ${peak.year} — ${currencyFormat(peak.amount)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -696,15 +716,24 @@ fun FuelStatisticsCard(fuelStats: FuelStatistics) {
                 Text("Статистика по топливу", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(16.dp))
-            FuelStatRow("Средний расход", "%.2f л/100км".format(fuelStats.averageConsumption))
+            // Расход считается только по заправкам «до полного»: пока их меньше двух,
+            // честного числа нет, и показывать выдуманное хуже, чем объяснить почему
+            FuelStatRow(
+                "Средний расход",
+                fuelStats.averageConsumption
+                    ?.let { "%.2f л/100км".format(it) }
+                    ?: "нужны 2 заправки до полного"
+            )
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             FuelStatRow("Всего заправлено", "%.1f л".format(fuelStats.totalLiters))
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Потрачено на топливо", "%.0f ₽".format(fuelStats.totalCost))
+            FuelStatRow("Потрачено на топливо", currencyFormat(fuelStats.totalCost))
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Средняя цена за литр", "%.2f ₽".format(fuelStats.averagePricePerLiter))
+            FuelStatRow("Средняя цена за литр", currencyFormat(fuelStats.averagePricePerLiter))
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Пройдено км", "${fuelStats.kmDriven} км")
+            if (fuelStats.averageConsumption != null) {
+                FuelStatRow("Пробег в расчёте", "${fuelStats.kmDriven} км")
+            }
 
             if (fuelStats.consumptionHistory.size >= 2) {
                 Spacer(Modifier.height(16.dp))
@@ -765,11 +794,11 @@ fun ForecastCard(forecast: ExpenseForecast) {
                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
             )
             Spacer(Modifier.height(12.dp))
-            FuelStatRow("Следующий месяц", "~ %.0f ₽".format(forecast.nextMonthEstimate))
+            FuelStatRow("Следующий месяц", "~ ${currencyFormat(forecast.nextMonthEstimate)}")
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Прогноз на год", "~ %.0f ₽".format(forecast.nextYearEstimate))
+            FuelStatRow("Прогноз на год", "~ ${currencyFormat(forecast.nextYearEstimate)}")
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Средний месячный", "%.0f ₽".format(forecast.averageMonthly))
+            FuelStatRow("Средний месячный", currencyFormat(forecast.averageMonthly))
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -865,7 +894,7 @@ fun AnomalyCard(anomalies: List<com.aggin.carcost.presentation.screens.analytics
                         )
                     }
                     Text(
-                        "%.0f ₽".format(anomaly.currentMonthAmount),
+                        currencyFormat(anomaly.currentMonthAmount),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onErrorContainer
@@ -883,37 +912,9 @@ fun AnomalyCard(anomalies: List<com.aggin.carcost.presentation.screens.analytics
 }
 
 
-fun getCategoryColor(category: ExpenseCategory): Color {
-    return when (category) {
-        ExpenseCategory.FUEL -> Color(0xFFE57373)
-        ExpenseCategory.MAINTENANCE -> Color(0xFF81C784)
-        ExpenseCategory.REPAIR -> Color(0xFF64B5F6)
-        ExpenseCategory.INSURANCE -> Color(0xFFFFD54F)
-        ExpenseCategory.TAX -> Color(0xFFBA68C8)
-        ExpenseCategory.PARKING -> Color(0xFF4DB6AC)
-        ExpenseCategory.TOLL -> Color(0xFFFF8A65)
-        ExpenseCategory.WASH -> Color(0xFFA1887F)
-        ExpenseCategory.FINE -> Color(0xFFEF5350)
-        ExpenseCategory.ACCESSORIES -> Color(0xFF9575CD)
-        else -> Color(0xFF90A4AE)
-    }
-}
+fun getCategoryColor(category: ExpenseCategory): Color = category.color()
 
-fun getCategoryName(category: ExpenseCategory): String {
-    return when (category) {
-        ExpenseCategory.FUEL -> "Топливо"
-        ExpenseCategory.MAINTENANCE -> "Обслуживание"
-        ExpenseCategory.REPAIR -> "Ремонт"
-        ExpenseCategory.INSURANCE -> "Страховка"
-        ExpenseCategory.TAX -> "Налоги"
-        ExpenseCategory.PARKING -> "Парковка"
-        ExpenseCategory.TOLL -> "Платная дорога"
-        ExpenseCategory.WASH -> "Мойка"
-        ExpenseCategory.FINE -> "Штраф"
-        ExpenseCategory.ACCESSORIES -> "Аксессуары"
-        else -> "Прочее"
-    }
-}
+fun getCategoryName(category: ExpenseCategory): String = category.displayName()
 
 @Composable
 fun OdometerChartCard(history: List<OdometerPoint>) {

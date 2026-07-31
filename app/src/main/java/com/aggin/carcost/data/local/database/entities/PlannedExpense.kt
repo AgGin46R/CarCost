@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.util.UUID
+import kotlinx.serialization.Serializable
 
 enum class PlannedExpensePriority {
     LOW,      // Низкий приоритет
@@ -19,6 +20,7 @@ enum class PlannedExpenseStatus {
     CANCELLED    // Отменено
 }
 
+@Serializable
 @Entity(
     tableName = "planned_expenses",
     indices = [

@@ -24,6 +24,17 @@ data class SupabaseUserDto(
     @SerialName("photo_url") val photoUrl: String? = null
 )
 
+/** Строка vk_identities — привязка ВКонтакте к аккаунту */
+@Serializable
+data class VkIdentity(
+    @SerialName("vk_user_id") val vkUserId: Long,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("last_name") val lastName: String? = null,
+    @SerialName("avatar_url") val avatarUrl: String? = null
+) {
+    val displayName: String get() = "${firstName.orEmpty()} ${lastName.orEmpty()}".trim()
+}
+
 /**
  * Репозиторий для работы с аутентификацией через Supabase
  */
@@ -173,11 +184,67 @@ class SupabaseAuthRepository {
     }
 
     /**
-     * Аккаунт заведён через ВКонтакте.
-     * У таких пользователей нет пароля, а email может быть синтетическим.
+     * Аккаунт **заведён** через ВКонтакте.
+     *
+     * Это не то же самое, что «к аккаунту привязан VK»: у заведённого через VK
+     * нет ни пароля, ни другого способа входа, поэтому отвязка означала бы
+     * потерю доступа навсегда. Привязавший VK к своему email-аккаунту — может.
      */
     fun isVkAccount(): Boolean {
         return supabase.auth.currentUserOrNull()?.userMetadata?.get("vk_id") != null
+    }
+
+    /**
+     * У аккаунта есть вход по паролю.
+     *
+     * У заведённых через Google и ВКонтакте пароля нет, поэтому «сменить пароль»
+     * им показывать нельзя: проверить старый пароль невозможно в принципе.
+     *
+     * Одного `provider` недостаточно: у созданных через vk-auth GoTrue проставляет
+     * provider = "email", потому что пользователь создаётся с email — это проверено
+     * на живых данных. Поэтому VK отсекается отдельно, по vk_id в user_metadata.
+     */
+    fun hasPasswordLogin(): Boolean {
+        val user = supabase.auth.currentUserOrNull() ?: return false
+        if (isVkAccount()) return false
+        val provider = user.appMetadata?.get("provider")?.toString()?.trim('"')
+        return provider == "email"
+    }
+
+    /**
+     * Привязка ВКонтакте текущего пользователя, если она есть.
+     * Читается напрямую из vk_identities — RLS отдаёт только свою строку.
+     */
+    suspend fun getVkLink(): VkIdentity? = withContext(Dispatchers.IO) {
+        val userId = getUserId() ?: return@withContext null
+        try {
+            supabase.from("vk_identities")
+                .select { filter { eq("user_id", userId) } }
+                .decodeSingleOrNull<VkIdentity>()
+        } catch (e: Exception) {
+            Log.w("SupabaseAuth", "Failed to read vk link: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Отвязывает ВКонтакте. Разрешено политикой vk_identities_self_delete.
+     *
+     * Вызывающий обязан убедиться, что у пользователя останется способ войти —
+     * см. [isVkAccount].
+     */
+    suspend fun unlinkVk(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val userId = getUserId()
+                ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
+
+            supabase.from("vk_identities").delete {
+                filter { eq("user_id", userId) }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     /**

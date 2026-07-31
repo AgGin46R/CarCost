@@ -24,7 +24,10 @@ data class ExportUiState(
     val exportSuccessMessage: String? = null,
     val filterStartDate: Long? = null,
     val filterEndDate: Long? = null,
-    val selectedCategories: Set<ExpenseCategory> = ExpenseCategory.entries.toSet()
+    val selectedCategories: Set<ExpenseCategory> = ExpenseCategory.entries.toSet(),
+    /** Разобранный, но ещё НЕ применённый бэкап — показываем сводку до восстановления */
+    val pendingBackup: com.aggin.carcost.data.backup.CarCostBackup? = null,
+    val isRestoring: Boolean = false
 )
 
 class ExportViewModel(
@@ -37,6 +40,7 @@ class ExportViewModel(
     private val expenseDao = database.expenseDao()
     private val reminderDao = database.maintenanceReminderDao()
     private val exportService = ExportService(application)
+    private val backupService = com.aggin.carcost.data.backup.BackupService(application)
 
     private val _uiState = MutableStateFlow(ExportUiState())
     val uiState: StateFlow<ExportUiState> = _uiState.asStateFlow()
@@ -85,54 +89,64 @@ class ExportViewModel(
         export(ExportType.CSV)
     }
 
+    /**
+     * Резервная копия в JSON.
+     *
+     * Раньше здесь собирался человекочитаемый CSV, который приложение не умело
+     * прочитать обратно: без идентификаторов, без напоминаний, документов и
+     * бюджетов, с датами в локальном формате. Кнопка обещала страховку, которой
+     * не было. CSV и PDF остались отдельно — как отчёты.
+     */
     fun exportBackup() {
         viewModelScope.launch {
             _uiState.update { it.copy(isExporting = true, errorMessage = null, exportSuccessMessage = null) }
             try {
-                val allCars = carDao.getAllCars().first()
-                val dateFmt = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
-
-                val csv = buildString {
-                    appendLine("# CarCost Backup — ${dateFmt.format(Date())}")
-                    appendLine("# Cars: ${allCars.size}")
-                    appendLine()
-
-                    for (car in allCars) {
-                        appendLine("## CAR: ${car.brand} ${car.model} ${car.year} | ${car.licensePlate} | ${car.currentOdometer} km")
-                        val expenses = expenseDao.getExpensesByCar(car.id).first()
-                        appendLine("# EXPENSES (${expenses.size})")
-                        appendLine("date,category,amount,currency,odometer,title,description,location,workshopName,fuelLiters,serviceType")
-                        expenses.sortedByDescending { it.date }.forEach { e ->
-                            appendLine(
-                                "${dateFmt.format(Date(e.date))}," +
-                                "${e.category}," +
-                                "${e.amount}," +
-                                "${e.currency}," +
-                                "${e.odometer}," +
-                                "\"${e.title?.replace("\"", "'") ?: ""}\"," +
-                                "\"${e.description?.replace("\"", "'") ?: ""}\"," +
-                                "\"${e.location?.replace("\"", "'") ?: ""}\"," +
-                                "\"${e.workshopName?.replace("\"", "'") ?: ""}\"," +
-                                "${e.fuelLiters ?: ""}," +
-                                "${e.serviceType ?: ""}"
-                            )
-                        }
-                        appendLine()
-                    }
-                }
-
-                val dateStr = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
-                val file = File(getApplication<Application>().cacheDir, "carcost_backup_$dateStr.csv")
-                file.writeText(csv)
-
+                val file = backupService.createBackupFile()
                 exportService.shareFile(file)
                 _uiState.update {
-                    it.copy(isExporting = false, exportSuccessMessage = "Резервная копия создана (${allCars.size} авто)!")
+                    it.copy(isExporting = false, exportSuccessMessage = "Резервная копия создана")
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isExporting = false, errorMessage = "Ошибка резервной копии: ${e.message}") }
             }
         }
+    }
+
+    /** Читает выбранный файл и показывает, что в нём, НЕ трогая базу */
+    fun peekBackup(uri: android.net.Uri) {
+        viewModelScope.launch {
+            backupService.peek(uri)
+                .onSuccess { backup -> _uiState.update { it.copy(pendingBackup = backup) } }
+                .onFailure { e -> _uiState.update { it.copy(errorMessage = e.message) } }
+        }
+    }
+
+    fun cancelRestore() {
+        _uiState.update { it.copy(pendingBackup = null) }
+    }
+
+    fun confirmRestore() {
+        val backup = _uiState.value.pendingBackup ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRestoring = true) }
+            backupService.restore(backup)
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(
+                            isRestoring = false,
+                            pendingBackup = null,
+                            exportSuccessMessage = "Восстановлено: ${backup.summary}"
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isRestoring = false, pendingBackup = null, errorMessage = e.message) }
+                }
+        }
+    }
+
+    fun clearMessages() {
+        _uiState.update { it.copy(errorMessage = null, exportSuccessMessage = null) }
     }
 
     private fun export(type: ExportType) {
@@ -174,10 +188,6 @@ class ExportViewModel(
                 }
             }
         }
-    }
-
-    fun clearMessages() {
-        _uiState.update { it.copy(errorMessage = null, exportSuccessMessage = null) }
     }
 }
 

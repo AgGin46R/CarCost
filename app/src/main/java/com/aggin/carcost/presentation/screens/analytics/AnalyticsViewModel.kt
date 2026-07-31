@@ -15,6 +15,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
+import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.domain.fuel.FuelConsumptionCalculator
 
 // Данные для круговой диаграммы
 data class CategoryExpense(
@@ -34,7 +36,8 @@ data class MonthlyExpense(
 
 // Статистика по топливу
 data class FuelStatistics(
-    val averageConsumption: Double, // л/100км
+    /** null — данных для честного расчёта не хватает (нужны две заправки «до полного») */
+    val averageConsumption: Double?, // л/100км
     val totalLiters: Double,
     val totalCost: Double,
     val averagePricePerLiter: Double,
@@ -190,10 +193,13 @@ class EnhancedAnalyticsViewModel(
         val totalExpenses = expenses.sumOf { it.amount }
         val firstExpenseDate = expenses.minOfOrNull { it.date } ?: car.purchaseDate
         val daysSinceFirst = ((System.currentTimeMillis() - firstExpenseDate) / (1000 * 60 * 60 * 24)).coerceAtLeast(1).toInt()
-        val monthsSinceFirst = daysSinceFirst / 30.0
+        // Знаменатель ограничен снизу одним месяцем: при истории в один день он был
+        // равен 0.033, и одна заправка на 5 000 ₽ превращалась в «150 000 ₽ в месяц»
+        // и «прогноз на год 1 800 000 ₽» — первое, что видел новый пользователь
+        val monthsSinceFirst = (daysSinceFirst / 30.0).coerceAtLeast(1.0)
 
         val averagePerDay = totalExpenses / daysSinceFirst
-        val averagePerMonth = if (monthsSinceFirst > 0) totalExpenses / monthsSinceFirst else 0.0
+        val averagePerMonth = totalExpenses / monthsSinceFirst
 
         // км: приоритет одометру; если нет — GPS-суммарный пробег
         val odometerKm = car.currentOdometer - (car.purchaseOdometer ?: car.currentOdometer)
@@ -279,46 +285,31 @@ class EnhancedAnalyticsViewModel(
     }
 
     private fun calculateFuelStatistics(expenses: List<Expense>, kmDriven: Int): FuelStatistics? {
-        val fuelExpenses = expenses
-            .filter { it.category == ExpenseCategory.FUEL && (it.fuelLiters ?: 0.0) > 0 }
-            .sortedBy { it.odometer }
-        if (fuelExpenses.isEmpty()) return null
-
-        val effectiveKmDriven = if (kmDriven > 0) kmDriven else {
-            val minOdom = fuelExpenses.minOfOrNull { it.odometer } ?: 0
-            val maxOdom = fuelExpenses.maxOfOrNull { it.odometer } ?: 0
-            maxOdom - minOdom
+        val fuelExpenses = expenses.filter {
+            it.category == ExpenseCategory.FUEL && (it.fuelLiters ?: 0.0) > 0
         }
-        if (effectiveKmDriven <= 0) return null
+        if (fuelExpenses.isEmpty()) return null
 
         val totalLiters = fuelExpenses.sumOf { it.fuelLiters ?: 0.0 }
         val totalCost = fuelExpenses.sumOf { it.amount }
         if (totalLiters <= 0) return null
 
-        val averageConsumption = (totalLiters / effectiveKmDriven) * 100
-        val averagePricePerLiter = totalCost / totalLiters
+        // Средний расход считается методом «от полного до полного» — тем же, что
+        // в карточке автомобиля. Раньше здесь все литры за историю делились на
+        // весь пробег с покупки, и цифры на двух экранах расходились в разы.
+        // null означает «данных не хватает», а не «ноль».
+        val averageConsumption = FuelConsumptionCalculator.average(fuelExpenses)
 
         val dateFormat = SimpleDateFormat("dd.MM", Locale.getDefault())
-        val consumptionHistory = mutableListOf<Pair<String, Double>>()
-        for (i in 1 until fuelExpenses.size) {
-            val prev = fuelExpenses[i - 1]
-            val curr = fuelExpenses[i]
-            val km = curr.odometer - prev.odometer
-            val liters = curr.fuelLiters ?: 0.0
-            if (km > 0 && liters > 0) {
-                val consumption = (liters / km) * 100
-                if (consumption in 1.0..35.0) {
-                    consumptionHistory.add(dateFormat.format(Date(curr.date)) to consumption)
-                }
-            }
-        }
+        val consumptionHistory = FuelConsumptionCalculator.segments(fuelExpenses)
+            .map { dateFormat.format(Date(it.date)) to it.consumption }
 
         return FuelStatistics(
             averageConsumption = averageConsumption,
             totalLiters = totalLiters,
             totalCost = totalCost,
-            averagePricePerLiter = averagePricePerLiter,
-            kmDriven = effectiveKmDriven,
+            averagePricePerLiter = totalCost / totalLiters,
+            kmDriven = FuelConsumptionCalculator.coveredKm(fuelExpenses).takeIf { it > 0 } ?: kmDriven,
             consumptionHistory = consumptionHistory
         )
     }
@@ -366,19 +357,7 @@ class EnhancedAnalyticsViewModel(
 
             val direction = if (changePct > 0) "вырос" else "снизился"
             val pctFormatted = "%.0f".format(kotlin.math.abs(changePct))
-            val categoryName = when (category) {
-                ExpenseCategory.FUEL -> "Топливо"
-                ExpenseCategory.MAINTENANCE -> "Обслуживание"
-                ExpenseCategory.REPAIR -> "Ремонт"
-                ExpenseCategory.INSURANCE -> "Страховка"
-                ExpenseCategory.TAX -> "Налоги"
-                ExpenseCategory.PARKING -> "Парковка"
-                ExpenseCategory.TOLL -> "Платная дорога"
-                ExpenseCategory.WASH -> "Мойка"
-                ExpenseCategory.FINE -> "Штраф"
-                ExpenseCategory.ACCESSORIES -> "Аксессуары"
-                else -> "Прочее"
-            }
+            val categoryName = category.displayName()
             anomalies.add(
                 ExpenseAnomaly(
                     category = category,
@@ -479,26 +458,36 @@ class EnhancedAnalyticsViewModel(
             }
     }
 
+    /**
+     * Сравнение года к году — только за сопоставимые периоды.
+     *
+     * Раньше неполный текущий год сравнивался с полным прошлым: при неизменных
+     * тратах 1 апреля показывалось «−75 %» с зелёной стрелкой, и «улучшение»
+     * таяло весь год, чтобы 31 декабря обнулиться. Теперь оба периода — с
+     * 1 января по сегодняшний день соответствующего года.
+     */
     private fun calculateYearComparison(expenses: List<Expense>): YearComparison? {
-        val calendar = Calendar.getInstance()
-        val thisYear = calendar.get(Calendar.YEAR)
+        val now = Calendar.getInstance()
+        val thisYear = now.get(Calendar.YEAR)
         val lastYear = thisYear - 1
+        val dayOfYear = now.get(Calendar.DAY_OF_YEAR)
 
-        val thisYearTotal = expenses.filter {
-            calendar.timeInMillis = it.date
-            calendar.get(Calendar.YEAR) == thisYear
-        }.sumOf { it.amount }
+        fun totalYtd(year: Int): Double {
+            val cal = Calendar.getInstance()
+            return expenses.filter {
+                cal.timeInMillis = it.date
+                cal.get(Calendar.YEAR) == year && cal.get(Calendar.DAY_OF_YEAR) <= dayOfYear
+            }.sumOf { it.amount }
+        }
 
-        val lastYearTotal = expenses.filter {
-            calendar.timeInMillis = it.date
-            calendar.get(Calendar.YEAR) == lastYear
-        }.sumOf { it.amount }
+        val thisYearTotal = totalYtd(thisYear)
+        val lastYearTotal = totalYtd(lastYear)
 
         if (thisYearTotal == 0.0 && lastYearTotal == 0.0) return null
+        // Сравнивать не с чем — честнее не показывать карточку, чем рисовать «+100 %»
+        if (lastYearTotal == 0.0) return null
 
-        val change = if (lastYearTotal > 0) {
-            ((thisYearTotal - lastYearTotal) / lastYearTotal * 100).toFloat()
-        } else if (thisYearTotal > 0) 100f else 0f
+        val change = ((thisYearTotal - lastYearTotal) / lastYearTotal * 100).toFloat()
 
         return YearComparison(
             currentYear = thisYear,

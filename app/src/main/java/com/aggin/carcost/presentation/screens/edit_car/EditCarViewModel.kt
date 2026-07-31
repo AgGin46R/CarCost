@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import com.aggin.carcost.data.local.database.entities.MemberRole
 
 data class EditCarUiState(
     val car: Car? = null,
@@ -42,7 +43,15 @@ data class EditCarUiState(
     val isUploadingPhoto: Boolean = false,
     val showError: Boolean = false,
     val errorMessage: String = "",
-    val showDeleteDialog: Boolean = false
+    val showDeleteDialog: Boolean = false,
+    /**
+     * Удалять автомобиль вправе только владелец.
+     *
+     * Скрываем кнопку, только если роль известна и она НЕ владельческая: у машин,
+     * которыми никто не делился, записей в car_members нет вовсе, и запрещать
+     * владельцу удалять собственную машину было бы неверно.
+     */
+    val canDeleteCar: Boolean = true
 )
 
 class EditCarViewModel(
@@ -64,6 +73,17 @@ class EditCarViewModel(
 
     init {
         loadCar()
+        loadMyRole()
+    }
+
+    private fun loadMyRole() {
+        viewModelScope.launch {
+            val userId = supabaseAuth.getUserId() ?: return@launch
+            val role = database.carMemberDao().getRoleForUser(carId, userId)
+            if (role != null && role != MemberRole.OWNER) {
+                _uiState.value = _uiState.value.copy(canDeleteCar = false)
+            }
+        }
     }
 
     private fun loadCar() {

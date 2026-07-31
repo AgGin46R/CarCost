@@ -288,12 +288,18 @@ fun AppNavigation(
         }
 
         // Аутентификация
+        // Если приложение открыли по ссылке-приглашению, но пользователь не вошёл,
+        // после входа ведём на принятие приглашения, а не на главный экран
+        val afterAuthRoute = pendingInviteToken
+            ?.let { Screen.AcceptInvite.createRoute(it) }
+            ?: Screen.Home.route
+
         composable(Screen.Login.route) {
-            LoginScreen(navController = navController)
+            LoginScreen(navController = navController, onSuccessRoute = afterAuthRoute)
         }
 
         composable(Screen.Register.route) {
-            RegisterScreen(navController = navController)
+            RegisterScreen(navController = navController, onSuccessRoute = afterAuthRoute)
         }
 
         // Главные экраны

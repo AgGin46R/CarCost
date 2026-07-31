@@ -17,7 +17,9 @@ data class PlannedExpensesUiState(
     val plannedExpenses: List<PlannedExpense> = emptyList(),
     val plannedCount: Int = 0,
     val totalEstimatedAmount: Double = 0.0,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    /** Валюта автомобиля — суммы раньше всегда печатались в рублях */
+    val currency: String = "RUB"
 )
 
 class PlannedExpensesViewModel(
@@ -33,13 +35,15 @@ class PlannedExpensesViewModel(
     val uiState: StateFlow<PlannedExpensesUiState> = combine(
         repository.getPlannedExpensesByCarId(carId),
         repository.getPlannedCount(carId),
-        repository.getTotalEstimatedAmount(carId)
-    ) { plannedExpenses, plannedCount, totalEstimatedAmount ->
+        repository.getTotalEstimatedAmount(carId),
+        database.carDao().getCarByIdFlow(carId)
+    ) { plannedExpenses, plannedCount, totalEstimatedAmount, car ->
         PlannedExpensesUiState(
             plannedExpenses = plannedExpenses,
             plannedCount = plannedCount,
             totalEstimatedAmount = totalEstimatedAmount,
-            isLoading = false
+            isLoading = false,
+            currency = car?.currency ?: "RUB"
         )
     }.stateIn(
         scope = viewModelScope,

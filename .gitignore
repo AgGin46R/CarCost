@@ -14,7 +14,6 @@
 .cxx
 local.properties
 
-# Не коммитить: конфигурация Firebase и артефакты сборки модулей
+# Не коммитить: конфигурация Firebase
 app/google-services.json
-/shared/build
 

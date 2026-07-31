@@ -260,19 +260,8 @@ object NotificationHelper {
 
     // ── Display name helpers ─────────────────────────────────────────────────
 
-    fun categoryDisplayName(category: String): String = when (category.uppercase()) {
-        "FUEL"         -> "Топливо"
-        "MAINTENANCE"  -> "Обслуживание"
-        "REPAIR"       -> "Ремонт"
-        "INSURANCE"    -> "Страховка"
-        "TAX"          -> "Налоги"
-        "PARKING"      -> "Парковка"
-        "TOLL"         -> "Платная дорога"
-        "WASH"         -> "Мойка"
-        "FINE"         -> "Штраф"
-        "ACCESSORIES"  -> "Аксессуары"
-        else           -> "Расход"
-    }
+    fun categoryDisplayName(category: String): String =
+        com.aggin.carcost.presentation.common.categoryDisplayName(category)
 
     fun reminderTypeDisplayName(type: String): String = when (type.uppercase()) {
         "OIL_CHANGE"           -> "Замена масла"

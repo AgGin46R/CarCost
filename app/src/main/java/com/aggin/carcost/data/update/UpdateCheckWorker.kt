@@ -17,7 +17,7 @@ import com.aggin.carcost.data.notifications.NotificationHelper
 import java.util.concurrent.TimeUnit
 
 /**
- * Периодически (каждые 12 часов) проверяет наличие обновлений через Supabase.
+ * Периодически (раз в час) проверяет наличие обновлений через Supabase.
  * Если найдена новая версия — показывает локальное уведомление.
  * Не требует Firebase.
  */

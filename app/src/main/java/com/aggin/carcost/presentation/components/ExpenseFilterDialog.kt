@@ -15,6 +15,8 @@ import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.presentation.screens.car_detail.ExpenseFilter
 import java.text.SimpleDateFormat
 import java.util.*
+import com.aggin.carcost.presentation.common.formatDateCompact
+import com.aggin.carcost.presentation.common.displayName
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -55,7 +57,7 @@ fun ExpenseFilterDialog(
                                     selectedCategories + category
                                 }
                             },
-                            label = { Text(category.name) }
+                            label = { Text(category.displayName()) }
                         )
                     }
                 }
@@ -175,7 +177,4 @@ fun ExpenseFilterDialog(
     }
 }
 
-private fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd.MM.yy", Locale.getDefault())
-    return sdf.format(Date(timestamp))
-}
+private fun formatDate(timestamp: Long): String = formatDateCompact(timestamp)

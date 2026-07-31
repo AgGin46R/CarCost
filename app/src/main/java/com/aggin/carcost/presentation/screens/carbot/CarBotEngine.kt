@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.first
 import java.text.NumberFormat
 import java.util.Calendar
 import java.util.Locale
+import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.presentation.common.emoji
 
 /**
  * Rules-based CarBot engine. No external API — fully offline.
@@ -117,7 +119,7 @@ class CarBotEngine(private val db: AppDatabase) {
                     .getTotalByCategoryAndPeriod(car.id, b.category, startDate, System.currentTimeMillis()) ?: 0.0
                 val pct = (spent / b.monthlyLimit * 100).toInt()
                 if (pct >= 80) {
-                    alerts += "💸 Бюджет **${b.category.displayName}** потрачен на $pct%."
+                    alerts += "💸 Бюджет **${b.category.displayName()}** потрачен на $pct%."
                 }
             }
         } catch (_: Exception) {}
@@ -218,7 +220,7 @@ class CarBotEngine(private val db: AppDatabase) {
         if (byCategory.isNotEmpty()) {
             sb.appendLine("\nПо категориям:")
             byCategory.take(5).forEach { (cat, sum) ->
-                sb.appendLine("  ${cat.emoji} ${cat.displayName}: ${ruFmt.format(sum)} ₽")
+                sb.appendLine("  ${cat.emoji()} ${cat.displayName()}: ${ruFmt.format(sum)} ₽")
             }
         }
         return sb.toString().trimEnd()
@@ -305,7 +307,7 @@ ${if (avgSpeed != null) "Средняя скорость: ${"%.0f".format(avgSpe
                 pct >= 80 -> "⚠️"
                 else -> "✅"
             }
-            sb.appendLine("$status **${budget.category.displayName}**: ${ruFmt.format(spent)} / ${ruFmt.format(budget.monthlyLimit)} ₽ ($pct%)")
+            sb.appendLine("$status **${budget.category.displayName()}**: ${ruFmt.format(spent)} / ${ruFmt.format(budget.monthlyLimit)} ₽ ($pct%)")
             sb.appendLine("   $bar")
         }
         return sb.toString().trimEnd()
@@ -354,7 +356,7 @@ ${if (car.color != null) "Цвет: ${car.color}" else ""}
         val dateFmt = java.text.SimpleDateFormat("dd.MM", Locale.getDefault())
         val sb = StringBuilder("📋 **Последние расходы ${car.brand} ${car.model}:**\n\n")
         expenses.forEach { e ->
-            val title = e.title?.take(30) ?: e.category.displayName
+            val title = e.title?.take(30) ?: e.category.displayName()
             sb.appendLine("• ${dateFmt.format(java.util.Date(e.date))} — **${ruFmt.format(e.amount)} ₽** $title")
         }
         return sb.toString().trimEnd()
@@ -374,7 +376,7 @@ ${if (car.color != null) "Цвет: ${car.color}" else ""}
         sb.appendLine("По категориям:")
         byCategory.forEach { (cat, sum) ->
             val pct = if (total > 0) (sum / total * 100).toInt() else 0
-            sb.appendLine("  ${cat.emoji} ${cat.displayName}: ${ruFmt.format(sum)} ₽ ($pct%)")
+            sb.appendLine("  ${cat.emoji()} ${cat.displayName()}: ${ruFmt.format(sum)} ₽ ($pct%)")
         }
         return sb.toString().trimEnd()
     }
@@ -419,32 +421,3 @@ ${if (car.color != null) "Цвет: ${car.color}" else ""}
 }
 
 // Extension for display name
-private val ExpenseCategory.displayName: String
-    get() = when (this) {
-        ExpenseCategory.FUEL -> "Топливо"
-        ExpenseCategory.MAINTENANCE -> "ТО"
-        ExpenseCategory.REPAIR -> "Ремонт"
-        ExpenseCategory.INSURANCE -> "Страховка"
-        ExpenseCategory.TAX -> "Налоги"
-        ExpenseCategory.PARKING -> "Парковка"
-        ExpenseCategory.TOLL -> "Платная дорога"
-        ExpenseCategory.WASH -> "Мойка"
-        ExpenseCategory.FINE -> "Штрафы"
-        ExpenseCategory.ACCESSORIES -> "Аксессуары"
-        ExpenseCategory.OTHER -> "Прочее"
-    }
-
-private val ExpenseCategory.emoji: String
-    get() = when (this) {
-        ExpenseCategory.FUEL -> "⛽"
-        ExpenseCategory.MAINTENANCE -> "🔧"
-        ExpenseCategory.REPAIR -> "🛠"
-        ExpenseCategory.INSURANCE -> "🛡"
-        ExpenseCategory.TAX -> "📑"
-        ExpenseCategory.PARKING -> "🅿️"
-        ExpenseCategory.TOLL -> "🛣"
-        ExpenseCategory.WASH -> "🚿"
-        ExpenseCategory.FINE -> "🚨"
-        ExpenseCategory.ACCESSORIES -> "🔩"
-        ExpenseCategory.OTHER -> "📦"
-    }

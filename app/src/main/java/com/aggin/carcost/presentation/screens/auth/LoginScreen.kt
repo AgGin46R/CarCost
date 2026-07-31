@@ -28,6 +28,13 @@ import com.aggin.carcost.R
 @Composable
 fun LoginScreen(
     navController: NavController,
+    /**
+     * Куда вести после входа. Обычно это главный экран, но если приложение
+     * открыли по ссылке-приглашению — сразу на экран принятия, иначе токен
+     * потеряется и самый частый сценарий («поставил по ссылке от друга»)
+     * закончится ничем.
+     */
+    onSuccessRoute: String = "home",
     viewModel: LoginViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -35,7 +42,7 @@ fun LoginScreen(
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            navController.navigate("home") {
+            navController.navigate(onSuccessRoute) {
                 popUpTo("login") { inclusive = true }
             }
         }

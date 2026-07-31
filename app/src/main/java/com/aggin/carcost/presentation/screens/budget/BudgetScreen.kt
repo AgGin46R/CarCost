@@ -21,6 +21,8 @@ import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.presentation.components.SkeletonCardList
 import java.text.NumberFormat
 import java.util.*
+import com.aggin.carcost.presentation.common.emoji
+import com.aggin.carcost.presentation.common.displayName
 
 private val MONTH_NAMES = listOf(
     "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -291,30 +293,6 @@ private fun BudgetEditDialog(
     )
 }
 
-private fun categoryEmoji(c: ExpenseCategory) = when (c) {
-    ExpenseCategory.FUEL -> "⛽"
-    ExpenseCategory.MAINTENANCE -> "🔧"
-    ExpenseCategory.REPAIR -> "🛠️"
-    ExpenseCategory.INSURANCE -> "🛡️"
-    ExpenseCategory.TAX -> "📋"
-    ExpenseCategory.PARKING -> "🅿️"
-    ExpenseCategory.TOLL -> "🛣️"
-    ExpenseCategory.WASH -> "🚿"
-    ExpenseCategory.FINE -> "⚠️"
-    ExpenseCategory.ACCESSORIES -> "🔩"
-    ExpenseCategory.OTHER -> "📦"
-}
+private fun categoryEmoji(c: ExpenseCategory) = c.emoji()
 
-private fun categoryName(c: ExpenseCategory) = when (c) {
-    ExpenseCategory.FUEL -> "Топливо"
-    ExpenseCategory.MAINTENANCE -> "Обслуживание"
-    ExpenseCategory.REPAIR -> "Ремонт"
-    ExpenseCategory.INSURANCE -> "Страховка"
-    ExpenseCategory.TAX -> "Налог"
-    ExpenseCategory.PARKING -> "Парковка"
-    ExpenseCategory.TOLL -> "Платная дорога"
-    ExpenseCategory.WASH -> "Мойка"
-    ExpenseCategory.FINE -> "Штраф"
-    ExpenseCategory.ACCESSORIES -> "Аксессуары"
-    ExpenseCategory.OTHER -> "Прочее"
-}
+private fun categoryName(c: ExpenseCategory) = c.displayName()

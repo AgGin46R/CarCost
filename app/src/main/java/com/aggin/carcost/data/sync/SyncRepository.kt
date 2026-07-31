@@ -82,6 +82,29 @@ class SyncRepository(
     val syncState: Flow<SyncState> = _syncState.asStateFlow()
 
     /**
+     * Сколько отправок на сервер не прошло за текущий проход синхронизации.
+     *
+     * Раньше результат push-вызовов просто отбрасывался, а репозитории строят
+     * Result через runCatching — исключение наружу не выходит. Из-за этого
+     * fullSync() возвращал успех, даже если на сервер не уехало вообще ничего,
+     * и защита от потери данных при выходе из аккаунта не срабатывала: она
+     * проверяет isFailure, а его никогда не было.
+     */
+    private var pushFailures = 0
+
+    /** Помечает неудачную отправку. Возвращает Result как есть, чтобы не ломать цепочки. */
+    private fun <T> Result<T>.trackPush(what: String): Result<T> = also {
+        if (isFailure) {
+            pushFailures++
+            Log.w(TAG, "Не удалось отправить на сервер ($what): ${exceptionOrNull()?.message}")
+        }
+    }
+
+    /** Отправка не удалась — данные остались только на устройстве */
+    class PartialSyncFailure(val failedCount: Int) :
+        Exception("Не удалось отправить записей: $failedCount")
+
+    /**
      * Полная синхронизация всех данных
      */
     suspend fun fullSync(): Result<Unit> = withContext(Dispatchers.IO) {
@@ -91,6 +114,7 @@ class SyncRepository(
             }
 
             _syncState.value = SyncState.Syncing
+            pushFailures = 0
             Log.d(TAG, "Starting full sync...")
 
             // Синхронизируем в правильном порядке (с учетом зависимостей)
@@ -108,6 +132,15 @@ class SyncRepository(
             syncCategoryBudgets()
             syncCarDocuments()
             syncAchievements()
+
+            if (pushFailures > 0) {
+                // Часть данных осталась только на устройстве. Молчать об этом нельзя:
+                // выход из аккаунта чистит локальную базу, полагаясь на этот результат
+                val error = PartialSyncFailure(pushFailures)
+                _syncState.value = SyncState.Error(error.message ?: "Ошибка синхронизации")
+                Log.w(TAG, "Full sync finished with $pushFailures failed pushes")
+                return@withContext Result.failure(error)
+            }
 
             _syncState.value = SyncState.Success()
             Log.d(TAG, "Full sync completed successfully")
@@ -183,7 +216,7 @@ class SyncRepository(
                 localCar.updatedAt > remoteCar.updatedAt -> {
                     if (localCar.id in ownedCarIds) {
                         Log.d(TAG, "Updating car on server: ${localCar.id}")
-                        supabaseCarRepo.updateCar(localCar)
+                        supabaseCarRepo.updateCar(localCar).trackPush("автомобиль")
                     } else {
                         Log.d(TAG, "Skipping update for shared car: ${localCar.id}")
                     }
@@ -238,7 +271,7 @@ class SyncRepository(
                     // Расход изменен локально позже
                     localExpense.updatedAt > remoteExpense.updatedAt -> {
                         Log.d(TAG, "Updating expense on server: ${localExpense.id}")
-                        supabaseExpenseRepo.updateExpense(localExpense)
+                        supabaseExpenseRepo.updateExpense(localExpense).trackPush("расход")
                     }
                     // Расход изменен на сервере позже
                     remoteExpense.updatedAt > localExpense.updatedAt -> {
@@ -291,7 +324,7 @@ class SyncRepository(
                     // Напоминание изменено локально позже
                     localReminder.updatedAt > remoteReminder.updatedAt -> {
                         Log.d(TAG, "Updating reminder on server: ${localReminder.id}")
-                        supabaseReminderRepo.updateReminder(localReminder)
+                        supabaseReminderRepo.updateReminder(localReminder).trackPush("напоминание ТО")
                     }
                     // Напоминание изменено на сервере позже
                     remoteReminder.updatedAt > localReminder.updatedAt -> {
@@ -344,7 +377,7 @@ class SyncRepository(
                 // Теги не имеют поля updatedAt, поэтому просто перезаписываем
                 localTag != remoteTag -> {
                     Log.d(TAG, "Updating tag on server: ${localTag.id}")
-                    supabaseTagRepo.updateTag(localTag)
+                    supabaseTagRepo.updateTag(localTag).trackPush("тег")
                 }
             }
         }
@@ -505,7 +538,7 @@ class SyncRepository(
                         supabaseExpenseRepo.insertExpense(localExpense)
                     }
                     localExpense.updatedAt > remoteExpense.updatedAt -> {
-                        supabaseExpenseRepo.updateExpense(localExpense)
+                        supabaseExpenseRepo.updateExpense(localExpense).trackPush("расход")
                     }
                     remoteExpense.updatedAt > localExpense.updatedAt -> {
                         localExpenseRepo.updateExpense(remoteExpense)
@@ -588,7 +621,7 @@ class SyncRepository(
             // Push local → remote
             for (item in local) {
                 if (remote.none { it.id == item.id } || remote.firstOrNull { it.id == item.id }?.updatedAt?.let { it < item.updatedAt } == true) {
-                    repo.upsertFluidLevel(item)
+                    repo.upsertFluidLevel(item).trackPush("уровень жидкости")
                 }
             }
             // Pull remote → local
@@ -608,7 +641,7 @@ class SyncRepository(
             val remote = repo.getByCarId(car.id).getOrNull() ?: continue
             val local = db.gpsTripDao().getTripsByCarIdSync(car.id)
             for (item in local) {
-                if (remote.none { it.id == item.id }) repo.upsert(item)
+                if (remote.none { it.id == item.id }) repo.upsert(item).trackPush("поездка")
             }
             for (item in remote) {
                 if (local.none { it.id == item.id }) db.gpsTripDao().insert(item)
@@ -624,7 +657,7 @@ class SyncRepository(
             val remote = repo.getByCarId(car.id).getOrNull() ?: continue
             val local = db.carIncidentDao().getIncidentsByCarIdSync(car.id)
             for (item in local) {
-                if (remote.none { it.id == item.id }) repo.upsert(item)
+                if (remote.none { it.id == item.id }) repo.upsert(item).trackPush("инцидент")
             }
             for (item in remote) {
                 if (local.none { it.id == item.id }) db.carIncidentDao().insertIncident(item)
@@ -640,7 +673,7 @@ class SyncRepository(
             val remote = repo.getByCarId(car.id).getOrNull() ?: continue
             val local = db.insurancePolicyDao().getPoliciesForCarSync(car.id)
             for (item in local) {
-                if (remote.none { it.id == item.id }) repo.upsert(item)
+                if (remote.none { it.id == item.id }) repo.upsert(item).trackPush("страховка")
             }
             for (item in remote) {
                 if (local.none { it.id == item.id }) db.insurancePolicyDao().insert(item)
@@ -657,7 +690,7 @@ class SyncRepository(
             val local = db.savingsGoalDao().getGoalsByCarIdSync(car.id)
             for (item in local) {
                 val remoteItem = remote.firstOrNull { it.id == item.id }
-                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item)
+                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item).trackPush("цель")
             }
             for (item in remote) {
                 val localItem = local.firstOrNull { it.id == item.id }
@@ -676,7 +709,7 @@ class SyncRepository(
             val local = db.categoryBudgetDao().getAllForCarSync(car.id)
             for (item in local) {
                 val remoteItem = remote.firstOrNull { it.id == item.id }
-                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item)
+                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item).trackPush("бюджет")
             }
             for (item in remote) {
                 val localItem = local.firstOrNull { it.id == item.id }
@@ -695,7 +728,7 @@ class SyncRepository(
             val local = db.carDocumentDao().getDocumentsByCarIdSync(car.id)
             for (item in local) {
                 val remoteItem = remote.firstOrNull { it.id == item.id }
-                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item)
+                if (remoteItem == null || item.updatedAt > remoteItem.updatedAt) repo.upsert(item).trackPush("документ")
             }
             for (item in remote) {
                 val localItem = local.firstOrNull { it.id == item.id }
@@ -727,8 +760,10 @@ class SyncRepository(
     suspend fun clearLocalData() = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Clearing local data...")
-            // Очистка локальной базы данных
-            // Примечание: требуется реализовать методы удаления во всех репозиториях
+            // Раньше метод только логировал и ничего не чистил — вызывающий был
+            // уверен, что данные удалены, а они оставались на устройстве
+            localDb?.clearAllTables()
+                ?: Log.w(TAG, "clearLocalData: localDb не передан, чистить нечем")
             _syncState.value = SyncState.Idle
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear local data", e)

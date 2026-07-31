@@ -38,6 +38,44 @@ fun ExportScreen(
     // --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
     val uiState by viewModel.uiState.collectAsState()
+
+    // Выбор файла копии. Ничего не применяется сразу — сначала показываем сводку
+    val restoreLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { viewModel.peekBackup(it) } }
+
+    uiState.pendingBackup?.let { backup ->
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelRestore() },
+            icon = { Icon(Icons.Default.Restore, contentDescription = null) },
+            title = { Text("Восстановить данные?") },
+            text = {
+                Column {
+                    Text("В файле: ${backup.summary}.")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Записи с совпадающими идентификаторами будут перезаписаны, " +
+                            "остальные добавлены. Повторное восстановление того же файла " +
+                            "дублей не создаёт.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isRestoring,
+                    onClick = { viewModel.confirmRestore() }
+                ) { Text(if (uiState.isRestoring) "Восстанавливаем…" else "Восстановить") }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isRestoring,
+                    onClick = { viewModel.cancelRestore() }
+                ) { Text("Отмена") }
+            }
+        )
+    }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // ... остальной код вашего ExportScreen остается без изменений ...
@@ -140,6 +178,26 @@ fun ExportScreen(
                             enabled = !uiState.isExporting,
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        ExportButton(
+                            text = "Восстановить из копии",
+                            icon = Icons.Default.Restore,
+                            onClick = { restoreLauncher.launch(arrayOf("application/json", "*/*")) },
+                            enabled = !uiState.isExporting && !uiState.isRestoring,
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+
+                        Text(
+                            text = "В копию входят автомобили, расходы, ТО, планы, документы, " +
+                                "страховки, инциденты, бюджеты, цели и замеры жидкостей. " +
+                                "Старые CSV-копии восстановить нельзя.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp)
                         )
 
                         if (uiState.isExporting) {

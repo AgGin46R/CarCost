@@ -106,7 +106,8 @@ fun PlannedExpensesScreen(
             // Статистика
             StatisticsCard(
                 plannedCount = uiState.plannedCount,
-                totalEstimated = uiState.totalEstimatedAmount
+                totalEstimated = uiState.totalEstimatedAmount,
+                currency = uiState.currency
             )
 
             // Drag-reorderable list (only when no filter is active)
@@ -169,6 +170,7 @@ fun PlannedExpensesScreen(
                             } else Modifier
                             PlannedExpenseCard(
                                 plannedExpense = plannedExpense,
+                                currency = uiState.currency,
                                 isDragging = isDraggingItem,
                                 dragHandleModifier = dragHandleMod,
                                 showDragHandle = selectedFilter == null,
@@ -203,7 +205,8 @@ fun PlannedExpensesScreen(
 @Composable
 fun StatisticsCard(
     plannedCount: Int,
-    totalEstimated: Double
+    totalEstimated: Double,
+    currency: String
 ) {
     Card(
         modifier = Modifier
@@ -227,7 +230,7 @@ fun StatisticsCard(
             StatItem(
                 icon = Icons.Default.AttachMoney,
                 label = "Ориентировочно",
-                value = formatCurrency(totalEstimated)
+                value = formatCurrency(totalEstimated, currency)
             )
         }
     }
@@ -265,6 +268,7 @@ fun StatItem(
 @Composable
 fun PlannedExpenseCard(
     plannedExpense: PlannedExpense,
+    currency: String = "RUB",
     onClick: () -> Unit,
     onComplete: () -> Unit,
     isDragging: Boolean = false,
@@ -373,7 +377,7 @@ fun PlannedExpenseCard(
                 Column {
                     if (plannedExpense.estimatedAmount != null) {
                         Text(
-                            text = "~${formatCurrency(plannedExpense.estimatedAmount)}",
+                            text = "~${formatCurrency(plannedExpense.estimatedAmount, currency)}",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary

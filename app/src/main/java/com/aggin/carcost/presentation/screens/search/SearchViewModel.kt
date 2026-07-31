@@ -16,9 +16,39 @@ data class ExpenseSearchResult(
     val car: Car?
 )
 
+/**
+ * Фильтр поиска.
+ *
+ * Раньше фильтры существовали только внутри одного автомобиля
+ * (ExpenseFilterDialog на экране деталей), а глобальный поиск умел лишь искать
+ * подстроку. Теперь и то и другое в одном месте.
+ */
+data class SearchFilter(
+    /** null — искать по всем автомобилям */
+    val carId: String? = null,
+    val categories: Set<ExpenseCategory> = emptySet(),
+    val startDate: Long? = null,
+    val endDate: Long? = null,
+    val minAmount: Double? = null,
+    val maxAmount: Double? = null
+) {
+    val isActive: Boolean
+        get() = carId != null || categories.isNotEmpty() || startDate != null ||
+            endDate != null || minAmount != null || maxAmount != null
+
+    val activeCount: Int
+        get() = listOfNotNull(
+            carId, categories.takeIf { it.isNotEmpty() }, startDate, endDate, minAmount, maxAmount
+        ).size
+}
+
 data class SearchUiState(
     val query: String = "",
+    val filter: SearchFilter = SearchFilter(),
+    val cars: List<Car> = emptyList(),
     val results: List<ExpenseSearchResult> = emptyList(),
+    /** Сколько записей подошло всего — выдача обрезается до RESULT_LIMIT */
+    val totalMatches: Int = 0,
     val isSearching: Boolean = false,
     val hasSearched: Boolean = false
 )
@@ -38,20 +68,32 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     // Карта carId → Car для быстрого поиска
     private var carsMap: Map<String, Car> = emptyMap()
 
+    private val filterFlow = MutableStateFlow(SearchFilter())
+
     init {
         viewModelScope.launch {
             carDao.getAllCars().collect { cars ->
                 carsMap = cars.associateBy { it.id }
+                _uiState.update { it.copy(cars = cars) }
             }
         }
 
         viewModelScope.launch {
-            queryFlow
-                .debounce(300)
-                .filter { it.length >= 2 }
-                .distinctUntilChanged()
-                .collect { query ->
-                    performSearch(query)
+            combine(
+                queryFlow.debounce(300).distinctUntilChanged(),
+                filterFlow
+            ) { query, filter -> query to filter }
+                .collect { (query, filter) ->
+                    // Ищем, если есть внятный запрос ИЛИ выставлен хоть один фильтр:
+                    // фильтр сам по себе — это полноценный сценарий «покажи всё
+                    // топливо за март по этой машине»
+                    if (query.length >= 2 || filter.isActive) {
+                        performSearch(query, filter)
+                    } else {
+                        _uiState.update {
+                            it.copy(results = emptyList(), totalMatches = 0, hasSearched = false)
+                        }
+                    }
                 }
         }
     }
@@ -59,12 +101,16 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     fun onQueryChange(query: String) {
         _uiState.update { it.copy(query = query) }
         queryFlow.value = query
-        if (query.length < 2) {
-            _uiState.update { it.copy(results = emptyList(), hasSearched = false) }
-        }
     }
 
-    private suspend fun performSearch(query: String) {
+    fun applyFilter(filter: SearchFilter) {
+        _uiState.update { it.copy(filter = filter) }
+        filterFlow.value = filter
+    }
+
+    fun clearFilter() = applyFilter(SearchFilter())
+
+    private suspend fun performSearch(query: String, filter: SearchFilter) {
         _uiState.update { it.copy(isSearching = true) }
         val lowerQuery = query.lowercase()
 
@@ -79,36 +125,60 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             .filter { cat -> categoryRuName(cat).lowercase().contains(lowerQuery) }
             .toSet()
 
-        // Загружаем все расходы по всем авто пользователя
+        val searchedCars = cars.filter { filter.carId == null || it.id == filter.carId }
         val allExpenses = mutableListOf<Expense>()
-        for (car in cars) {
+        for (car in searchedCars) {
             allExpenses += expenseDao.getExpensesByCarIdSync(car.id)
         }
 
-        // Фильтрация на стороне Kotlin — корректно работает с кириллицей любого регистра
-        val results = allExpenses
+        val matched = allExpenses
             .filter { expense ->
-                expense.title?.lowercase()?.contains(lowerQuery) == true
-                    || expense.description?.lowercase()?.contains(lowerQuery) == true
-                    || expense.location?.lowercase()?.contains(lowerQuery) == true
-                    || expense.workshopName?.lowercase()?.contains(lowerQuery) == true
-                    || expense.maintenanceParts?.lowercase()?.contains(lowerQuery) == true
-                    || "%.0f".format(expense.amount).contains(lowerQuery)
-                    || expense.category in matchedCategories
+                // Пустой запрос при активном фильтре означает «всё, что подходит под фильтр»
+                lowerQuery.length < 2 ||
+                    expense.title?.lowercase()?.contains(lowerQuery) == true ||
+                    expense.description?.lowercase()?.contains(lowerQuery) == true ||
+                    expense.location?.lowercase()?.contains(lowerQuery) == true ||
+                    expense.workshopName?.lowercase()?.contains(lowerQuery) == true ||
+                    expense.maintenanceParts?.lowercase()?.contains(lowerQuery) == true ||
+                    "%.0f".format(expense.amount).contains(lowerQuery) ||
+                    expense.category in matchedCategories
+            }
+            .filter { expense ->
+                (filter.categories.isEmpty() || expense.category in filter.categories) &&
+                    (filter.startDate == null || expense.date >= filter.startDate) &&
+                    (filter.endDate == null || expense.date <= filter.endDate) &&
+                    (filter.minAmount == null || expense.amount >= filter.minAmount) &&
+                    (filter.maxAmount == null || expense.amount <= filter.maxAmount)
             }
             .sortedByDescending { it.date }
-            .take(100)
+
+        val results = matched
+            .take(RESULT_LIMIT)
             .map { expense -> ExpenseSearchResult(expense = expense, car = carsMap[expense.carId]) }
 
-        _uiState.update { it.copy(results = results, isSearching = false, hasSearched = true) }
+        _uiState.update {
+            it.copy(
+                results = results,
+                totalMatches = matched.size,
+                isSearching = false,
+                hasSearched = true
+            )
+        }
     }
 
     fun clearQuery() {
-        _uiState.update { SearchUiState() }
+        val cars = _uiState.value.cars
+        _uiState.update { SearchUiState(cars = cars) }
         queryFlow.value = ""
+        filterFlow.value = SearchFilter()
     }
 
     companion object {
+        /** Больше отдавать в список бессмысленно; сколько нашлось всего — показываем отдельно */
+        const val RESULT_LIMIT = 100
+
+        // Не подписи категорий, а синонимы для поиска: «заправка» должна находить
+        // топливо. Поэтому это НЕ то же самое, что displayName() в Labels.kt
         fun categoryRuName(category: ExpenseCategory): String = when (category) {
             ExpenseCategory.FUEL        -> "топливо заправка бензин дизель"
             ExpenseCategory.MAINTENANCE -> "то техническое обслуживание"

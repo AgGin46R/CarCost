@@ -23,6 +23,7 @@ import com.aggin.carcost.MainActivity
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.notifications.NotificationHelper
 import java.util.Calendar
+import com.aggin.carcost.presentation.common.emoji
 
 class CarCostWidget : GlanceAppWidget() {
 
@@ -72,14 +73,7 @@ class CarCostWidget : GlanceAppWidget() {
                     .sortedByDescending { it.value }
                     .take(3)
                     .map { (cat, amount) ->
-                        val emoji = when (cat) {
-                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.FUEL -> "⛽"
-                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.MAINTENANCE -> "🔧"
-                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.REPAIR -> "🛠️"
-                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.INSURANCE -> "🛡️"
-                            com.aggin.carcost.data.local.database.entities.ExpenseCategory.PARKING -> "🅿️"
-                            else -> "📦"
-                        }
+                        val emoji = cat.emoji()
                         emoji to "%.0f ₽".format(amount)
                     }
             } else emptyList()

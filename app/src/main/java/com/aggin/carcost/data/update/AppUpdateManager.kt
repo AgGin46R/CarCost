@@ -5,6 +5,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -71,11 +73,20 @@ class AppUpdateManager(private val context: Context) {
             return
         }
 
+        // URL приходит из строки app_config в Supabase. По http его можно
+        // подменить на пути к устройству, поэтому принимаем только https.
+        val parsedUrl = Uri.parse(apkUrl)
+        if (!parsedUrl.scheme.equals("https", ignoreCase = true)) {
+            Log.e(TAG, "Отклонено: download_url должен быть https, получено '${parsedUrl.scheme}'")
+            toast("Обновление отклонено: небезопасная ссылка")
+            return
+        }
+
         val fileName = "carcost_update.apk"
         val dest = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
         if (dest.exists()) dest.delete()
 
-        val request = DownloadManager.Request(Uri.parse(apkUrl))
+        val request = DownloadManager.Request(parsedUrl)
             .setTitle("CarCost — загрузка обновления")
             .setDescription("Подождите, идёт загрузка...")
             .setNotificationVisibility(
@@ -93,10 +104,41 @@ class AppUpdateManager(private val context: Context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
                 val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                if (id == downloadId) {
-                    installApk(dest)
-                    try { context.unregisterReceiver(this) } catch (_: Exception) {}
+                if (id != downloadId) return
+                try { context.unregisterReceiver(this) } catch (_: Exception) {}
+
+                // ACTION_DOWNLOAD_COMPLETE приходит и при неудачной загрузке —
+                // без этой проверки установка запускалась на битом файле
+                val status = dm.query(DownloadManager.Query().setFilterById(downloadId)).use { c ->
+                    if (c != null && c.moveToFirst()) {
+                        val statusIdx = c.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                        val reasonIdx = c.getColumnIndex(DownloadManager.COLUMN_REASON)
+                        val st = if (statusIdx >= 0) c.getInt(statusIdx) else -1
+                        if (st != DownloadManager.STATUS_SUCCESSFUL && reasonIdx >= 0) {
+                            Log.e(TAG, "Загрузка не удалась, reason=${c.getInt(reasonIdx)}")
+                        }
+                        st
+                    } else -1
                 }
+
+                if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                    toast("Не удалось скачать обновление")
+                    dest.delete()
+                    return
+                }
+
+                // Путь берём у DownloadManager: при коллизии имён он сохранит
+                // файл как carcost_update-1.apk, и dest указывал бы не туда
+                val downloadedFile = dm.getUriForDownloadedFile(downloadId)
+                    ?.let { uri -> uri.path?.let(::File)?.takeIf { it.exists() } }
+                    ?: dest
+
+                if (!verifyApk(downloadedFile)) {
+                    downloadedFile.delete()
+                    return
+                }
+
+                installApk(downloadedFile)
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -111,6 +153,109 @@ class AppUpdateManager(private val context: Context) {
                 receiver,
                 IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
             )
+        }
+    }
+
+    /**
+     * Проверяет скачанный APK перед установкой.
+     *
+     * Ссылка на файл приходит из таблицы app_config: тот, кто может её изменить,
+     * без этих проверок ставил бы пользователям произвольный пакет. Проверяем,
+     * что это наше приложение, что версия действительно новее и что оно подписано
+     * тем же ключом.
+     */
+    private fun verifyApk(file: File): Boolean {
+        if (!file.exists() || file.length() == 0L) {
+            Log.e(TAG, "Проверка APK: файл отсутствует или пуст")
+            toast("Файл обновления повреждён")
+            return false
+        }
+
+        val pm = context.packageManager
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            PackageManager.GET_SIGNING_CERTIFICATES
+        else
+            @Suppress("DEPRECATION") PackageManager.GET_SIGNATURES
+
+        val archiveInfo = try {
+            pm.getPackageArchiveInfo(file.absolutePath, flags)
+        } catch (e: Exception) {
+            Log.e(TAG, "Проверка APK: не удалось прочитать пакет", e)
+            null
+        }
+
+        if (archiveInfo == null) {
+            toast("Файл обновления повреждён")
+            return false
+        }
+
+        // Для чтения подписи из архива этим полям нужен путь к самому файлу
+        archiveInfo.applicationInfo?.apply {
+            sourceDir = file.absolutePath
+            publicSourceDir = file.absolutePath
+        }
+
+        if (archiveInfo.packageName != context.packageName) {
+            Log.e(TAG, "Проверка APK: чужой пакет ${archiveInfo.packageName}")
+            toast("Обновление отклонено: посторонний пакет")
+            return false
+        }
+
+        val installed = pm.getPackageInfo(context.packageName, 0)
+        val newCode = archiveInfo.longVersionCodeCompat()
+        val currentCode = installed.longVersionCodeCompat()
+        if (newCode <= currentCode) {
+            Log.e(TAG, "Проверка APK: версия не новее ($newCode <= $currentCode)")
+            toast("Обновление отклонено: версия не новее установленной")
+            return false
+        }
+
+        if (!signaturesMatch(archiveInfo)) {
+            Log.e(TAG, "Проверка APK: подпись не совпадает с установленным приложением")
+            toast("Обновление отклонено: неверная подпись")
+            return false
+        }
+
+        Log.d(TAG, "Проверка APK пройдена: версия $newCode")
+        return true
+    }
+
+    private fun PackageInfo.longVersionCodeCompat(): Long =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) longVersionCode
+        else @Suppress("DEPRECATION") versionCode.toLong()
+
+    private fun signaturesMatch(archiveInfo: PackageInfo): Boolean {
+        val pm = context.packageManager
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val installed = pm.getPackageInfo(
+                    context.packageName, PackageManager.GET_SIGNING_CERTIFICATES
+                )
+                val current = installed.signingInfo?.apkContentsSigners
+                    ?.map { it.toCharsString() }?.toSet().orEmpty()
+                val incoming = archiveInfo.signingInfo?.apkContentsSigners
+                    ?.map { it.toCharsString() }?.toSet().orEmpty()
+                current.isNotEmpty() && incoming.isNotEmpty() && current == incoming
+            } else {
+                @Suppress("DEPRECATION")
+                val installed = pm.getPackageInfo(
+                    context.packageName, PackageManager.GET_SIGNATURES
+                )
+                @Suppress("DEPRECATION")
+                val current = installed.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+                @Suppress("DEPRECATION")
+                val incoming = archiveInfo.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+                current.isNotEmpty() && incoming.isNotEmpty() && current == incoming
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Не удалось сравнить подписи", e)
+            false
+        }
+    }
+
+    private fun toast(message: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
         }
     }
 

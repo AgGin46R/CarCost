@@ -241,6 +241,10 @@ fun YandexMapView(
     )
 }
 
+/**
+ * Метка маркера на карте. Намеренно НЕ Labels.emoji(): здесь урезанный набор
+ * и общий пин 📍 для всего остального — на карте важна различимость, а не полнота.
+ */
 fun getCategoryShortName(category: ExpenseCategory): String {
     return when (category) {
         ExpenseCategory.FUEL -> "⛽"

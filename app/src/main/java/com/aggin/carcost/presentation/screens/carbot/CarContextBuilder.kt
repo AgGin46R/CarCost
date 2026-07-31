@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.aggin.carcost.presentation.common.displayName
 
 /**
  * Builds a concise system prompt for the Gemma model from Room data.
@@ -95,17 +96,5 @@ class CarContextBuilder {
         return sb.toString()
     }
 
-    private fun categoryName(category: ExpenseCategory) = when (category) {
-        ExpenseCategory.FUEL        -> "Топливо"
-        ExpenseCategory.MAINTENANCE -> "ТО/Сервис"
-        ExpenseCategory.REPAIR      -> "Ремонт"
-        ExpenseCategory.INSURANCE   -> "Страховка"
-        ExpenseCategory.TAX         -> "Налоги"
-        ExpenseCategory.PARKING     -> "Парковка"
-        ExpenseCategory.TOLL        -> "Платная дорога"
-        ExpenseCategory.WASH        -> "Мойка"
-        ExpenseCategory.FINE        -> "Штраф"
-        ExpenseCategory.ACCESSORIES -> "Аксессуары"
-        ExpenseCategory.OTHER       -> "Другое"
-    }
+    private fun categoryName(category: ExpenseCategory) = category.displayName()
 }

@@ -44,6 +44,9 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
+import com.aggin.carcost.presentation.common.icon
+import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.presentation.common.formatDateShort
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -404,7 +407,14 @@ fun CarInfoCard(uiState: CarDetailUiState) {
 
             // Оценочная стоимость (если есть цена покупки)
             car.purchasePrice?.let { price ->
-                val currentValue = CarValueEstimator.estimateCurrentValue(price, car.year)
+                // Год ПОКУПКИ, а не год выпуска. Раньше сюда передавался car.year,
+                // и амортизация применялась дважды: цена подержанной машины уже
+                // включает просадку с завода, а модель просаживала её ещё раз от нуля.
+                // Машина 2015 года, купленная в 2024 за 800 000, оценивалась в ~199 000.
+                val purchaseYear = java.util.Calendar.getInstance()
+                    .apply { timeInMillis = car.purchaseDate }
+                    .get(java.util.Calendar.YEAR)
+                val currentValue = CarValueEstimator.estimateCurrentValue(price, purchaseYear)
                 val deprPct = CarValueEstimator.depreciationPercent(price, currentValue)
                 Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
@@ -856,38 +866,11 @@ fun EmptyExpensesState(isFiltered: Boolean) {
     )
 }
 
-fun getCategoryIcon(category: ExpenseCategory) = when (category) {
-    ExpenseCategory.FUEL -> Icons.Default.LocalGasStation
-    ExpenseCategory.MAINTENANCE -> Icons.Default.Build
-    ExpenseCategory.REPAIR -> Icons.Default.CarRepair
-    ExpenseCategory.INSURANCE -> Icons.Default.Security
-    ExpenseCategory.TAX -> Icons.Default.AttachMoney
-    ExpenseCategory.PARKING -> Icons.Default.LocalParking
-    ExpenseCategory.WASH -> Icons.Default.LocalCarWash
-    ExpenseCategory.FINE -> Icons.Default.Warning
-    ExpenseCategory.TOLL -> Icons.Default.Toll
-    ExpenseCategory.ACCESSORIES -> Icons.Default.ShoppingCart
-    ExpenseCategory.OTHER -> Icons.Default.MoreHoriz
-}
+fun getCategoryIcon(category: ExpenseCategory) = category.icon()
 
-fun getCategoryName(category: ExpenseCategory) = when (category) {
-    ExpenseCategory.FUEL -> "Топливо"
-    ExpenseCategory.MAINTENANCE -> "Обслуживание"
-    ExpenseCategory.REPAIR -> "Ремонт"
-    ExpenseCategory.INSURANCE -> "Страховка"
-    ExpenseCategory.TAX -> "Налог"
-    ExpenseCategory.PARKING -> "Парковка"
-    ExpenseCategory.WASH -> "Мойка"
-    ExpenseCategory.FINE -> "Штраф"
-    ExpenseCategory.TOLL -> "Платная дорога"
-    ExpenseCategory.ACCESSORIES -> "Аксессуары"
-    ExpenseCategory.OTHER -> "Другое"
-}
+fun getCategoryName(category: ExpenseCategory) = category.displayName()
 
-fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd MMM yyyy", Locale("ru"))
-    return sdf.format(java.util.Date(timestamp))
-}
+fun formatDate(timestamp: Long): String = formatDateShort(timestamp)
 
 fun formatCurrency(amount: Double, currency: String = "RUB"): String {
     val symbol = com.aggin.carcost.util.CurrencyUtils.symbol(currency)

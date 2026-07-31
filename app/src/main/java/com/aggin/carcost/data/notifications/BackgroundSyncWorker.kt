@@ -68,7 +68,10 @@ class BackgroundSyncWorker(
     }
 
     // ── Supabase DTOs ─────────────────────────────────────────────────────────
-    // created_at is a Supabase timestamptz → comes as ISO 8601 string
+    // created_at в этих таблицах — bigint (миллисекунды epoch), а не timestamptz.
+    // Раньше здесь стоял String: сериализатор supabase-kt строгий, число в строку
+    // не декодируется, decodeList падал на каждом запросе, ошибка гасилась
+    // локальным catch — фоновые уведомления не приходили никогда.
 
     @Serializable
     private data class ChatRow(
@@ -77,7 +80,7 @@ class BackgroundSyncWorker(
         @SerialName("user_id") val userId: String,
         @SerialName("user_email") val userEmail: String,
         val message: String,
-        @SerialName("created_at") val createdAt: String  // "2025-04-06T12:34:56.123456+00:00"
+        @SerialName("created_at") val createdAt: Long
     )
 
     @Serializable
@@ -87,7 +90,7 @@ class BackgroundSyncWorker(
         @SerialName("user_id") val userId: String,
         val category: String,
         val amount: Double,
-        @SerialName("created_at") val createdAt: String
+        @SerialName("created_at") val createdAt: Long
     )
 
     @Serializable
@@ -96,7 +99,7 @@ class BackgroundSyncWorker(
         @SerialName("car_id") val carId: String,
         @SerialName("user_id") val userId: String,
         val type: String,
-        @SerialName("created_at") val createdAt: String
+        @SerialName("created_at") val createdAt: Long
     )
 
     // ── Worker entry point ────────────────────────────────────────────────────

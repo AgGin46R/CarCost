@@ -5,6 +5,8 @@ import com.aggin.carcost.data.local.database.entities.CarMember
 import com.aggin.carcost.data.local.database.entities.MemberRole
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -69,79 +71,116 @@ class SupabaseCarMembersRepository(private val auth: SupabaseAuthRepository) {
         }
     }
 
-    /** Create an invitation record and return the invite token. */
+    companion object InviteCode {
+        /**
+         * Без 0/O, 1/I/L и прочих пар, которые путают при диктовке и наборе.
+         * 32 символа на позицию, 8 позиций — порядка 10^12 комбинаций.
+         */
+        private const val ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+        private const val LENGTH = 8
+
+        fun generate(): String = (1..LENGTH)
+            .map { ALPHABET.random() }
+            .joinToString("")
+
+        /** «K7M2-P9XQ» — так код читается и диктуется заметно легче */
+        fun format(code: String): String =
+            if (code.length == LENGTH) "${code.take(4)}-${code.drop(4)}" else code
+    }
+
+    /**
+     * Создаёт приглашение и возвращает короткий код.
+     *
+     * Раньше токеном был UUID: он годился для ссылки, но ссылку `carcost://`
+     * мессенджеры не делают кликабельной, а 36 символов руками не ввести.
+     * Восьми символов из однозначного алфавита хватает — сервер принимает их
+     * в любом регистре и с любыми разделителями.
+     */
     suspend fun createInvitation(
         carId: String,
         invitedEmail: String,
         role: MemberRole
     ): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val token = UUID.randomUUID().toString()
-            val dto = CarInvitationDto(
-                id = UUID.randomUUID().toString(),
-                carId = carId,
-                invitedEmail = invitedEmail,
-                token = token,
-                role = role.name,
-                expiresAt = System.currentTimeMillis() + 7 * 24 * 60 * 60 * 1000L // 7 days
-            )
-            supabase.from("car_invitations").insert(dto)
-            Log.d(TAG, "Invitation created token=$token")
-            Result.success(token)
-        } catch (e: Exception) {
-            Log.e(TAG, "createInvitation failed", e)
-            Result.failure(e)
+        // Столбец token уникален: коллизия провалит вставку, просто пробуем снова
+        repeat(5) { attempt ->
+            val code = InviteCode.generate()
+            try {
+                val dto = CarInvitationDto(
+                    id = UUID.randomUUID().toString(),
+                    carId = carId,
+                    invitedEmail = invitedEmail,
+                    token = code,
+                    role = role.name,
+                    expiresAt = System.currentTimeMillis() + 7 * 24 * 60 * 60 * 1000L // 7 дней
+                )
+                supabase.from("car_invitations").insert(dto)
+                Log.d(TAG, "Invitation created, attempt ${attempt + 1}")
+                return@withContext Result.success(code)
+            } catch (e: Exception) {
+                val duplicate = e.message?.contains("23505") == true ||
+                    e.message?.contains("duplicate key") == true
+                if (!duplicate) {
+                    Log.e(TAG, "createInvitation failed", e)
+                    return@withContext Result.failure(e)
+                }
+                Log.w(TAG, "Код уже занят, генерирую новый")
+            }
         }
+        Result.failure(Exception("Не удалось создать код приглашения, попробуйте ещё раз"))
     }
 
-    /** Accept an invitation by token. Adds current user to car_members. */
+    @Serializable
+    private data class AcceptInvitationParams(@SerialName("p_token") val token: String)
+
+    @Serializable
+    private data class AcceptInvitationResult(
+        @SerialName("car_id") val carId: String,
+        val role: String
+    )
+
+    /**
+     * Принимает приглашение по токену через функцию accept_invitation.
+     *
+     * Раньше это делалось тремя запросами из клиента, и под RLS оно не работало
+     * для приглашений по ссылке: политика на car_invitations отдаёт строки только
+     * при `invited_email = auth.email()`, а у ссылки email пустой — поиск по токену
+     * возвращал пустоту и пользователь видел «Приглашение не найдено».
+     *
+     * Функция на сервере объявлена SECURITY DEFINER: там токен и есть удостоверение,
+     * поэтому присоединиться может и тот, кого пригласили ссылкой, и вошедший через
+     * VK без почты.
+     */
     suspend fun acceptInvitation(token: String): Result<CarMember> = withContext(Dispatchers.IO) {
         try {
             val userId = auth.getUserId() ?: return@withContext Result.failure(Exception("Not authenticated"))
             val email = auth.getCurrentUserEmail() ?: ""
 
-            // Find the invitation
-            val invitations = supabase.from("car_invitations")
-                .select { filter { eq("token", token) } }
-                .decodeList<CarInvitationDto>()
-
-            val inv = invitations.firstOrNull()
-                ?: return@withContext Result.failure(Exception("Приглашение не найдено"))
-
-            if (inv.acceptedAt != null)
-                return@withContext Result.failure(Exception("Приглашение уже использовано"))
-
-            if (System.currentTimeMillis() > inv.expiresAt)
-                return@withContext Result.failure(Exception("Срок приглашения истёк"))
-
-            // Add to car_members
-            val member = CarMemberDto(
-                id = UUID.randomUUID().toString(),
-                carId = inv.carId,
-                userId = userId,
-                email = email,
-                role = inv.role
-            )
-            supabase.from("car_members").upsert(member, onConflict = "car_id,user_id")
-
-            // Mark invitation as accepted
-            supabase.from("car_invitations")
-                .update(mapOf("accepted_at" to System.currentTimeMillis())) {
-                    filter { eq("token", token) }
-                }
+            val response = supabase.postgrest
+                .rpc("accept_invitation", AcceptInvitationParams(token))
+                .decodeAs<AcceptInvitationResult>()
 
             val result = CarMember(
-                id = member.id,
-                carId = member.carId,
+                id = UUID.randomUUID().toString(),
+                carId = response.carId,
                 userId = userId,
                 email = email,
-                role = MemberRole.valueOf(inv.role)
+                role = MemberRole.valueOf(response.role)
             )
-            Log.d(TAG, "Invitation accepted, joined car ${inv.carId} as ${inv.role}")
+            Log.d(TAG, "Invitation accepted, joined car ${response.carId} as ${response.role}")
             Result.success(result)
         } catch (e: Exception) {
             Log.e(TAG, "acceptInvitation failed", e)
-            Result.failure(e)
+            // Функция бросает конкретные метки, чтобы пользователь видел причину,
+            // а не общий текст «что-то пошло не так»
+            val message = e.message.orEmpty()
+            val readable = when {
+                "invitation_not_found" in message -> "Приглашение не найдено"
+                "invitation_already_used" in message -> "Приглашение уже использовано"
+                "invitation_expired" in message -> "Срок приглашения истёк"
+                "not_authenticated" in message -> "Сначала войдите в аккаунт"
+                else -> "Не удалось принять приглашение"
+            }
+            Result.failure(Exception(readable))
         }
     }
 

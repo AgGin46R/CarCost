@@ -24,6 +24,7 @@ import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import com.aggin.carcost.domain.fuel.FuelConsumptionCalculator
 
 data class ExpenseFilter(
     val categories: Set<ExpenseCategory> = emptySet(),
@@ -381,17 +382,10 @@ class CarDetailViewModel(
         return remaining to pct
     }
 
-    private fun calcAvgConsumption(fuelExpenses: List<Expense>): Double? {
-        val fullTanks = fuelExpenses.filter { it.isFullTank && it.fuelLiters != null }.sortedBy { it.date }
-        if (fullTanks.size < 2) return null
-        var totalL = 0.0; var totalKm = 0
-        for (i in 1 until fullTanks.size) {
-            val km = fullTanks[i].odometer - fullTanks[i - 1].odometer
-            val l = fullTanks[i].fuelLiters!!
-            if (km > 0 && l / km * 100 in 2.0..30.0) { totalL += l; totalKm += km }
-        }
-        return if (totalKm > 0) totalL * 100.0 / totalKm else null
-    }
+    // Расчёт переехал в domain/fuel: тот же метод «от полного до полного» теперь
+    // используется и на экране аналитики, где раньше была другая, неверная формула
+    private fun calcAvgConsumption(fuelExpenses: List<Expense>): Double? =
+        FuelConsumptionCalculator.average(fuelExpenses)
 
     private fun calculateFuelConsumptionPerFill(expenses: List<Expense>): Map<String, Double> {
         val fullTanks = expenses

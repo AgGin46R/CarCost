@@ -24,6 +24,8 @@ import com.aggin.carcost.R
 @Composable
 fun RegisterScreen(
     navController: NavController,
+    /** См. LoginScreen: при открытии по ссылке-приглашению ведём на принятие, а не на главный */
+    onSuccessRoute: String = "home",
     viewModel: RegisterViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -32,7 +34,7 @@ fun RegisterScreen(
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            navController.navigate("home") {
+            navController.navigate(onSuccessRoute) {
                 popUpTo("register") { inclusive = true }
                 popUpTo("login") { inclusive = true }
             }

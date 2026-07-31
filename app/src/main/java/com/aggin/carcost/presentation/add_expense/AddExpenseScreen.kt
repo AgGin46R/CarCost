@@ -43,6 +43,8 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import java.util.*
+import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.presentation.common.formatDateLong
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -687,26 +689,7 @@ fun ServiceTypeDropdown(
     }
 }
 
-fun getServiceTypeName(serviceType: ServiceType) = when (serviceType) {
-    ServiceType.OIL_CHANGE -> "Замена масла"
-    ServiceType.OIL_FILTER -> "Масляный фильтр"
-    ServiceType.AIR_FILTER -> "Воздушный фильтр"
-    ServiceType.FUEL_FILTER -> "Топливный фильтр"
-    ServiceType.CABIN_FILTER -> "Салонный фильтр"
-    ServiceType.SPARK_PLUGS -> "Свечи зажигания"
-    ServiceType.BRAKE_PADS -> "Тормозные колодки"
-    ServiceType.BRAKE_FLUID -> "Тормозная жидкость"
-    ServiceType.COOLANT -> "Охлаждающая жидкость"
-    ServiceType.TRANSMISSION_FLUID -> "Трансмиссионное масло"
-    ServiceType.TIMING_BELT -> "Ремень ГРМ"
-    ServiceType.TIRES -> "Шины"
-    ServiceType.BATTERY -> "Аккумулятор"
-    ServiceType.ALIGNMENT -> "Развал-схождение"
-    ServiceType.BALANCING -> "Балансировка"
-    ServiceType.INSPECTION -> "Техосмотр"
-    ServiceType.FULL_SERVICE -> "Полное ТО"
-    ServiceType.OTHER -> "Другое"
-}
+fun getServiceTypeName(serviceType: ServiceType) = serviceType.displayName()
 
 /** Row of quick-preset amount chips for fast input. */
 @Composable
@@ -739,6 +722,8 @@ fun AutoCategoryHint(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Намеренно НЕ из Labels.kt: в ряд чипов нужны укороченные подписи
+    // («Дорога» вместо «Платная дорога»), иначе строка не помещается.
     val categoryLabel = when (category) {
         ExpenseCategory.FUEL -> "⛽ Топливо"
         ExpenseCategory.MAINTENANCE -> "🔧 ТО"
@@ -785,10 +770,7 @@ fun AutoCategoryHint(
     }
 }
 
-fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd MMMM yyyy", Locale("ru"))
-    return sdf.format(Date(timestamp))
-}
+fun formatDate(timestamp: Long): String = formatDateLong(timestamp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

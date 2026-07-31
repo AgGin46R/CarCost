@@ -136,4 +136,17 @@ class SettingsManager(private val context: Context) {
         val key = longPreferencesKey("last_chat_seen_$carId")
         context.dataStore.edit { it[key] = timestamp }
     }
+
+    // ── Синхронизация при выходе приложения на передний план ─────────────────
+    // Раньше отправка на сервер шла только при входе и выходе из аккаунта, и у
+    // тех, кто не выходит, локальные записи копились месяцами.
+
+    private val lastForegroundSyncKey = longPreferencesKey("last_foreground_sync")
+
+    suspend fun getLastForegroundSync(): Long =
+        context.dataStore.data.map { it[lastForegroundSyncKey] ?: 0L }.first()
+
+    suspend fun setLastForegroundSync(timestamp: Long = System.currentTimeMillis()) {
+        context.dataStore.edit { it[lastForegroundSyncKey] = timestamp }
+    }
 }

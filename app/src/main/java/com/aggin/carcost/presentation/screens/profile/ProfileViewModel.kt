@@ -12,31 +12,16 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.User
-import com.aggin.carcost.data.local.repository.CarRepository
-import com.aggin.carcost.data.local.repository.ExpenseRepository
-import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
-import com.aggin.carcost.data.local.repository.ExpenseTagRepository
-import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
 import com.aggin.carcost.data.local.settings.SettingsManager
-import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
-import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
-import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
-import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
-import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
-import com.aggin.carcost.data.remote.repository.SupabaseFluidLevelRepository
-import com.aggin.carcost.data.remote.repository.SupabaseGpsTripRepository
-import com.aggin.carcost.data.remote.repository.SupabaseCarIncidentRepository
-import com.aggin.carcost.data.remote.repository.SupabaseInsurancePolicyRepository
-import com.aggin.carcost.data.remote.repository.SupabaseSavingsGoalRepository
-import com.aggin.carcost.data.remote.repository.SupabaseCategoryBudgetRepository
-import com.aggin.carcost.data.remote.repository.SupabaseCarDocumentRepository
-import com.aggin.carcost.data.remote.repository.SupabaseAchievementRepository
-import com.aggin.carcost.data.sync.SyncRepository
 import com.aggin.carcost.domain.gamification.DriverScore
 import com.aggin.carcost.domain.gamification.DriverScoreCalculator
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
+import com.aggin.carcost.data.remote.api.VkAuthApi
+import com.aggin.carcost.data.remote.api.VkLinkResult
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.repository.VkIdentity
 import com.aggin.carcost.supabase
+import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -45,6 +30,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
+import com.aggin.carcost.data.sync.SyncRepositoryFactory
 
 data class UserStatistics(
     val carsCount: Int = 0,
@@ -60,8 +46,27 @@ data class ProfileUiState(
     val isUploadingPhoto: Boolean = false,
     val errorMessage: String? = null,
     /** Аккаунт заведён через ВКонтакте: пароля нет, email может быть синтетическим */
-    val isVkAccount: Boolean = false
+    val isVkAccount: Boolean = false,
+    /** Привязка ВКонтакте, если есть */
+    val vkLink: VkIdentity? = null,
+    val isLinkingVk: Boolean = false,
+    /** Разовое сообщение о результате привязки/отвязки */
+    val vkLinkMessage: String? = null,
+    /** Идёт отправка данных перед выходом */
+    val isSigningOut: Boolean = false,
+    /** Выход остановлен: данные не удалось отправить на сервер */
+    val logoutBlocked: Boolean = false,
+    /** У аккаунта есть вход по паролю (нет у Google и ВКонтакте) */
+    val hasPasswordLogin: Boolean = true,
+    val passwordChangeState: PasswordChangeState = PasswordChangeState.Idle
 )
+
+sealed interface PasswordChangeState {
+    object Idle : PasswordChangeState
+    object InProgress : PasswordChangeState
+    object Success : PasswordChangeState
+    data class Error(val message: String) : PasswordChangeState
+}
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -75,29 +80,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     private val settingsManager = SettingsManager(application)
     private val context = application.applicationContext
 
-    private val syncRepo = SyncRepository(
-        localCarRepo = CarRepository(database.carDao()),
-        localExpenseRepo = ExpenseRepository(database.expenseDao()),
-        localReminderRepo = MaintenanceReminderRepository(database.maintenanceReminderDao()),
-        localTagRepo = ExpenseTagRepository(database.expenseTagDao()),
-        localTagDao = database.expenseTagDao(),
-        localPlannedExpenseRepo = PlannedExpenseRepository(database.plannedExpenseDao()),
-        supabaseAuthRepo = supabaseAuth,
-        supabaseCarRepo = SupabaseCarRepository(supabaseAuth),
-        supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth),
-        supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth),
-        supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth),
-        supabasePlannedExpenseRepo = SupabasePlannedExpenseRepository(supabaseAuth),
-        localDb = database,
-        supabaseFluidLevelRepo = SupabaseFluidLevelRepository(supabaseAuth),
-        supabaseGpsTripRepo = SupabaseGpsTripRepository(supabaseAuth),
-        supabaseIncidentRepo = SupabaseCarIncidentRepository(supabaseAuth),
-        supabaseInsuranceRepo = SupabaseInsurancePolicyRepository(supabaseAuth),
-        supabaseSavingsGoalRepo = SupabaseSavingsGoalRepository(supabaseAuth),
-        supabaseCategoryBudgetRepo = SupabaseCategoryBudgetRepository(supabaseAuth),
-        supabaseCarDocumentRepo = SupabaseCarDocumentRepository(supabaseAuth),
-        supabaseAchievementRepo = SupabaseAchievementRepository(supabaseAuth)
-    )
+    private val syncRepo = SyncRepositoryFactory.create(application, database, supabaseAuth)
 
     var tempCameraUri: Uri? = null
         private set
@@ -151,7 +134,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                             ),
                             driverScore = driverScore,
                             isLoading = false,
-                            isVkAccount = supabaseAuth.isVkAccount()
+                            isVkAccount = supabaseAuth.isVkAccount(),
+                            vkLink = supabaseAuth.getVkLink(),
+                            hasPasswordLogin = supabaseAuth.hasPasswordLogin()
                         )
                     } else {
                         _uiState.value = ProfileUiState(isLoading = false)
@@ -416,21 +401,143 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Смена пароля с проверкой текущего.
+     *
+     * Раньше `oldPassword` принимался и не использовался вообще: любой, кому
+     * попал в руки разблокированный телефон, менял пароль и забирал аккаунт.
+     * Плюс результат `updatePassword` не проверялся, и при неудаче пользователь
+     * видел «успешно».
+     *
+     * Изолированной ре-аутентификации в supabase-kt нет, поэтому старый пароль
+     * проверяется повторным `signIn` на том же клиенте: при верном пароле это
+     * просто ротирует сессию, при неверном — возвращает failure, не трогая её.
+     */
     fun changePassword(oldPassword: String, newPassword: String) {
         viewModelScope.launch {
-            try {
-                // Меняем пароль через Supabase
-                supabaseAuth.updatePassword(newPassword)
+            _uiState.update { it.copy(passwordChangeState = PasswordChangeState.InProgress) }
 
-                _uiState.value = _uiState.value.copy(
-                    errorMessage = null
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    errorMessage = "Ошибка смены пароля: ${e.message}"
-                )
+            val email = supabaseAuth.getCurrentUserEmail()
+            if (email.isNullOrBlank()) {
+                _uiState.update {
+                    it.copy(passwordChangeState = PasswordChangeState.Error("Не удалось определить email аккаунта"))
+                }
+                return@launch
+            }
+
+            val reauth = supabaseAuth.signIn(email, oldPassword)
+            if (reauth.isFailure) {
+                android.util.Log.w("ProfileViewModel", "Re-auth before password change failed")
+                _uiState.update {
+                    it.copy(passwordChangeState = PasswordChangeState.Error("Текущий пароль неверен"))
+                }
+                return@launch
+            }
+
+            val result = supabaseAuth.updatePassword(newPassword)
+            _uiState.update {
+                if (result.isSuccess) {
+                    it.copy(passwordChangeState = PasswordChangeState.Success)
+                } else {
+                    it.copy(
+                        passwordChangeState = PasswordChangeState.Error(
+                            "Не удалось сменить пароль: ${result.exceptionOrNull()?.message ?: "неизвестная ошибка"}"
+                        )
+                    )
+                }
             }
         }
+    }
+
+    fun resetPasswordChangeState() {
+        _uiState.update { it.copy(passwordChangeState = PasswordChangeState.Idle) }
+    }
+
+    /**
+     * Привязывает ВКонтакте к текущему аккаунту, чтобы дальше можно было
+     * входить любым способом и попадать в одни и те же данные.
+     */
+    fun linkVk(context: Context) {
+        _uiState.update { it.copy(isLinkingVk = true, vkLinkMessage = null) }
+        viewModelScope.launch(Dispatchers.Main) {
+            try {
+                val authResult = com.aggin.carcost.data.auth.VkSignInHelper.authorize(context)
+                if (authResult.isFailure) {
+                    val msg = authResult.exceptionOrNull()?.message
+                    _uiState.update {
+                        it.copy(
+                            isLinkingVk = false,
+                            vkLinkMessage = if (msg == com.aggin.carcost.data.auth.VkSignInHelper.CANCELLED_MESSAGE) null else msg
+                        )
+                    }
+                    return@launch
+                }
+
+                val vkAuth = authResult.getOrThrow()
+                val jwt = com.aggin.carcost.supabase.auth.currentAccessTokenOrNull()
+                if (jwt == null) {
+                    _uiState.update {
+                        it.copy(isLinkingVk = false, vkLinkMessage = "Сессия истекла — войдите заново")
+                    }
+                    return@launch
+                }
+
+                when (val result = VkAuthApi.linkAccount(vkAuth.accessToken, vkAuth.deviceId, jwt)) {
+                    is VkLinkResult.Success -> {
+                        _uiState.update {
+                            it.copy(
+                                isLinkingVk = false,
+                                vkLink = supabaseAuth.getVkLink(),
+                                vkLinkMessage = "ВКонтакте привязан"
+                            )
+                        }
+                    }
+                    is VkLinkResult.VkTakenByOtherAccount -> _uiState.update {
+                        it.copy(
+                            isLinkingVk = false,
+                            vkLinkMessage = "Этот аккаунт ВКонтакте уже привязан к другому профилю CarCost"
+                        )
+                    }
+                    is VkLinkResult.AccountAlreadyLinked -> _uiState.update {
+                        it.copy(
+                            isLinkingVk = false,
+                            vkLinkMessage = "К этому профилю уже привязан другой аккаунт ВКонтакте"
+                        )
+                    }
+                    is VkLinkResult.Failure -> _uiState.update {
+                        it.copy(isLinkingVk = false, vkLinkMessage = result.message)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileViewModel", "linkVk failed", e)
+                _uiState.update {
+                    it.copy(isLinkingVk = false, vkLinkMessage = e.message ?: "Не удалось привязать ВКонтакте")
+                }
+            }
+        }
+    }
+
+    /**
+     * Отвязывает ВКонтакте. Для аккаунтов, созданных через VK, вызывать нельзя —
+     * у них не останется способа войти. Экран такую кнопку не показывает.
+     */
+    fun unlinkVk() {
+        if (_uiState.value.isVkAccount) return
+
+        viewModelScope.launch {
+            val result = supabaseAuth.unlinkVk()
+            _uiState.update {
+                if (result.isSuccess) {
+                    it.copy(vkLink = null, vkLinkMessage = "ВКонтакте отвязан")
+                } else {
+                    it.copy(vkLinkMessage = "Не удалось отвязать: ${result.exceptionOrNull()?.message}")
+                }
+            }
+        }
+    }
+
+    fun clearVkLinkMessage() {
+        _uiState.update { it.copy(vkLinkMessage = null) }
     }
 
     /** Инвалидирует токен VK ID. Ошибки не критичны — из приложения мы всё равно выходим. */
@@ -450,18 +557,46 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun signOut(navController: NavController) {
+    /**
+     * Выход из аккаунта.
+     *
+     * Выход стирает локальную базу целиком, поэтому сначала обязательно нужно
+     * отправить всё на сервер. Раньше результат отправки не проверялся вовсе:
+     * `fullSync()` не бросает исключение, а возвращает Result, и при отсутствии
+     * сети выход молча уничтожал несинхронизированные записи.
+     *
+     * Теперь при неудачной отправке ничего не разрушается — пользователь видит
+     * предупреждение и решает сам.
+     *
+     * @param force пропустить проверку синхронизации (осознанный выбор пользователя
+     *              в диалоге: «выйти, потеряв несохранённое»)
+     */
+    fun signOut(navController: NavController, force: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 1. Синхронизируем все локальные данные в Supabase ПЕРЕД очисткой
-                try {
-                    syncRepo.fullSync()
+                if (!force) {
+                    _uiState.update { it.copy(isSigningOut = true, logoutBlocked = false) }
+
+                    val syncResult = syncRepo.fullSync()
+
+                    if (syncResult.isFailure) {
+                        android.util.Log.w(
+                            "ProfileViewModel",
+                            "Pre-logout sync failed — выход остановлен",
+                            syncResult.exceptionOrNull()
+                        )
+                        // Ничего не трогаем: ни сессию, ни базу. Решение за пользователем.
+                        _uiState.update { it.copy(isSigningOut = false, logoutBlocked = true) }
+                        return@launch
+                    }
+
                     android.util.Log.d("ProfileViewModel", "✅ Pre-logout sync completed")
-                } catch (e: Exception) {
-                    android.util.Log.e("ProfileViewModel", "⚠️ Pre-logout sync failed (continuing logout)", e)
                 }
 
-                // 2. Удаляем FCM токен чтобы не получать чужие уведомления после выхода
+                // Дальше — разрушительная часть, она же точка невозврата
+                _uiState.update { it.copy(isSigningOut = true, logoutBlocked = false) }
+
+                // Удаляем FCM токен чтобы не получать чужие уведомления после выхода
                 FcmTokenManager.deleteCurrentToken()
 
                 // Сессию VK нужно сбросить отдельно: иначе следующий вход через VK
@@ -470,14 +605,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 supabaseAuth.signOut()
                 if (wasVkAccount) logoutFromVk()
 
-                // 3. Очищаем ВСЕ локальные данные
                 try {
                     database.clearAllTables()
                 } catch (e: Exception) {
                     android.util.Log.e("ProfileViewModel", "Error clearing tables", e)
                 }
 
-                // 3. Переходим на экран входа
                 withContext(Dispatchers.Main) {
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
@@ -485,7 +618,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("ProfileViewModel", "Error signing out", e)
-                // Даже при ошибке выходим
+                // Сюда попадаем уже после точки невозврата — сессия и база могли
+                // быть частично очищены, оставлять пользователя в аккаунте нельзя
                 withContext(Dispatchers.Main) {
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
@@ -493,5 +627,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+    }
+
+    fun dismissLogoutBlocked() {
+        _uiState.update { it.copy(logoutBlocked = false) }
     }
 }

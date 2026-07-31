@@ -33,12 +33,15 @@ import com.aggin.carcost.presentation.navigation.Screen
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
+import android.content.Intent
 
 data class CarMembersUiState(
     val members: List<CarMember> = emptyList(),
     val currentUserRole: MemberRole? = null,
     val isLoading: Boolean = true,
-    val inviteSentToEmail: String? = null,  // показывается после успешной отправки
+    /** Готовый код приглашения; показывается после создания, владелец передаёт его сам */
+    val inviteCode: String? = null,
+    val inviteRole: MemberRole? = null,
     val errorMessage: String? = null
 )
 
@@ -104,12 +107,30 @@ class CarMembersViewModel(
         dao.deletePendingMembers(carId)
     }
 
-    /** Создаёт приглашение в Supabase и отправляет его напрямую на email */
+    /**
+     * Создаёт приглашение и возвращает ссылку, которой владелец делится сам.
+     *
+     * Письма приложение не отправляет и никогда не отправляло — раньше здесь
+     * просто создавалась запись в БД, а пользователю показывалось «получит
+     * письмо со ссылкой». Узнать о приглашении можно было, только уже имея
+     * аккаунт на ровно тот email, который угадал владелец.
+     *
+     * Код снимает все эти ограничения: `accept_invitation` на сервере сверяет
+     * только сам код, а почту не проверяет вообще — поэтому присоединится и тот,
+     * кто ещё не ставил приложение, и вошедший через VK без почты.
+     *
+     * @param email необязателен. Если указан — приглашённый, у которого уже
+     *              есть аккаунт с этим адресом, дополнительно увидит баннер
+     *              на главном экране.
+     */
     fun inviteMember(email: String, role: MemberRole) {
         viewModelScope.launch {
-            supabaseMembers.createInvitation(carId, email, role)
-                .onSuccess {
-                    _uiState.value = _uiState.value.copy(inviteSentToEmail = email)
+            supabaseMembers.createInvitation(carId, email.trim(), role)
+                .onSuccess { token ->
+                    _uiState.value = _uiState.value.copy(
+                        inviteCode = token,
+                        inviteRole = role
+                    )
                 }
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(
@@ -127,7 +148,7 @@ class CarMembersViewModel(
     }
 
     fun clearInviteSent() {
-        _uiState.value = _uiState.value.copy(inviteSentToEmail = null)
+        _uiState.value = _uiState.value.copy(inviteCode = null, inviteRole = null)
     }
 
     fun clearError() {
@@ -161,15 +182,65 @@ fun CarMembersScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showInviteDialog by remember { mutableStateOf(false) }
 
-    // Подтверждение успешной отправки приглашения
-    uiState.inviteSentToEmail?.let { email ->
+    // Код приглашения: приложение не рассылает письма, владелец передаёт код сам.
+    // Ссылку carcost:// мессенджеры не делают кликабельной, поэтому именно код.
+    uiState.inviteCode?.let { code ->
+        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+        val pretty = SupabaseCarMembersRepository.InviteCode.format(code)
         AlertDialog(
             onDismissRequest = { viewModel.clearInviteSent() },
-            icon = { Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Приглашение отправлено") },
-            text = { Text("Приглашение отправлено на $email. Пользователь получит письмо со ссылкой для присоединения.") },
+            icon = { Icon(Icons.Default.VpnKey, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Код приглашения") },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Передайте код тому, кого приглашаете. В приложении он вводит его " +
+                            "через «Присоединиться по коду» на главном экране."
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = pretty,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Действует 7 дней, сработает один раз.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
             confirmButton = {
-                TextButton(onClick = { viewModel.clearInviteSent() }) { Text("OK") }
+                TextButton(onClick = {
+                    val share = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(
+                            Intent.EXTRA_TEXT,
+                            "Приглашаю вас в CarCost — совместный учёт расходов на автомобиль.\n\n" +
+                                "Код приглашения: $pretty\n\n" +
+                                "Установите приложение и введите код на главном экране: " +
+                                "«Присоединиться по коду»."
+                        )
+                    }
+                    context.startActivity(Intent.createChooser(share, "Отправить приглашение"))
+                    viewModel.clearInviteSent()
+                }) { Text("Отправить") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(pretty))
+                    android.widget.Toast
+                        .makeText(context, "Код скопирован", android.widget.Toast.LENGTH_SHORT)
+                        .show()
+                    viewModel.clearInviteSent()
+                }) { Text("Скопировать") }
             }
         )
     }
@@ -265,11 +336,21 @@ private fun RoleInfoCard() {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         shape = RoundedCornerShape(12.dp)
     ) {
+        // Ограничения на запись по ролям были и откачены: в общей машине запись
+        // добавляет тот, кто сейчас на сервисе, а не тот, у кого нужная роль.
+        // Текст описывает то, что закреплено политиками на сервере.
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Роли участников", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            RoleRow("👑", "Владелец", "Полный доступ, управление участниками")
-            RoleRow("🚗", "Водитель", "Добавление расходов, просмотр")
-            RoleRow("🔧", "Механик", "Управление ТО и напоминаниями")
+            RoleRow("👑", "Владелец", "Приглашает и удаляет участников, может удалить автомобиль")
+            RoleRow("🔧", "Механик", "Ведёт машину наравне с владельцем")
+            RoleRow("🚗", "Водитель", "Ведёт машину наравне с владельцем")
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Расходы, ТО, документы и чат доступны всем участникам одинаково — " +
+                    "роль лишь помечает, кто чем занимается.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -361,10 +442,18 @@ private fun InviteMemberDialog(
         title = { Text("Пригласить участника") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Вы получите ссылку и отправите её сами — через любой мессенджер.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email") },
+                    label = { Text("Email (необязательно)") },
+                    supportingText = {
+                        Text("Если укажете — приглашение ещё и появится баннером у того, кто уже пользуется CarCost с этой почтой")
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -404,11 +493,13 @@ private fun InviteMemberDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (email.isNotBlank() && email.contains("@")) {
-                    onConfirm(email, selectedRole)
-                }
-            }) { Text("Пригласить") }
+            // Email необязателен: ссылка работает и без него. Но если введён —
+            // должен быть похож на адрес, иначе баннер всё равно не найдёт адресата
+            val emailValid = email.isBlank() || email.contains("@")
+            TextButton(
+                enabled = emailValid,
+                onClick = { onConfirm(email, selectedRole) }
+            ) { Text("Создать ссылку") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Отмена") }

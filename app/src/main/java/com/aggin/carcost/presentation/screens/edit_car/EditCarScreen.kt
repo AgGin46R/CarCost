@@ -74,8 +74,12 @@ fun EditCarScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.showDeleteDialog() }) {
-                        Icon(Icons.Default.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
+                    // Удаление автомобиля вместе со всей историей расходов —
+                    // право владельца, а не любого участника
+                    if (uiState.canDeleteCar) {
+                        IconButton(onClick = { viewModel.showDeleteDialog() }) {
+                            Icon(Icons.Default.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

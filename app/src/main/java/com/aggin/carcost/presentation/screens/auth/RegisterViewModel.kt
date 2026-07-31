@@ -11,25 +11,6 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.User
 import com.aggin.carcost.data.remote.api.VkAuthApi
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
-import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
-import com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository
-import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
-import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
-import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
-import com.aggin.carcost.data.remote.repository.SupabaseFluidLevelRepository
-import com.aggin.carcost.data.remote.repository.SupabaseGpsTripRepository
-import com.aggin.carcost.data.remote.repository.SupabaseCarIncidentRepository
-import com.aggin.carcost.data.remote.repository.SupabaseInsurancePolicyRepository
-import com.aggin.carcost.data.remote.repository.SupabaseSavingsGoalRepository
-import com.aggin.carcost.data.remote.repository.SupabaseCategoryBudgetRepository
-import com.aggin.carcost.data.remote.repository.SupabaseCarDocumentRepository
-import com.aggin.carcost.data.remote.repository.SupabaseAchievementRepository
-import com.aggin.carcost.data.local.repository.CarRepository
-import com.aggin.carcost.data.local.repository.ExpenseRepository
-import com.aggin.carcost.data.local.repository.MaintenanceReminderRepository
-import com.aggin.carcost.data.local.repository.ExpenseTagRepository
-import com.aggin.carcost.data.local.repository.PlannedExpenseRepository
-import com.aggin.carcost.data.sync.SyncRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -38,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.aggin.carcost.data.sync.SyncRepositoryFactory
 
 data class RegisterUiState(
     val displayName: String = "",
@@ -54,41 +36,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val database = AppDatabase.getDatabase(application)
 
     private val supabaseAuth = SupabaseAuthRepository()
-    private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
-    private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
-    private val supabaseReminderRepo = SupabaseMaintenanceReminderRepository(supabaseAuth)
-    private val supabaseTagRepo = SupabaseExpenseTagRepository(supabaseAuth)
-    private val supabasePlannedExpenseRepo = SupabasePlannedExpenseRepository(supabaseAuth)
 
-    private val localCarRepo = CarRepository(database.carDao())
-    private val localExpenseRepo = ExpenseRepository(database.expenseDao())
-    private val localReminderRepo = MaintenanceReminderRepository(database.maintenanceReminderDao())
-    private val localTagRepo = ExpenseTagRepository(database.expenseTagDao())
-    private val localPlannedExpenseRepo = PlannedExpenseRepository(database.plannedExpenseDao())
-
-    private val syncRepo = SyncRepository(
-        localCarRepo = localCarRepo,
-        localExpenseRepo = localExpenseRepo,
-        localReminderRepo = localReminderRepo,
-        localTagRepo = localTagRepo,
-        localTagDao = database.expenseTagDao(),
-        localPlannedExpenseRepo = localPlannedExpenseRepo,
-        supabaseAuthRepo = supabaseAuth,
-        supabaseCarRepo = supabaseCarRepo,
-        supabaseExpenseRepo = supabaseExpenseRepo,
-        supabaseReminderRepo = supabaseReminderRepo,
-        supabaseTagRepo = supabaseTagRepo,
-        supabasePlannedExpenseRepo = supabasePlannedExpenseRepo,
-        localDb = database,
-        supabaseFluidLevelRepo = SupabaseFluidLevelRepository(supabaseAuth),
-        supabaseGpsTripRepo = SupabaseGpsTripRepository(supabaseAuth),
-        supabaseIncidentRepo = SupabaseCarIncidentRepository(supabaseAuth),
-        supabaseInsuranceRepo = SupabaseInsurancePolicyRepository(supabaseAuth),
-        supabaseSavingsGoalRepo = SupabaseSavingsGoalRepository(supabaseAuth),
-        supabaseCategoryBudgetRepo = SupabaseCategoryBudgetRepository(supabaseAuth),
-        supabaseCarDocumentRepo = SupabaseCarDocumentRepository(supabaseAuth),
-        supabaseAchievementRepo = SupabaseAchievementRepository(supabaseAuth)
-    )
+    private val syncRepo = SyncRepositoryFactory.create(application, database, supabaseAuth)
 
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

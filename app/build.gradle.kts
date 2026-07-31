@@ -30,8 +30,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 65
-        versionName = "4.1.1"
+        versionCode = 66
+        versionName = "4.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -214,11 +214,9 @@ dependencies {
     // ML Kit Text Recognition (OCR)
     implementation("com.google.mlkit:text-recognition:16.0.0")
 
-    // Retrofit + OkHttp (for NHTSA VIN/Recall API)
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    // OkHttp — Edge Function vk-auth (VkAuthApi) и загрузка модели Gemma.
+    // Retrofit/Gson убраны вместе с VIN-декодером: других потребителей не было.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // MediaPipe GenAI — on-device LLM inference (Gemma 2 1B)
     implementation("com.google.mediapipe:tasks-genai:0.10.22")

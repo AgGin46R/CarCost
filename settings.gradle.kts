@@ -19,4 +19,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "CarCost"
 include(":app")
-include(":shared")

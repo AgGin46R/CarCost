@@ -20,6 +20,8 @@ import com.aggin.carcost.presentation.components.TagSelector  // ✅ ДОБАВ�
 import com.aggin.carcost.presentation.screens.add_expense.CategoryChip
 import java.text.SimpleDateFormat
 import java.util.*
+import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.presentation.common.formatDateLong
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -489,31 +491,9 @@ fun ServiceTypeDropdown(
     }
 }
 
-fun getServiceTypeName(serviceType: ServiceType) = when (serviceType) {
-    ServiceType.OIL_CHANGE -> "Замена масла"
-    ServiceType.OIL_FILTER -> "Масляный фильтр"
-    ServiceType.AIR_FILTER -> "Воздушный фильтр"
-    ServiceType.FUEL_FILTER -> "Топливный фильтр"
-    ServiceType.CABIN_FILTER -> "Салонный фильтр"
-    ServiceType.SPARK_PLUGS -> "Свечи зажигания"
-    ServiceType.BRAKE_PADS -> "Тормозные колодки"
-    ServiceType.BRAKE_FLUID -> "Тормозная жидкость"
-    ServiceType.COOLANT -> "Охлаждающая жидкость"
-    ServiceType.TRANSMISSION_FLUID -> "Трансмиссионное масло"
-    ServiceType.TIMING_BELT -> "Ремень ГРМ"
-    ServiceType.TIRES -> "Шины"
-    ServiceType.BATTERY -> "Аккумулятор"
-    ServiceType.ALIGNMENT -> "Развал-схождение"
-    ServiceType.BALANCING -> "Балансировка"
-    ServiceType.INSPECTION -> "Техосмотр"
-    ServiceType.FULL_SERVICE -> "Полное ТО"
-    ServiceType.OTHER -> "Другое"
-}
+fun getServiceTypeName(serviceType: ServiceType) = serviceType.displayName()
 
-fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd MMMM yyyy", Locale("ru"))
-    return sdf.format(Date(timestamp))
-}
+fun formatDate(timestamp: Long): String = formatDateLong(timestamp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -23,6 +23,9 @@ import com.aggin.carcost.presentation.navigation.Screen
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import com.aggin.carcost.presentation.common.emoji
+import com.aggin.carcost.presentation.common.displayName
+import androidx.compose.material.icons.filled.FilterList
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +35,7 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusRequester = remember { FocusRequester() }
+    var showFilterSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -67,6 +71,17 @@ fun SearchScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
                     }
                 },
+                actions = {
+                    IconButton(onClick = { showFilterSheet = true }) {
+                        BadgedBox(badge = {
+                            if (uiState.filter.isActive) {
+                                Badge { Text(uiState.filter.activeCount.toString()) }
+                            }
+                        }) {
+                            Icon(Icons.Default.FilterList, "Фильтры")
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -80,11 +95,11 @@ fun SearchScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
 
-                uiState.query.length < 2 && !uiState.hasSearched -> {
+                uiState.query.length < 2 && !uiState.filter.isActive && !uiState.hasSearched -> {
                     EmptyState(
                         icon = Icons.Default.Search,
                         title = "Поиск по расходам",
-                        subtitle = "Введите минимум 2 символа для поиска",
+                        subtitle = "Введите минимум 2 символа или задайте фильтр",
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
@@ -104,8 +119,14 @@ fun SearchScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
+                            // Раньше показывался размер уже обрезанного списка, и было
+                            // не отличить «нашлось ровно 100» от «нашлось 3000»
+                            val truncated = uiState.totalMatches > uiState.results.size
                             Text(
-                                "Найдено: ${uiState.results.size}",
+                                if (truncated)
+                                    "Найдено ${uiState.totalMatches}, показаны первые ${uiState.results.size}"
+                                else
+                                    "Найдено: ${uiState.totalMatches}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
@@ -214,30 +235,6 @@ private fun SearchResultCard(
     }
 }
 
-private fun categoryEmoji(category: ExpenseCategory) = when (category) {
-    ExpenseCategory.FUEL -> "⛽"
-    ExpenseCategory.MAINTENANCE -> "🔧"
-    ExpenseCategory.REPAIR -> "🛠️"
-    ExpenseCategory.INSURANCE -> "🛡️"
-    ExpenseCategory.TAX -> "📋"
-    ExpenseCategory.PARKING -> "🅿️"
-    ExpenseCategory.TOLL -> "🛣️"
-    ExpenseCategory.WASH -> "🚿"
-    ExpenseCategory.FINE -> "⚠️"
-    ExpenseCategory.ACCESSORIES -> "🔩"
-    ExpenseCategory.OTHER -> "📦"
-}
+private fun categoryEmoji(category: ExpenseCategory) = category.emoji()
 
-private fun categoryDisplayName(category: ExpenseCategory) = when (category) {
-    ExpenseCategory.FUEL -> "Топливо"
-    ExpenseCategory.MAINTENANCE -> "Обслуживание"
-    ExpenseCategory.REPAIR -> "Ремонт"
-    ExpenseCategory.INSURANCE -> "Страховка"
-    ExpenseCategory.TAX -> "Налог"
-    ExpenseCategory.PARKING -> "Парковка"
-    ExpenseCategory.TOLL -> "Платная дорога"
-    ExpenseCategory.WASH -> "Мойка"
-    ExpenseCategory.FINE -> "Штраф"
-    ExpenseCategory.ACCESSORIES -> "Аксессуары"
-    ExpenseCategory.OTHER -> "Прочее"
-}
+private fun categoryDisplayName(category: ExpenseCategory) = category.displayName()

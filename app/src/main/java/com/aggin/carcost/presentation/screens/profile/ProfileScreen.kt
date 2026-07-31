@@ -95,6 +95,99 @@ private fun InvitationAddressCard(address: String) {
     }
 }
 
+/**
+ * Способы входа в аккаунт.
+ *
+ * Без привязки вход через ВКонтакте создаёт ОТДЕЛЬНЫЙ аккаунт: человек с
+ * профилем по email нажимал «Войти через VK» и попадал в пустой аккаунт без
+ * своих машин. Привязка сводит оба способа входа к одному пользователю.
+ */
+@Composable
+private fun SignInMethodsCard(
+    vkLink: com.aggin.carcost.data.remote.repository.VkIdentity?,
+    canUnlink: Boolean,
+    isLinking: Boolean,
+    onLink: () -> Unit,
+    onUnlink: () -> Unit
+) {
+    var showUnlinkDialog by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Способы входа",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(com.aggin.carcost.R.drawable.ic_vk),
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp),
+                    tint = androidx.compose.ui.graphics.Color.Unspecified
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("ВКонтакте", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        text = when {
+                            vkLink == null -> "Не привязан"
+                            vkLink.displayName.isNotBlank() -> vkLink.displayName
+                            else -> "Привязан"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                when {
+                    isLinking -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    vkLink == null -> TextButton(onClick = onLink) { Text("Привязать") }
+                    canUnlink -> TextButton(onClick = { showUnlinkDialog = true }) {
+                        Text("Отвязать", color = MaterialTheme.colorScheme.error)
+                    }
+                    // Иначе — привязан и отвязать нельзя: кнопки нет вовсе
+                }
+            }
+
+            if (vkLink == null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "После привязки вход через ВКонтакте будет вести в этот же аккаунт, " +
+                        "а не создавать новый",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    if (showUnlinkDialog) {
+        AlertDialog(
+            onDismissRequest = { showUnlinkDialog = false },
+            title = { Text("Отвязать ВКонтакте?") },
+            text = { Text("Вход через ВКонтакте перестанет вести в этот аккаунт. Данные останутся на месте.") },
+            confirmButton = {
+                TextButton(onClick = { showUnlinkDialog = false; onUnlink() }) {
+                    Text("Отвязать", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUnlinkDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ProfileScreen(
@@ -199,6 +292,23 @@ fun ProfileScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+            SignInMethodsCard(
+                vkLink = uiState.vkLink,
+                // Аккаунт создан через VK — отвязка отняла бы единственный способ войти
+                canUnlink = !uiState.isVkAccount,
+                isLinking = uiState.isLinkingVk,
+                onLink = { viewModel.linkVk(context) },
+                onUnlink = { viewModel.unlinkVk() }
+            )
+
+            uiState.vkLinkMessage?.let { message ->
+                LaunchedEffect(message) {
+                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    viewModel.clearVkLinkMessage()
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             StatisticsSection(
                 carsCount = uiState.statistics.carsCount,
@@ -240,8 +350,9 @@ fun ProfileScreen(
                 onChangePassword = { showPasswordDialog = true },
                 onChangeAppearance = { showAppearanceDialog = true },
                 onLogout = { showLogoutDialog = true },
-                // У аккаунта через VK пароля нет — смена пароля упала бы на сервере
-                showChangePassword = !uiState.isVkAccount
+                // У аккаунтов через VK и Google пароля нет — ни сменить его,
+                // ни проверить текущий невозможно
+                showChangePassword = uiState.hasPasswordLogin
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -295,29 +406,88 @@ fun ProfileScreen(
 
     if (showPasswordDialog) {
         ChangePasswordDialog(
-            onDismiss = { showPasswordDialog = false },
-            onConfirm = { oldPassword, newPassword ->
-                viewModel.changePassword(oldPassword, newPassword)
+            state = uiState.passwordChangeState,
+            onDismiss = {
                 showPasswordDialog = false
+                viewModel.resetPasswordChangeState()
+            },
+            onConfirm = { oldPassword, newPassword ->
+                // Диалог закрывается только после успеха: при неверном старом
+                // пароле пользователь должен увидеть ошибку и попробовать снова
+                viewModel.changePassword(oldPassword, newPassword)
             }
         )
     }
 
+    // Успех закрывает диалог сам
+    LaunchedEffect(uiState.passwordChangeState) {
+        if (uiState.passwordChangeState is PasswordChangeState.Success) {
+            showPasswordDialog = false
+            android.widget.Toast
+                .makeText(context, "Пароль изменён", android.widget.Toast.LENGTH_SHORT)
+                .show()
+            viewModel.resetPasswordChangeState()
+        }
+    }
+
     if (showLogoutDialog) {
         AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
+            onDismissRequest = { if (!uiState.isSigningOut) showLogoutDialog = false },
             title = { Text("Выход из аккаунта") },
-            text = { Text("Вы уверены, что хотите выйти?") },
+            text = {
+                if (uiState.isSigningOut) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Отправляем данные на сервер…")
+                    }
+                } else {
+                    Text("Вы уверены, что хотите выйти?")
+                }
+            },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        viewModel.signOut(navController)
-                        showLogoutDialog = false
-                    }
+                    enabled = !uiState.isSigningOut,
+                    onClick = { viewModel.signOut(navController) }
                 ) { Text("Выйти") }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) { Text("Отмена") }
+                TextButton(
+                    enabled = !uiState.isSigningOut,
+                    onClick = { showLogoutDialog = false }
+                ) { Text("Отмена") }
+            }
+        )
+    }
+
+    // Выход остановлен: данные не уехали на сервер, а выход стирает локальную базу.
+    // Раньше в этой ситуации записи молча пропадали.
+    if (uiState.logoutBlocked) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissLogoutBlocked() },
+            icon = { Icon(Icons.Default.CloudOff, contentDescription = null) },
+            title = { Text("Данные не отправлены") },
+            text = {
+                Text(
+                    "Не удалось синхронизировать данные с сервером — скорее всего, нет интернета.\n\n" +
+                        "Выход удаляет все данные с этого устройства. Если выйти сейчас, " +
+                        "несохранённые записи будут потеряны безвозвратно."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.dismissLogoutBlocked()
+                    showLogoutDialog = false
+                }) { Text("Остаться") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissLogoutBlocked()
+                    showLogoutDialog = false
+                    viewModel.signOut(navController, force = true)
+                }) {
+                    Text("Выйти и потерять", color = MaterialTheme.colorScheme.error)
+                }
             }
         )
     }
@@ -915,39 +1085,51 @@ fun EditProfileDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChangePasswordDialog(
+    state: PasswordChangeState,
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit
 ) {
     var oldPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    val inProgress = state is PasswordChangeState.InProgress
+    // Ошибка с сервера (неверный текущий пароль) важнее локальной валидации
+    val error = (state as? PasswordChangeState.Error)?.message ?: localError
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!inProgress) onDismiss() },
         title = { Text("Сменить пароль") },
         text = {
             Column {
                 OutlinedTextField(
                     value = oldPassword,
-                    onValueChange = { oldPassword = it },
+                    onValueChange = { oldPassword = it; localError = null },
                     label = { Text("Текущий пароль") },
                     singleLine = true,
+                    enabled = !inProgress,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = newPassword,
-                    onValueChange = { newPassword = it },
+                    onValueChange = { newPassword = it; localError = null },
                     label = { Text("Новый пароль") },
                     singleLine = true,
+                    enabled = !inProgress,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
+                    onValueChange = { confirmPassword = it; localError = null },
                     label = { Text("Подтвердите пароль") },
                     singleLine = true,
+                    enabled = !inProgress,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (error != null) {
@@ -962,18 +1144,19 @@ fun ChangePasswordDialog(
         },
         confirmButton = {
             TextButton(
+                enabled = !inProgress,
                 onClick = {
                     when {
-                        oldPassword.isBlank() || newPassword.isBlank() -> error = "Заполните все поля"
-                        newPassword.length < 6 -> error = "Пароль должен быть не менее 6 символов"
-                        newPassword != confirmPassword -> error = "Пароли не совпадают"
-                        else -> onConfirm(oldPassword, newPassword)
+                        oldPassword.isBlank() || newPassword.isBlank() -> localError = "Заполните все поля"
+                        newPassword.length < 6 -> localError = "Пароль должен быть не менее 6 символов"
+                        newPassword != confirmPassword -> localError = "Пароли не совпадают"
+                        else -> { localError = null; onConfirm(oldPassword, newPassword) }
                     }
                 }
-            ) { Text("Сохранить") }
+            ) { Text(if (inProgress) "Проверяем…" else "Сохранить") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(enabled = !inProgress, onClick = onDismiss) { Text("Отмена") }
         }
     )
 }

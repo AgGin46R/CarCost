@@ -19,8 +19,11 @@ import com.aggin.carcost.data.notifications.FluidCheckWorker
 import com.aggin.carcost.data.notifications.WeeklySummaryWorker
 import com.aggin.carcost.data.notifications.YearOwnerCheckWorker
 import com.aggin.carcost.data.notifications.NotificationHelper
+import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
+import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.sync.RealtimeSyncManager
+import com.aggin.carcost.data.sync.SyncRepositoryFactory
 import com.vk.id.VKID
 import com.yandex.mapkit.MapKitFactory
 import io.github.jan.supabase.SupabaseClient
@@ -45,6 +48,9 @@ class App : Application() {
             private set
 
         private const val TAG = "CarCostApp"
+
+        /** Минимальный интервал между синхронизациями при разворачивании приложения */
+        private const val FOREGROUND_SYNC_INTERVAL_MS = 60 * 60 * 1000L
     }
 
     override fun onCreate() {
@@ -120,8 +126,48 @@ class App : Application() {
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                     FcmTokenManager.registerCurrentToken()
                 }
+                syncIfStale()
             }
         })
+    }
+
+    /**
+     * Отправляет локальные данные на сервер при выходе приложения на передний план,
+     * но не чаще раза в час.
+     *
+     * До этого fullSync() вызывался только при входе и выходе из аккаунта: тот, кто
+     * не выходит, копил несинхронизированные записи неограниченно долго — совладелец
+     * их не видел, а потеря телефона означала потерю всего.
+     *
+     * Троттлинг нужен, потому что один fullSync — это порядка 10 запросов на каждый
+     * автомобиль, и гонять его на каждое разворачивание приложения слишком дорого.
+     */
+    private fun syncIfStale() {
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                val auth = SupabaseAuthRepository()
+                if (!auth.isUserLoggedIn()) return@launch
+
+                val settings = SettingsManager(this@App)
+                val elapsed = System.currentTimeMillis() - settings.getLastForegroundSync()
+                if (elapsed < FOREGROUND_SYNC_INTERVAL_MS) {
+                    Log.d(TAG, "Foreground sync skipped: ${elapsed / 60_000} min since last")
+                    return@launch
+                }
+
+                val result = SyncRepositoryFactory.create(this@App, auth = auth).fullSync()
+                if (result.isSuccess) {
+                    // Метку двигаем только при успехе: иначе неудачная попытка
+                    // заблокировала бы следующую на целый час
+                    settings.setLastForegroundSync()
+                    Log.d(TAG, "Foreground sync completed")
+                } else {
+                    Log.w(TAG, "Foreground sync failed", result.exceptionOrNull())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Foreground sync crashed", e)
+            }
+        }
     }
 
     private fun scheduleFuelReminder() {

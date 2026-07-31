@@ -46,6 +46,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showJoinByCodeDialog by remember { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
 
     // Показываем Snackbar при ошибке синхронизации
@@ -138,6 +139,16 @@ fun HomeScreen(
                     }
                     // Баннер отсутствия сети
                     OfflineBanner()
+                    // Вход по коду: приглашение теперь передают кодом, а не ссылкой,
+                    // потому что мессенджеры не делают carcost:// кликабельной
+                    TextButton(
+                        onClick = { showJoinByCodeDialog = true },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Присоединиться по коду")
+                    }
                     // Incoming invitations banner
                     uiState.pendingInvitations.forEach { inv ->
                         InvitationBanner(
@@ -166,6 +177,16 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showJoinByCodeDialog) {
+        JoinByCodeDialog(
+            onDismiss = { showJoinByCodeDialog = false },
+            onSubmit = { code ->
+                showJoinByCodeDialog = false
+                navController.navigate(Screen.AcceptInvite.createRoute(code))
+            }
+        )
     }
 }
 
@@ -577,4 +598,49 @@ fun InfoChip(label: String, value: String) {
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+/**
+ * Ввод кода приглашения.
+ *
+ * Сам приём делает экран AcceptInvite — он уже умеет разбирать ошибки сервера
+ * (не найдено / использовано / истекло), поэтому здесь только собираем код.
+ */
+@Composable
+private fun JoinByCodeDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    var code by remember { mutableStateOf("") }
+    // Сервер принимает любой регистр и разделители, но подсказываем привычный вид
+    val cleaned = code.filter { it.isLetterOrDigit() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.VpnKey, contentDescription = null) },
+        title = { Text("Присоединиться по коду") },
+        text = {
+            Column {
+                Text("Введите код, который прислал владелец автомобиля.")
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { if (it.length <= 12) code = it.uppercase() },
+                    label = { Text("Код приглашения") },
+                    placeholder = { Text("K7M2-P9XQ") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = cleaned.length >= 6,
+                onClick = { onSubmit(cleaned) }
+            ) { Text("Присоединиться") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
+    )
 }

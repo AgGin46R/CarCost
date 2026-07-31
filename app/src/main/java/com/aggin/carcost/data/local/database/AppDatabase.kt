@@ -19,7 +19,6 @@ import com.aggin.carcost.data.local.database.dao.AchievementDao
 import com.aggin.carcost.data.local.database.dao.SavingsGoalDao
 import com.aggin.carcost.data.local.database.dao.CarMemberDao
 import com.aggin.carcost.data.local.database.dao.GpsTripDao
-import com.aggin.carcost.data.local.database.dao.VinCacheDao
 import com.aggin.carcost.data.local.database.dao.ChatMessageDao
 import com.aggin.carcost.data.local.database.dao.InsurancePolicyDao
 import com.aggin.carcost.data.local.database.dao.CarIncidentDao
@@ -39,7 +38,6 @@ import com.aggin.carcost.data.local.database.entities.Achievement
 import com.aggin.carcost.data.local.database.entities.SavingsGoal
 import com.aggin.carcost.data.local.database.entities.CarMember
 import com.aggin.carcost.data.local.database.entities.GpsTrip
-import com.aggin.carcost.data.local.database.entities.VinCache
 import com.aggin.carcost.data.local.database.entities.ChatMessage
 import com.aggin.carcost.data.local.database.entities.InsurancePolicy
 import com.aggin.carcost.data.local.database.entities.CarIncident
@@ -478,6 +476,19 @@ val MIGRATION_34_35 = object : Migration(34, 35) {
  * поэтому каждый ALTER TABLE обёрнут в try-catch: если столбец
  * уже существует — SQLiteException игнорируется.
  */
+/**
+ * 37 → 38: удалён VIN-декодер.
+ *
+ * Экран был недостижим (маршрута в навигации не существовало), вместе с ним
+ * ушли NhtsaApiService и сущность VinCache. Таблицу нужно снести явно: Room
+ * хранит identityHash схемы и при расхождении откажется открывать базу.
+ */
+val MIGRATION_37_38 = object : Migration(37, 38) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("DROP TABLE IF EXISTS vin_cache")
+    }
+}
+
 val MIGRATION_36_37 = object : Migration(36, 37) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("""
@@ -653,7 +664,6 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         SavingsGoal::class,
         CarMember::class,
         GpsTrip::class,
-        VinCache::class,
         ChatMessage::class,
         InsurancePolicy::class,
         CarIncident::class,
@@ -662,7 +672,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         PendingWrite::class,
         FluidLevel::class
     ],
-    version = 37,
+    version = 38,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -680,7 +690,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun savingsGoalDao(): SavingsGoalDao
     abstract fun carMemberDao(): CarMemberDao
     abstract fun gpsTripDao(): GpsTripDao
-    abstract fun vinCacheDao(): VinCacheDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun insurancePolicyDao(): InsurancePolicyDao
     abstract fun carIncidentDao(): CarIncidentDao
@@ -728,7 +737,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_33_34,
                         MIGRATION_34_35,
                         MIGRATION_35_36,
-                        MIGRATION_36_37
+                        MIGRATION_36_37,
+                        MIGRATION_37_38
                     )
                     .build()
                 INSTANCE = instance

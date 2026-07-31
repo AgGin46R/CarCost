@@ -7,8 +7,10 @@ import androidx.room.PrimaryKey
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 import java.util.UUID
+import kotlinx.serialization.Serializable
 
 @Parcelize
+@Serializable
 @Entity(
     tableName = "maintenance_reminders",
     foreignKeys = [
