@@ -30,8 +30,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 66
-        versionName = "4.3.0"
+        versionCode = 71
+        versionName = "4.8.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -42,7 +42,6 @@ android {
 
         buildConfigField("String", "SUPABASE_URL", "\"${requiredProp("supabase.url")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${requiredProp("supabase.anon_key")}\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${requiredProp("google.web_client_id")}\"")
         buildConfigField("String", "YANDEX_MAPKIT_KEY", "\"$yandexMapKitKey\"")
         manifestPlaceholders["yandexMapKitKey"] = yandexMapKitKey
 
@@ -108,6 +107,9 @@ android {
 dependencies {
     // Core Android
     implementation("androidx.core:core-ktx:1.13.1")
+    // Системный splash: без него на холодном старте видно пустое белое окно,
+    // пока поднимается процесс — до того, как приложение вообще получит управление
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.activity:activity-compose:1.9.3")
 
@@ -189,10 +191,6 @@ dependencies {
     // VK ID SDK — вход через ВКонтакте (репозиторий VK объявлен в settings.gradle.kts)
     implementation("com.vk.id:vkid:2.7.1")
 
-    // Google Identity (Credential Manager) — для входа через Google
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // PDF Generation - iText
     implementation("com.itextpdf:itext7-core:7.2.5")

@@ -12,7 +12,7 @@ class ParkingTimerReceiver : BroadcastReceiver() {
             NotificationHelper.sendGenericNotification(
                 context = context,
                 notificationId = 7000,
-                title = "Время парковки истекло!",
+                title = "Время парковки истекло",
                 body = "Не забудьте передвинуть или оплатить парковку."
             )
             // Clear stored state

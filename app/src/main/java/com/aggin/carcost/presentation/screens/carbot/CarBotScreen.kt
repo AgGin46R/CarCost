@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.rememberSaveable
 
 private val suggestions = listOf(
     "💰 Расходы за месяц",
@@ -46,7 +47,7 @@ fun CarBotScreen(navController: NavController) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
-    var showAiSetupDialog by remember { mutableStateOf(false) }
+    var showAiSetupDialog by rememberSaveable { mutableStateOf(false) }
 
     // Auto-scroll to bottom when new message arrives
     LaunchedEffect(uiState.messages.size) {
@@ -188,7 +189,7 @@ fun CarBotScreen(navController: NavController) {
                     }
 
                     // 3-dot menu: car selector + delete model
-                    var menuExpanded by remember { mutableStateOf(false) }
+                    var menuExpanded by rememberSaveable { mutableStateOf(false) }
                     IconButton(onClick = { menuExpanded = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Меню")
                     }

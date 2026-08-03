@@ -24,6 +24,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.*
 import com.aggin.carcost.presentation.navigation.Screen
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,7 +35,7 @@ fun PlannedExpensesScreen(
     viewModel: PlannedExpensesViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showFilterMenu by remember { mutableStateOf(false) }
+    var showFilterMenu by rememberSaveable { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf<PlannedExpenseStatus?>(null) }
 
     Scaffold(
@@ -91,7 +93,7 @@ fun PlannedExpensesScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navController.navigate(Screen.AddPlannedExpense.createRoute(carId)) },
+                onClick = { navController.navigateOnce(Screen.AddPlannedExpense.createRoute(carId)) },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Icon(Icons.Default.Add, "Добавить план")
@@ -119,7 +121,7 @@ fun PlannedExpensesScreen(
 
             // Mutable local list for drag reordering
             val localItems = remember { mutableStateListOf<PlannedExpense>() }
-            var isDragging by remember { mutableStateOf(false) }
+            var isDragging by rememberSaveable { mutableStateOf(false) }
 
             // Sync DB → local only when not dragging
             LaunchedEffect(uiState.plannedExpenses) {
@@ -175,7 +177,7 @@ fun PlannedExpensesScreen(
                                 dragHandleModifier = dragHandleMod,
                                 showDragHandle = selectedFilter == null,
                                 onClick = {
-                                    navController.navigate(
+                                    navController.navigateOnce(
                                         Screen.EditPlannedExpense.createRoute(carId, plannedExpense.id)
                                     )
                                 },
@@ -183,7 +185,7 @@ fun PlannedExpensesScreen(
                                     when (plannedExpense.status) {
                                         PlannedExpenseStatus.PLANNED -> {
                                             viewModel.markAsInProgress(plannedExpense.id)
-                                            navController.navigate(
+                                            navController.navigateOnce(
                                                 "${Screen.AddExpense.createRoute(carId)}?plannedId=${plannedExpense.id}"
                                             )
                                         }

@@ -221,7 +221,7 @@ class GpsTripService : LifecycleService() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "GPS Поездки",
+            "Поездки по GPS",
             NotificationManager.IMPORTANCE_LOW
         ).apply { description = "Отслеживание пробега по GPS" }
         notificationManager.createNotificationChannel(channel)

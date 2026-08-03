@@ -112,6 +112,7 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 import com.aggin.carcost.presentation.components.SkeletonChatList
+import androidx.compose.runtime.saveable.rememberSaveable
 
 // ── ViewModel ────────────────────────────────────────────────────────────────
 
@@ -869,12 +870,12 @@ fun ChatScreen(carId: String, navController: NavController) {
     val listState = rememberLazyListState()
     val screenScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var inputText by remember { mutableStateOf("") }
+    var inputText by rememberSaveable { mutableStateOf("") }
     var pendingMediaUri by remember { mutableStateOf<Uri?>(null) }
     var pendingFileUri by remember { mutableStateOf<Uri?>(null) }
     var pendingFileName by remember { mutableStateOf<String?>(null) }
     var fullscreenImageUrl by remember { mutableStateOf<String?>(null) }
-    var showAttachSheet by remember { mutableStateOf(false) }
+    var showAttachSheet by rememberSaveable { mutableStateOf(false) }
     // userId to email — used to open profile card
     var selectedMemberProfile by remember { mutableStateOf<Pair<String, String>?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -924,7 +925,7 @@ fun ChatScreen(carId: String, navController: NavController) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    var hasScrolledInitially by remember { mutableStateOf(false) }
+    var hasScrolledInitially by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isLoading) {
         if (!uiState.isLoading && uiState.messages.isNotEmpty() && !hasScrolledInitially) {
@@ -957,7 +958,7 @@ fun ChatScreen(carId: String, navController: NavController) {
         }
     }
 
-    var showSearch by remember { mutableStateOf(false) }
+    var showSearch by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -1105,7 +1106,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                     Text("💬", fontSize = 48.sp)
                     Spacer(Modifier.height(12.dp))
                     Text("Нет сообщений", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Напишите первым!", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Напишите первым", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -1518,8 +1519,8 @@ private fun ChatBubble(
     val senderLabel = senderName?.takeIf { it.isNotBlank() }
         ?: message.userEmail.substringBefore("@")
 
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showContextMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var showContextMenu by rememberSaveable { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     val clipboard = LocalClipboardManager.current
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -2182,8 +2183,8 @@ fun VideoPlayerBubble(url: String, bubbleShape: androidx.compose.ui.graphics.Sha
     if (url.isBlank()) return
 
     val context = LocalContext.current
-    var isPlaying by remember { mutableStateOf(false) }
-    var firstFrameReady by remember { mutableStateOf(false) }
+    var isPlaying by rememberSaveable { mutableStateOf(false) }
+    var firstFrameReady by rememberSaveable { mutableStateOf(false) }
     var thumbnail by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
     val exoPlayer = remember {

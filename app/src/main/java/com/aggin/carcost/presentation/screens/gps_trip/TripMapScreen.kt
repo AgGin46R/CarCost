@@ -112,6 +112,12 @@ fun TripMapScreen(tripId: String, navController: NavController) {
     val uiState by viewModel.uiState.collectAsState()
     val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy  HH:mm", Locale.getDefault()) }
 
+    // MapKit поднимается лениво: он больше не инициализируется при каждом
+    // запуске приложения, а только когда впервые понадобилась карта.
+    // getInstance() без initialize() бросает исключение, поэтому вызов
+    // обязан быть ДО него.
+    com.aggin.carcost.App.ensureMapKit(androidx.compose.ui.platform.LocalContext.current)
+
     DisposableEffect(Unit) {
         MapKitFactory.getInstance().onStart()
         onDispose { MapKitFactory.getInstance().onStop() }

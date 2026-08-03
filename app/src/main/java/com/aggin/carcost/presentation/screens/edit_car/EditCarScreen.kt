@@ -280,7 +280,7 @@ fun EditCarScreen(
                 OutlinedTextField(
                     value = uiState.vin,
                     onValueChange = { viewModel.updateVin(it) },
-                    label = { Text("VIN номер") },
+                    label = { Text("VIN") },
                     placeholder = { Text("1HGBH41JXMN109186") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,

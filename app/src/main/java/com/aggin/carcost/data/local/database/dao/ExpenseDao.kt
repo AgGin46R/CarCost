@@ -73,6 +73,57 @@ interface ExpenseDao {
     """)
     suspend fun searchExpenses(query: String): List<Expense>
 
+    /**
+     * Поиск с фильтрами — целиком в SQL.
+     *
+     * Раньше экран поиска на каждое нажатие клавиши поднимал в память ВСЕ
+     * расходы всех машин (по запросу на машину) и фильтровал их в Kotlin, хотя
+     * до выдачи доходило максимум сто строк. При тысяче записей набор из четырёх
+     * букв означал четыре полных выгрузки базы.
+     *
+     * Пустые фильтры и короткий запрос обходятся флагами: передать пустой список
+     * в IN нельзя, а сравнение с NULL в SQL никогда не истинно.
+     *
+     * @param matchedCategories категории, чьё РУССКОЕ название подошло под запрос
+     *        («топливо», «штраф»). Сопоставление имён живёт в Kotlin, в базе
+     *        хранится имя enum-константы.
+     */
+    @Query("""
+        SELECT * FROM expenses
+        WHERE (:carId IS NULL OR carId = :carId)
+          AND (:hasCategoryFilter = 0 OR category IN (:categories))
+          AND (:startDate IS NULL OR date >= :startDate)
+          AND (:endDate IS NULL OR date <= :endDate)
+          AND (:minAmount IS NULL OR amount >= :minAmount)
+          AND (:maxAmount IS NULL OR amount <= :maxAmount)
+          AND (
+                :queryTooShort = 1
+             OR lower(title) LIKE '%' || :query || '%'
+             OR lower(description) LIKE '%' || :query || '%'
+             OR lower(location) LIKE '%' || :query || '%'
+             OR lower(workshopName) LIKE '%' || :query || '%'
+             OR lower(maintenanceParts) LIKE '%' || :query || '%'
+             OR CAST(CAST(amount AS INTEGER) AS TEXT) LIKE '%' || :query || '%'
+             OR (:hasMatchedCategories = 1 AND category IN (:matchedCategories))
+          )
+        ORDER BY date DESC
+        LIMIT :limit
+    """)
+    suspend fun searchWithFilters(
+        query: String,
+        queryTooShort: Int,
+        carId: String?,
+        categories: List<ExpenseCategory>,
+        hasCategoryFilter: Int,
+        matchedCategories: List<ExpenseCategory>,
+        hasMatchedCategories: Int,
+        startDate: Long?,
+        endDate: Long?,
+        minAmount: Double?,
+        maxAmount: Double?,
+        limit: Int
+    ): List<Expense>
+
     @Query("SELECT SUM(amount) FROM expenses WHERE carId = :carId AND category = :category AND date BETWEEN :startDate AND :endDate")
     suspend fun getTotalByCategoryAndPeriod(carId: String, category: ExpenseCategory, startDate: Long, endDate: Long): Double?
 

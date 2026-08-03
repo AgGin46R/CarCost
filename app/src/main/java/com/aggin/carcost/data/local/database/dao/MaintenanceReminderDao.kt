@@ -29,6 +29,20 @@ interface MaintenanceReminderDao {
     @Query("SELECT * FROM maintenance_reminders WHERE carId = :carId AND type = :type AND isActive = 1 LIMIT 1")
     suspend fun getReminderByType(carId: String, type: MaintenanceType): MaintenanceReminder?
 
+    /**
+     * Напоминание по идентификатору.
+     *
+     * Экран правки раньше искал его перебором: брал все автомобили и по каждому
+     * запрашивал список напоминаний, пока не найдёт нужное. Хуже перебора было
+     * то, ЧЕМ он это делал — `getRemindersByCarIdSync`, обычной несуспендящей
+     * функцией. Room выполняет такую прямо на вызывающем потоке, а вызов шёл из
+     * `viewModelScope.launch`, то есть с главного, — и Room честно бросал
+     * «Cannot access database on the main thread». Приложение падало при каждой
+     * попытке открыть созданное ТО.
+     */
+    @Query("SELECT * FROM maintenance_reminders WHERE id = :reminderId LIMIT 1")
+    suspend fun getReminderById(reminderId: String): MaintenanceReminder?
+
     @Update
     suspend fun updateReminder(reminder: MaintenanceReminder)
 

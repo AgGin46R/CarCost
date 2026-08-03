@@ -134,6 +134,16 @@ fun CarCostWidgetContent(
         }
     } ?: openAppIntent
 
+    // Заправка — самая частая запись, и ради неё не стоит проходить выбор
+    // категории: с виджета форма открывается уже с выбранным топливом
+    val addFuelIntent = activeCarId?.let {
+        Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(NotificationHelper.EXTRA_NAV_TYPE, NotificationHelper.NAV_TYPE_ADD_FUEL)
+            putExtra(NotificationHelper.EXTRA_NAV_CAR_ID, it)
+        }
+    } ?: openAppIntent
+
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -156,6 +166,26 @@ fun CarCostWidgetContent(
                 ),
                 modifier = GlanceModifier.defaultWeight()
             )
+            // Заправка отдельной кнопкой: открывает форму с готовой категорией
+            Box(
+                modifier = GlanceModifier
+                    .background(ColorProvider(Color(0xFF42A5F5)))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .clickable(actionStartActivity(addFuelIntent)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "⛽",
+                    style = TextStyle(
+                        color = ColorProvider(Color.White),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+
+            Spacer(GlanceModifier.width(6.dp))
+
             // Quick-add expense button
             Box(
                 modifier = GlanceModifier

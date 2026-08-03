@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.R
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,8 +31,8 @@ fun RegisterScreen(
     viewModel: RegisterViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var passwordVisible by remember { mutableStateOf(false) }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -196,24 +198,7 @@ fun RegisterScreen(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Кнопка регистрации через Google
             val context = LocalContext.current
-            OutlinedButton(
-                onClick = { viewModel.signInWithGoogle(context) },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = !uiState.isLoading
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_google),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = Color.Unspecified
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Зарегистрироваться через Google", style = MaterialTheme.typography.titleSmall)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             // Кнопка регистрации через ВКонтакте
             OutlinedButton(

@@ -20,6 +20,7 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.MaintenanceType
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,10 +42,10 @@ fun EditMaintenanceReminderScreen(
         if (uiState.saved) navController.popBackStack()
     }
 
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var carExpanded by remember { mutableStateOf(false) }
-    var typeExpanded by remember { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var carExpanded by rememberSaveable { mutableStateOf(false) }
+    var typeExpanded by rememberSaveable { mutableStateOf(false) }
 
     if (showDeleteDialog && reminderId != null) {
         AlertDialog(

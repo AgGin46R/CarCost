@@ -86,23 +86,6 @@ class SupabaseExpenseRepository(private val authRepository: SupabaseAuthReposito
         }
     }
 
-    suspend fun getAllUserExpenses(): Result<List<Expense>> = withContext(Dispatchers.IO) {
-        try {
-            val userId = authRepository.getUserId()
-                ?: return@withContext Result.failure(Exception("Пользователь не аутентифицирован"))
-
-            val expenses = supabase.from("expenses")
-                .select {
-                    filter { eq("user_id", userId) }
-                    order("date", Order.DESCENDING)
-                }
-                .decodeList<ExpenseDto>()
-
-            Result.success(expenses.map { it.toExpense() })
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
 
     suspend fun updateExpense(expense: Expense): Result<Expense> = withContext(Dispatchers.IO) {
         try {
@@ -135,10 +118,16 @@ class SupabaseExpenseRepository(private val authRepository: SupabaseAuthReposito
     }
 }
 
-// ✅ Extension functions с правильными типами
-private fun Expense.toDto(userId: String) = ExpenseDto(
+/**
+ * @param currentUserId кто отправляет. Используется только как запасной вариант:
+ *        у записи может не быть автора, если она создана до появления этого поля.
+ *        Для чужих записей — например, расхода совладельца, который приехал с
+ *        сервера и уходит обратно при обновлении — авторство сохраняется своё,
+ *        иначе оно молча переписалось бы на отправителя.
+ */
+private fun Expense.toDto(currentUserId: String) = ExpenseDto(
     id = id, // ✅ String UUID
-    userId = userId,
+    userId = userId ?: currentUserId,
     carId = carId,
     category = category.name,
     amount = amount,
@@ -166,6 +155,7 @@ private fun Expense.toDto(userId: String) = ExpenseDto(
 internal fun ExpenseDto.toExpense() = Expense(
     id = id, // ✅ String UUID
     carId = carId,
+    userId = userId,
     category = try { ExpenseCategory.valueOf(category) } catch (e: Exception) { ExpenseCategory.OTHER },
     amount = amount,
     currency = currency,

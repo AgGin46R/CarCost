@@ -1,3 +1,21 @@
 <resources>
     <style name="Theme.CarCost" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!--
+        Тема запуска.
+
+        Раньше приложение стартовало сразу в Theme.CarCost — то есть в белом пустом
+        окне без иконки и без фона. Пока поднимался процесс, инициализировались
+        MapKit, VK ID и Supabase, а Compose ждал настройки и сессию, человек смотрел
+        на белый прямоугольник и не мог понять, запустилось приложение или зависло.
+
+        postSplashScreenTheme переключает окно на обычную тему сразу, как только
+        activity получает управление: держать splash дольше необходимого нельзя,
+        иначе запуск начнёт ощущаться медленнее, а не быстрее.
+    -->
+    <style name="Theme.CarCost.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.CarCost</item>
+    </style>
 </resources>

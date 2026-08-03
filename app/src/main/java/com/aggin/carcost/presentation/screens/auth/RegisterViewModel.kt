@@ -5,7 +5,6 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.aggin.carcost.data.auth.GoogleSignInHelper
 import com.aggin.carcost.data.auth.VkSignInHelper
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.User
@@ -20,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.aggin.carcost.data.sync.SyncRepositoryFactory
+import io.github.jan.supabase.postgrest.from
 
 data class RegisterUiState(
     val displayName: String = "",
@@ -77,7 +77,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         }
 
         if (!emailRegex.matches(state.email.trim())) {
-            _uiState.value = state.copy(errorMessage = "Введите корректный email адрес")
+            _uiState.value = state.copy(errorMessage = "Введите корректный email")
             return
         }
 
@@ -175,59 +175,6 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun signInWithGoogle(context: Context) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-            try {
-                val tokenResult = GoogleSignInHelper.getIdToken(context)
-
-                if (tokenResult.isFailure) {
-                    val msg = tokenResult.exceptionOrNull()?.message
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = if (msg == "Отменено пользователем") null else (msg ?: "Ошибка Google Sign-In")
-                        )
-                    }
-                    return@launch
-                }
-
-                val token = tokenResult.getOrThrow()
-
-                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    supabaseAuth.signInWithGoogle(token)
-                }
-
-                result.fold(
-                    onSuccess = { userInfo ->
-                        val displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"')
-                        val photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
-                        val user = User(
-                            uid = userInfo.id,
-                            email = userInfo.email ?: "",
-                            displayName = displayName ?: "Пользователь",
-                            photoUrl = photoUrl,
-                            lastLoginAt = System.currentTimeMillis()
-                        )
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            database.userDao().insertUser(user)
-                        }
-                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
-                        backgroundScope.launch {
-                            try { syncRepo.safeInitialSync() } catch (_: Exception) { }
-                        }
-                    },
-                    onFailure = { e ->
-                        _uiState.update {
-                            it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка регистрации через Google")
-                        }
-                    }
-                )
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
-            }
-        }
-    }
 
     fun signInWithVk(context: Context) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -264,8 +211,22 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
                 result.fold(
                     onSuccess = { userInfo ->
-                        val displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"')
-                        val photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+                        // Кнопкой «Зарегистрироваться через VK» пользуется и тот,
+                        // кто уже заводил аккаунт, — поток тот же. Поэтому фото
+                        // берём из таблицы профиля: там лежит выбранное человеком,
+                        // если он его менял. Метаданные VK — только запасной вариант
+                        // для действительно первого входа.
+                        val profile = runCatching {
+                            com.aggin.carcost.supabase
+                                .from("users")
+                                .select { filter { eq("id", userInfo.id) } }
+                                .decodeSingleOrNull<com.aggin.carcost.data.remote.repository.SupabaseUserDto>()
+                        }.getOrNull()
+
+                        val displayName = profile?.displayName
+                            ?: userInfo.userMetadata?.get("full_name")?.toString()?.trim('"')
+                        val photoUrl = profile?.photoUrl
+                            ?: userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
                         val user = User(
                             uid = userInfo.id,
                             email = userInfo.email ?: "",

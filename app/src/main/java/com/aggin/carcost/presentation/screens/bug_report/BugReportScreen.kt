@@ -93,7 +93,7 @@ fun BugReportScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
-                Text(if (uiState.isLoading) "Отправка..." else "Отправить отчет")
+                Text(if (uiState.isLoading) "Отправка..." else "Отправить отчёт")
             }
         }
     }
@@ -122,13 +122,18 @@ fun InfoCard() {
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                // Было «Помогите нам стать лучше» и «Опишите проблему максимально
+                // подробно» — первое ничего не сообщает, второе дословно повторяет
+                // подпись поля ниже. Вместо этого — что писать, чтобы по отчёту
+                // можно было воспроизвести ошибку
                 Text(
-                    text = "Помогите нам стать лучше",
+                    text = "Как описать ошибку",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Опишите проблему максимально подробно. Это поможет нам быстрее её исправить.",
+                    text = "Что вы делали, чего ожидали и что вышло вместо этого. " +
+                        "Если получается повторить — напишите, какими шагами.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )

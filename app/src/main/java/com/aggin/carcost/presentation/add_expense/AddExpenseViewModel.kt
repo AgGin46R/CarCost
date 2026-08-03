@@ -29,6 +29,7 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,7 +77,13 @@ data class AddExpenseUiState(
     val categorySetManually: Boolean = false,
     val autoDetectedCategory: ExpenseCategory? = null,
     val suggestedOdometer: Int? = null,
-    val lockedCategory: Boolean = false  // механик не может сменить категорию
+    val lockedCategory: Boolean = false,  // механик не может сменить категорию
+    /**
+     * Предыдущая запись этой же категории, если она есть. Нужна для кнопки
+     * «как в прошлый раз»: заправка — самый частый сценарий, и она почти всегда
+     * повторяет предыдущую по заправке, топливу и сумме.
+     */
+    val lastSimilar: Expense? = null
 )
 
 class AddExpenseViewModel(
@@ -98,6 +105,15 @@ class AddExpenseViewModel(
     private val plannedExpenseRepository = PlannedExpenseRepository(database.plannedExpenseDao())
 
     // Supabase репозитории
+    private companion object {
+        /**
+         * Потолок ожидания координат. Обычно ответ приходит за десятки
+         * миллисекунд либо не приходит вовсе — потолок нужен лишь на случай,
+         * когда сервис геолокации не отвечает ни успехом, ни отказом.
+         */
+        const val LOCATION_TIMEOUT_MS = 3_000L
+    }
+
     private val supabaseAuth = SupabaseAuthRepository()
     private val supabaseCarRepo = SupabaseCarRepository(supabaseAuth)
     private val supabaseExpenseRepo = SupabaseExpenseRepository(supabaseAuth)
@@ -121,6 +137,9 @@ class AddExpenseViewModel(
             if (lockedCategory) {
                 _uiState.value = _uiState.value.copy(lockedCategory = true)
             }
+
+            // Образец для «как в прошлый раз» — по той категории, что открылась
+            loadLastSimilar(_uiState.value.category)
 
             // Загружаем текущий пробег автомобиля
             val car = carRepository.getCarById(carId)
@@ -202,6 +221,41 @@ class AddExpenseViewModel(
             showError = false,
             categorySetManually = true,
             autoDetectedCategory = null
+        )
+        // Образец для «как в прошлый раз» зависит от категории
+        loadLastSimilar(value)
+    }
+
+    /** Предыдущая запись той же категории — образец для быстрого повтора */
+    private fun loadLastSimilar(category: ExpenseCategory) {
+        viewModelScope.launch {
+            val last = runCatching {
+                database.expenseDao().getExpensesByCar(carId).firstOrNull()
+                    ?.filter { it.category == category && it.id != _uiState.value.expenseId }
+                    ?.maxByOrNull { it.date }
+            }.getOrNull()
+            _uiState.value = _uiState.value.copy(lastSimilar = last)
+        }
+    }
+
+    /**
+     * Заполняет форму по предыдущей записи этой категории.
+     *
+     * Сумму и литры намеренно НЕ подставляем: они меняются каждый раз, а
+     * подставленное число легко не заметить и сохранить чужую цифру. Копируется
+     * только то, что действительно повторяется — заправка, СТО, описание.
+     * Одометр остаётся текущим, он подставляется и без того.
+     */
+    fun repeatLast() {
+        val last = _uiState.value.lastSimilar ?: return
+        _uiState.value = _uiState.value.copy(
+            location = last.location.orEmpty(),
+            description = last.description.orEmpty(),
+            isFullTank = last.isFullTank,
+            workshopName = last.workshopName.orEmpty(),
+            maintenanceParts = last.maintenanceParts.orEmpty(),
+            serviceType = last.serviceType,
+            showError = false
         )
     }
 
@@ -357,38 +411,45 @@ class AddExpenseViewModel(
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    /**
+     * Координаты для записи расхода — или `null`, если их нет.
+     *
+     * Раньше здесь стоял опрос переменной: 30 итераций по 100 мс, пока
+     * `result` не перестанет быть null. Беда в том, что `null` означал сразу
+     * две разные вещи — «ответ ещё не пришёл» и «ответа не будет». Поэтому и
+     * отказ, и успешный колбэк с пустым location докручивали цикл до конца.
+     * Расход записывают как раз там, где спутников нет: подземный паркинг,
+     * крытая заправка, бокс сервиса. Самое частое действие приложения замирало
+     * на три секунды при каждом «Сохранить», ещё до похода в сеть.
+     *
+     * Теперь ожидание завершается ровно тогда, когда пришёл ответ — любой.
+     * Потолок оставлен на случай, если сервис не ответит вовсе.
+     */
     private suspend fun getLocationWithTimeout(): Location? {
-        if (!hasLocationPermission()) {
-            return null
-        }
+        if (!hasLocationPermission()) return null
 
         return try {
-            withTimeoutOrNull(3000L) {
-                var result: Location? = null
+            withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
+                val answer = CompletableDeferred<Location?>()
                 val cancellationToken = CancellationTokenSource()
 
                 try {
                     fusedLocationClient.getCurrentLocation(
                         Priority.PRIORITY_BALANCED_POWER_ACCURACY,
                         cancellationToken.token
-                    ).addOnSuccessListener { location ->
-                        result = location
-                    }.addOnFailureListener {
-                        result = null
-                    }
+                    )
+                        // complete() возвращает false на повторный вызов, поэтому
+                        // гонка двух колбэков ничего не ломает
+                        .addOnSuccessListener { location -> answer.complete(location) }
+                        .addOnFailureListener { answer.complete(null) }
+                        .addOnCanceledListener { answer.complete(null) }
 
-                    var attempts = 0
-                    while (result == null && attempts < 30) {
-                        delay(100)
-                        attempts++
-                    }
-
-                    cancellationToken.cancel()
+                    answer.await()
                 } catch (e: SecurityException) {
                     null
+                } finally {
+                    cancellationToken.cancel()
                 }
-
-                result
             }
         } catch (e: Exception) {
             null
@@ -445,6 +506,8 @@ class AddExpenseViewModel(
             val expense = Expense(
                 id = state.expenseId,
                 carId = carId,
+                // Автор записи — нужен, чтобы в общей машине было видно, кто платил
+                userId = supabaseAuth.getUserId(),
                 category = state.category,
                 amount = state.amount.toDouble(),
                 currency = "RUB",

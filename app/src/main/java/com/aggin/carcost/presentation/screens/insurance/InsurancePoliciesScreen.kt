@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.runtime.saveable.rememberSaveable
 
 class InsurancePoliciesViewModel(
     application: Application,
@@ -85,7 +86,7 @@ fun InsurancePoliciesScreen(
         )
     )
     val policies by viewModel.policies.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -122,7 +123,7 @@ fun InsurancePoliciesScreen(
                     Spacer(Modifier.height(16.dp))
                     Text("Нет полисов", style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    Text("Нажмите + чтобы добавить", style = MaterialTheme.typography.bodySmall,
+                    Text("Нажмите «+», чтобы добавить полис", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                 }
             }
@@ -249,10 +250,10 @@ fun AddInsurancePolicyDialog(
 ) {
     val types = listOf("OSAGO" to "ОСАГО", "KASKO" to "КАСКО", "OTHER" to "Другое")
     var selectedType by remember { mutableStateOf("OSAGO") }
-    var company by remember { mutableStateOf("") }
-    var policyNumber by remember { mutableStateOf("") }
-    var costStr by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    var company by rememberSaveable { mutableStateOf("") }
+    var policyNumber by rememberSaveable { mutableStateOf("") }
+    var costStr by rememberSaveable { mutableStateOf("") }
+    var notes by rememberSaveable { mutableStateOf("") }
 
     val fmt = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
     val cal = Calendar.getInstance()

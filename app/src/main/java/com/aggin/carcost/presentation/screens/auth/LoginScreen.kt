@@ -23,6 +23,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.compose.material.icons.filled.DirectionsCar
 import com.aggin.carcost.R
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,7 +40,7 @@ fun LoginScreen(
     viewModel: LoginViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var passwordVisible by remember { mutableStateOf(false) }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -154,29 +156,20 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            // Сразу под кнопкой входа: сюда смотрят ровно в тот момент, когда
+            // пароль не подошёл
+            TextButton(
+                onClick = { navController.navigateOnce("forgot_password") },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Забыли пароль?")
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(12.dp))
 
             val context = LocalContext.current
-
-            // Вход через Google
-            OutlinedButton(
-                onClick = { viewModel.signInWithGoogle(context) },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = !uiState.isLoading
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_google),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = Color.Unspecified
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Войти через Google", style = MaterialTheme.typography.titleSmall)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             // Вход через ВКонтакте
             OutlinedButton(
@@ -198,7 +191,7 @@ fun LoginScreen(
 
             // Кнопка регистрации
             TextButton(
-                onClick = { navController.navigate("register") },
+                onClick = { navController.navigateOnce("register") },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Нет аккаунта? Зарегистрироваться")

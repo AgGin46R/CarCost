@@ -30,6 +30,7 @@ import com.yandex.mapkit.geometry.Point
 import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.mapview.MapView
 import kotlinx.coroutines.tasks.await
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("MissingPermission")
@@ -54,8 +55,12 @@ fun MapScreen(
         viewModel.setCarId(carId)
     }
 
-    // ✅ УДАЛЕНО: Инициализация MapKit теперь в App.kt
-    // Оставляем только управление жизненным циклом
+    // MapKit поднимается лениво: он больше не инициализируется при каждом
+    // запуске приложения, а только когда впервые понадобилась карта.
+    // getInstance() без initialize() бросает исключение, поэтому вызов
+    // обязан быть ДО него.
+    com.aggin.carcost.App.ensureMapKit(androidx.compose.ui.platform.LocalContext.current)
+
     DisposableEffect(Unit) {
         MapKitFactory.getInstance().onStart()
         onDispose {
@@ -202,7 +207,7 @@ fun YandexMapView(
     currentLocation: Point?,
     modifier: Modifier = Modifier
 ) {
-    var isInitialCameraMoveDone by remember { mutableStateOf(false) }
+    var isInitialCameraMoveDone by rememberSaveable { mutableStateOf(false) }
 
     AndroidView(
         factory = { ctx ->
@@ -212,9 +217,17 @@ fun YandexMapView(
                     CameraPosition(startPoint, 5.0f, 0.0f, 0.0f)
                 )
 
+                // Только MapView. MapKitFactory.onStart() уже вызван в
+                // DisposableEffect выше, и парный onStop там же — второй вызов
+                // здесь сдвигал счётчик на +1 при каждом открытии карты, из-за
+                // чего MapKit не останавливался никогда: фоновые потоки, докачка
+                // тайлов и сеть работали до убийства процесса
                 onStart()
-                MapKitFactory.getInstance().onStart()
             }
+        },
+        onRelease = { mapView ->
+            // Без парного onStop карта продолжает жить после ухода с экрана
+            mapView.onStop()
         },
         modifier = modifier,
         update = { mapView ->

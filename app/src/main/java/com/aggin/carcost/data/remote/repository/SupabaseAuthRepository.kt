@@ -4,9 +4,7 @@ import android.util.Log
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.gotrue.OtpType
 import io.github.jan.supabase.gotrue.auth
-import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.Email
-import io.github.jan.supabase.gotrue.providers.builtin.IDToken
 import io.github.jan.supabase.gotrue.user.UserInfo
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
@@ -101,44 +99,6 @@ class SupabaseAuthRepository {
         }
     }
 
-    /**
-     * Вход через Google (Credential Manager ID Token → Supabase IDToken provider).
-     * Upsert профиля: если пользователь уже существует — обновляем last_login_at,
-     * если новый — создаём запись с именем и фото из Google аккаунта.
-     */
-    suspend fun signInWithGoogle(idToken: String): Result<UserInfo> = withContext(Dispatchers.IO) {
-        try {
-            supabase.auth.signInWith(IDToken) {
-                provider = Google
-                this.idToken = idToken
-            }
-
-            val user = supabase.auth.currentUserOrNull()
-                ?: return@withContext Result.failure(Exception("Пользователь не найден"))
-
-            val displayName = user.userMetadata?.get("full_name")?.toString()?.trim('"')
-            val photoUrl = user.userMetadata?.get("avatar_url")?.toString()?.trim('"')
-
-            val profile = buildJsonObject {
-                put("id", user.id)
-                put("email", user.email ?: "")
-                put("display_name", displayName)
-                put("photo_url", photoUrl)
-                put("last_login_at", System.currentTimeMillis())
-            }
-
-            // upsert: создать если нет, обновить если есть (некритично — auth уже прошла)
-            try {
-                supabase.from("users").upsert(profile)
-            } catch (e: Exception) {
-                Log.w("SupabaseAuth", "Profile upsert failed (non-critical): ${e.message}")
-            }
-
-            Result.success(user)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
 
     /**
      * Вход через ВКонтакте.
@@ -160,14 +120,19 @@ class SupabaseAuthRepository {
             val user = supabase.auth.currentUserOrNull()
                 ?: return@withContext Result.failure(Exception("Пользователь не найден"))
 
-            val displayName = user.userMetadata?.get("full_name")?.toString()?.trim('"')
-            val photoUrl = user.userMetadata?.get("avatar_url")?.toString()?.trim('"')
-
+            // Имя и фото сюда НЕ пишем намеренно.
+            //
+            // Раньше при каждом входе через ВК сюда уходили display_name и
+            // photo_url из метаданных — то есть значения из ВКонтакте. Человек
+            // менял фото в CarCost, а следующий вход через ВК возвращал вкшный
+            // аватар: выглядело как «приложение не запоминает фото».
+            //
+            // Этими двумя полями теперь распоряжается триггер
+            // sync_vk_profile_to_user: он подставляет данные из ВК, только пока
+            // пользователь не выбрал своё. Здесь остаётся отметка о входе.
             val profile = buildJsonObject {
                 put("id", user.id)
                 put("email", user.email ?: "")
-                put("display_name", displayName)
-                put("photo_url", photoUrl)
                 put("last_login_at", System.currentTimeMillis())
             }
 
@@ -197,7 +162,7 @@ class SupabaseAuthRepository {
     /**
      * У аккаунта есть вход по паролю.
      *
-     * У заведённых через Google и ВКонтакте пароля нет, поэтому «сменить пароль»
+     * У заведённых через ВКонтакте пароля нет, поэтому «сменить пароль»
      * им показывать нельзя: проверить старый пароль невозможно в принципе.
      *
      * Одного `provider` недостаточно: у созданных через vk-auth GoTrue проставляет
@@ -259,16 +224,55 @@ class SupabaseAuthRepository {
     }
 
     /**
-     * Сброс пароля
+     * Отправляет на почту код восстановления пароля.
+     *
+     * `redirectUrl = null` намеренно: тогда в запрос не уходит `redirect_to`, и
+     * не нужно ни заводить адрес в списке разрешённых на сервере, ни ловить
+     * deep link в приложении. Восстановление идёт кодом, а не ссылкой —
+     * подробности в [verifyPasswordResetCode].
+     *
+     * Ответ всегда успешный, даже если такой почты нет: иначе форма
+     * восстановления превращается в проверку «есть ли у вас аккаунт с этим
+     * адресом», и любой желающий может перебором собрать список ваших
+     * пользователей.
      */
-    suspend fun resetPassword(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun sendPasswordResetCode(email: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            supabase.auth.resetPasswordForEmail(email)
+            supabase.auth.resetPasswordForEmail(email.trim(), redirectUrl = null)
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.w("SupabaseAuth", "resetPasswordForEmail failed: ${e.message}")
             Result.failure(e)
         }
     }
+
+    /**
+     * Проверяет код из письма. При успехе появляется сессия — с ней можно
+     * задать новый пароль через [updatePassword].
+     *
+     * Почему код, а не ссылка. Ссылка требует deep link, записи адреса в
+     * список разрешённых и обработки возврата в приложение. Но главное — она
+     * работает только если письмо открыто на том же телефоне: с почты на
+     * компьютере ссылка `carcost://` не сделает ничего. Код читается откуда
+     * угодно и вводится руками.
+     *
+     * ВАЖНО: чтобы код попал в письмо, шаблон «Reset Password» на сервере
+     * должен содержать {{ .Token }}. В стандартном шаблоне только ссылка.
+     */
+    suspend fun verifyPasswordResetCode(email: String, code: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                supabase.auth.verifyEmailOtp(
+                    type = OtpType.Email.RECOVERY,
+                    email = email.trim(),
+                    token = code.trim()
+                )
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Log.w("SupabaseAuth", "recovery otp failed: ${e.message}")
+                Result.failure(e)
+            }
+        }
 
     /**
      * Проверка, залогинен ли пользователь

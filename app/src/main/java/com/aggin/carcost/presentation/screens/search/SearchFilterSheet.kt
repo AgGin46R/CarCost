@@ -13,6 +13,7 @@ import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.presentation.common.displayName
 import com.aggin.carcost.presentation.common.formatDateCompact
+import androidx.compose.runtime.saveable.rememberSaveable
 
 /**
  * Фильтры поиска: автомобиль, категории, период, диапазон сумм.
@@ -36,8 +37,8 @@ fun SearchFilterSheet(
     var minAmount by remember { mutableStateOf(filter.minAmount?.toString() ?: "") }
     var maxAmount by remember { mutableStateOf(filter.maxAmount?.toString() ?: "") }
 
-    var showStartPicker by remember { mutableStateOf(false) }
-    var showEndPicker by remember { mutableStateOf(false) }
+    var showStartPicker by rememberSaveable { mutableStateOf(false) }
+    var showEndPicker by rememberSaveable { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(

@@ -110,7 +110,6 @@ sdk.dir=C:\\путь\\к\\Android\\Sdk
 
 supabase.url=https://<project-ref>.supabase.co
 supabase.anon_key=<anon key из Supabase → Settings → API>
-google.web_client_id=<Web client ID из Google Cloud Console>
 yandex.mapkit_key=<ключ Yandex MapKit>
 
 # VK ID — App ID и «Защищённый ключ» с dev.vk.com.

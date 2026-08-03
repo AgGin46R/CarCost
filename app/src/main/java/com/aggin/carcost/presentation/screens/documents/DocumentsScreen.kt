@@ -36,6 +36,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.aggin.carcost.presentation.components.SkeletonCardList
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +47,7 @@ fun DocumentsScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    var showAddDocDialog by remember { mutableStateOf(false) }
+    var showAddDocDialog by rememberSaveable { mutableStateOf(false) }
     var editingDocument by remember { mutableStateOf<CarDocument?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -57,7 +58,7 @@ fun DocumentsScreen(
         )
     )
     val policies by insuranceViewModel.policies.collectAsState()
-    var showAddPolicyDialog by remember { mutableStateOf(false) }
+    var showAddPolicyDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(carId) {
         viewModel.loadDocuments(carId)
@@ -328,9 +329,9 @@ fun DocumentFormDialog(
     var docTitle by remember { mutableStateOf(initialDocument?.title ?: "") }
     var notes by remember { mutableStateOf(initialDocument?.notes ?: "") }
     var fileUri by remember { mutableStateOf<String?>(initialDocument?.fileUri) }
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var expiryDate by remember { mutableStateOf<Long?>(initialDocument?.expiryDate) }
-    var typeExpanded by remember { mutableStateOf(false) }
+    var typeExpanded by rememberSaveable { mutableStateOf(false) }
 
     val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
 

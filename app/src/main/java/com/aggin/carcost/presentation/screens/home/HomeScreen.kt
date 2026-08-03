@@ -37,6 +37,7 @@ import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
 import com.aggin.carcost.data.remote.repository.CarInvitationDto
 import com.aggin.carcost.presentation.components.OfflineBanner
 import com.aggin.carcost.presentation.navigation.Screen
+import com.aggin.carcost.presentation.navigation.navigateOnce
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +47,6 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showJoinByCodeDialog by remember { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
 
     // Показываем Snackbar при ошибке синхронизации
@@ -71,34 +71,34 @@ fun HomeScreen(
                 title = {},
                 actions = {
                     // Навигатор
-                    IconButton(onClick = { navController.navigate(Screen.Navigator.route) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.Navigator.route) }) {
                         Icon(Icons.Default.Navigation, contentDescription = "Навигатор")
                     }
                     // Поиск расходов
-                    IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.Search.route) }) {
                         Icon(Icons.Default.Search, contentDescription = "Поиск расходов")
                     }
                     // Таймер парковки
-                    IconButton(onClick = { navController.navigate(Screen.ParkingTimer.route) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.ParkingTimer.route) }) {
                         Icon(Icons.Default.LocalParking, contentDescription = "Таймер парковки")
                     }
                     // CarBot
-                    IconButton(onClick = { navController.navigate(Screen.CarBot.route) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.CarBot.route) }) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = "CarBot")
                     }
                     // Дашборд ТО
-                    IconButton(onClick = { navController.navigate(Screen.MaintenanceDashboard.route) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.MaintenanceDashboard.route) }) {
                         Icon(Icons.Default.Build, contentDescription = "Дашборд ТО")
                     }
                     // Кнопка сравнения (только если авто >= 2)
                     if (uiState.cars.size >= 2) {
-                        IconButton(onClick = { navController.navigate(Screen.Compare.route) }) {
+                        IconButton(onClick = { navController.navigateOnce(Screen.Compare.route) }) {
                             Icon(Icons.Default.CompareArrows, contentDescription = "Сравнить авто")
                         }
                     }
                     // Кнопка профиля
                     IconButton(
-                        onClick = { navController.navigate(Screen.Profile.route) }
+                        onClick = { navController.navigateOnce(Screen.Profile.route) }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Person,
@@ -114,7 +114,7 @@ fun HomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navController.navigate(Screen.AddCar.route) },
+                onClick = { navController.navigateOnce(Screen.AddCar.route) },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Добавить автомобиль")
@@ -139,22 +139,15 @@ fun HomeScreen(
                     }
                     // Баннер отсутствия сети
                     OfflineBanner()
-                    // Вход по коду: приглашение теперь передают кодом, а не ссылкой,
-                    // потому что мессенджеры не делают carcost:// кликабельной
-                    TextButton(
-                        onClick = { showJoinByCodeDialog = true },
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) {
-                        Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Присоединиться по коду")
-                    }
+                    // Кнопка «Присоединиться по коду» отсюда убрана: список машин —
+                    // не место для действия, которое совершают раз в жизни. Она
+                    // переехала в «Участники» и в профиль.
                     // Incoming invitations banner
                     uiState.pendingInvitations.forEach { inv ->
                         InvitationBanner(
                             invitation = inv,
                             onAccept = {
-                                navController.navigate(Screen.AcceptInvite.createRoute(inv.token))
+                                navController.navigateOnce(Screen.AcceptInvite.createRoute(inv.token))
                                 viewModel.dismissInvitation(inv.token)
                             },
                             onDismiss = { viewModel.dismissInvitation(inv.token) }
@@ -166,7 +159,7 @@ fun HomeScreen(
                             reminders = uiState.remindersByCarId,
                             modifier = Modifier.weight(1f),
                             onCarClick = { car ->
-                                navController.navigate(Screen.CarDetail.createRoute(car.id))
+                                navController.navigateOnce(Screen.CarDetail.createRoute(car.id))
                             },
                             monthlyExpensePerCar = uiState.monthlyExpensePerCar,
                             unreadChatCountPerCar = uiState.unreadChatCountPerCar
@@ -179,15 +172,6 @@ fun HomeScreen(
         }
     }
 
-    if (showJoinByCodeDialog) {
-        JoinByCodeDialog(
-            onDismiss = { showJoinByCodeDialog = false },
-            onSubmit = { code ->
-                showJoinByCodeDialog = false
-                navController.navigate(Screen.AcceptInvite.createRoute(code))
-            }
-        )
-    }
 }
 
 @Composable
@@ -449,7 +433,7 @@ fun CarCard(
                     }
                 )
                 InfoChip(
-                    label = "За месяц",
+                    label = "За 30 дней",
                     value = if (monthlyExpense != null && monthlyExpense > 0)
                         "${"%.0f".format(animatedAmount)} ₽"
                     else "—"
@@ -600,47 +584,3 @@ fun InfoChip(label: String, value: String) {
     }
 }
 
-/**
- * Ввод кода приглашения.
- *
- * Сам приём делает экран AcceptInvite — он уже умеет разбирать ошибки сервера
- * (не найдено / использовано / истекло), поэтому здесь только собираем код.
- */
-@Composable
-private fun JoinByCodeDialog(
-    onDismiss: () -> Unit,
-    onSubmit: (String) -> Unit
-) {
-    var code by remember { mutableStateOf("") }
-    // Сервер принимает любой регистр и разделители, но подсказываем привычный вид
-    val cleaned = code.filter { it.isLetterOrDigit() }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.VpnKey, contentDescription = null) },
-        title = { Text("Присоединиться по коду") },
-        text = {
-            Column {
-                Text("Введите код, который прислал владелец автомобиля.")
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = code,
-                    onValueChange = { if (it.length <= 12) code = it.uppercase() },
-                    label = { Text("Код приглашения") },
-                    placeholder = { Text("K7M2-P9XQ") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = cleaned.length >= 6,
-                onClick = { onSubmit(cleaned) }
-            ) { Text("Присоединиться") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
-        }
-    )
-}

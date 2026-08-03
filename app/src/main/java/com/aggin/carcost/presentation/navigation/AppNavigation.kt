@@ -66,6 +66,7 @@ import com.aggin.carcost.presentation.screens.carbot.CarBotScreen
 sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Register : Screen("register")
+    object ForgotPassword : Screen("forgot_password")
     object Home : Screen("home")
     object Profile : Screen("profile")
     object AddCar : Screen("add_car")
@@ -232,11 +233,18 @@ fun AppNavigation(
     // and prevent false logouts on network errors
     val sessionStatus by supabase.auth.sessionStatus.collectAsState()
 
-    // Wait for onboarding DataStore value
-    val done = onboardingDone ?: return
-
-    // Wait for session to finish loading from storage before deciding
-    if (sessionStatus is SessionStatus.LoadingFromStorage) return
+    // Пока настройки и сессия не прочитаны, показать нечего: неизвестно даже,
+    // вошёл человек или нет. Раньше здесь стоял голый `return` — композиция
+    // не рисовала НИЧЕГО, и это выглядело как зависшее приложение.
+    //
+    // Обычно сюда не попадают вовсе: системная заставка держится ровно до этого
+    // момента (AppStartup). Экран остаётся на случай, когда чтение затянулось
+    // дольше предела ожидания заставки.
+    val done = onboardingDone
+    if (done == null || sessionStatus is SessionStatus.LoadingFromStorage) {
+        com.aggin.carcost.presentation.components.StartupScreen()
+        return
+    }
 
     // Only treat NotAuthenticated as definitively logged-out.
     // NetworkError / RefreshFailure / any other state = keep the user on their current screen.
@@ -244,11 +252,25 @@ fun AppNavigation(
     val isLoggedIn = sessionStatus !is SessionStatus.NotAuthenticated
 
     // Если пришёл deep link с токеном и пользователь залогинен — сразу на экран принятия
-    val startDestination = when {
-        !done -> Screen.Onboarding.route
-        isLoggedIn && pendingInviteToken != null -> Screen.AcceptInvite.createRoute(pendingInviteToken)
-        isLoggedIn -> Screen.Home.route
-        else -> Screen.Login.route
+    //
+    // ВАЖНО: считается один раз и НЕ пересчитывается при изменении isLoggedIn.
+    // Смена startDestination у живого NavHost пересоздаёт граф и сбрасывает стек
+    // экранов. Пока вход и выход были единственными местами, где менялось
+    // состояние сессии, это не мешало — оба и так уводят на другой экран явным
+    // navigate(). Но восстановление пароля создаёт сессию ПОСРЕДИ работы: проверка
+    // кода из письма логинит пользователя, чтобы дать сменить пароль. Граф
+    // пересоздавался, экран восстановления умирал, не дав ввести новый пароль, и
+    // человека выбрасывало обратно на вход.
+    //
+    // Переходы между входом и главным экраном делаются явным navigate() — здесь
+    // нужно только решить, с чего начать.
+    val startDestination = remember(done, pendingInviteToken) {
+        when {
+            !done -> Screen.Onboarding.route
+            isLoggedIn && pendingInviteToken != null -> Screen.AcceptInvite.createRoute(pendingInviteToken)
+            isLoggedIn -> Screen.Home.route
+            else -> Screen.Login.route
+        }
     }
 
     // Handle deep link from notification tap (after NavHost is initialized)
@@ -300,6 +322,10 @@ fun AppNavigation(
 
         composable(Screen.Register.route) {
             RegisterScreen(navController = navController, onSuccessRoute = afterAuthRoute)
+        }
+
+        composable(Screen.ForgotPassword.route) {
+            com.aggin.carcost.presentation.screens.auth.ForgotPasswordScreen(navController = navController)
         }
 
         // Главные экраны

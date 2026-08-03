@@ -2,6 +2,7 @@ package com.aggin.carcost.presentation.screens.car_members
 
 import android.app.Application
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,6 +25,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.room.withTransaction
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.CarMember
 import com.aggin.carcost.data.local.database.entities.MemberRole
@@ -34,6 +36,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 import android.content.Intent
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 data class CarMembersUiState(
     val members: List<CarMember> = emptyList(),
@@ -43,13 +47,26 @@ data class CarMembersUiState(
     val inviteCode: String? = null,
     val inviteRole: MemberRole? = null,
     val errorMessage: String? = null
-)
+) {
+    /**
+     * Может звать участников и выгонять их.
+     *
+     * Роль берётся из локальной таблицы участников. Строки создателя там нет,
+     * пока он не откроет этот экран: её заводит ensureOwnerRegistered() при
+     * входе сюда, и сразу локально, без ожидания сети.
+     *
+     * Определить владельца иначе клиент не может — поля владельца в локальной
+     * таблице машин нет вовсе, оно есть только на сервере.
+     */
+    val canManage: Boolean get() = currentUserRole == MemberRole.OWNER
+}
 
 class CarMembersViewModel(
     application: Application,
     private val carId: String
 ) : AndroidViewModel(application) {
-    private val dao = AppDatabase.getDatabase(application).carMemberDao()
+    private val db = AppDatabase.getDatabase(application)
+    private val dao = db.carMemberDao()
     private val auth = SupabaseAuthRepository()
     private val supabaseMembers = SupabaseCarMembersRepository(auth)
     private val currentUserId = auth.getUserId() ?: ""
@@ -95,16 +112,32 @@ class CarMembersViewModel(
         }
     }
 
+    /**
+     * Забирает участников с сервера.
+     *
+     * Всё в одной транзакции намеренно. Строки перезаписываются парой
+     * «удалить + вставить» (id той же записи на сервере может отличаться от
+     * локального, и одним REPLACE по первичному ключу не обойтись). Без
+     * транзакции Room объявляет таблицу изменённой после каждого шага, поток
+     * отдаёт промежуточные списки, и при каждом открытии экрана участники
+     * заметно мигают: пропадают и появляются по одному.
+     *
+     * Внутри транзакции инвалидация откладывается до коммита — список
+     * обновляется один раз и сразу целиком.
+     */
     private suspend fun syncMembersFromSupabase() {
-        // Чистим ghost-записи с пустым userId/email перед синхронизацией
-        dao.deleteGhostMembers(carId)
-
+        // Сеть — до транзакции: держать её открытой на время запроса нельзя
         val remoteMembers = supabaseMembers.getMembersByCarId(carId).getOrNull() ?: return
-        remoteMembers.forEach { member ->
-            dao.removeMember(member.carId, member.userId)
-            dao.insert(member)
+
+        db.withTransaction {
+            // Ghost-записи с пустым userId/email — артефакты гонки при старте
+            dao.deleteGhostMembers(carId)
+            remoteMembers.forEach { member ->
+                dao.removeMember(member.carId, member.userId)
+                dao.insert(member)
+            }
+            dao.deletePendingMembers(carId)
         }
-        dao.deletePendingMembers(carId)
     }
 
     /**
@@ -156,7 +189,7 @@ class CarMembersViewModel(
     }
 
     val isOwner: Boolean
-        get() = uiState.value.currentUserRole == MemberRole.OWNER
+        get() = uiState.value.canManage
 }
 
 class CarMembersViewModelFactory(
@@ -180,7 +213,18 @@ fun CarMembersScreen(
         factory = CarMembersViewModelFactory(context.applicationContext as Application, carId)
     )
     val uiState by viewModel.uiState.collectAsState()
-    var showInviteDialog by remember { mutableStateOf(false) }
+    var showInviteDialog by rememberSaveable { mutableStateOf(false) }
+    var showJoinDialog by rememberSaveable { mutableStateOf(false) }
+
+    if (showJoinDialog) {
+        com.aggin.carcost.presentation.components.JoinByCodeDialog(
+            onDismiss = { showJoinDialog = false },
+            onSubmit = { code ->
+                showJoinDialog = false
+                navController.navigateOnce(Screen.AcceptInvite.createRoute(code))
+            }
+        )
+    }
 
     // Код приглашения: приложение не рассылает письма, владелец передаёт код сам.
     // Ссылку carcost:// мессенджеры не делают кликабельной, поэтому именно код.
@@ -270,27 +314,18 @@ fun CarMembersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Участники авто") },
+                title = { Text("Участники") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.Chat.createRoute(carId)) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.Chat.createRoute(carId)) }) {
                         Icon(Icons.Default.Chat, contentDescription = "Чат")
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            if (uiState.currentUserRole == MemberRole.OWNER) {
-                ExtendedFloatingActionButton(
-                    onClick = { showInviteDialog = true },
-                    icon = { Icon(Icons.Default.PersonAdd, null) },
-                    text = { Text("Пригласить") }
-                )
-            }
         }
     ) { padding ->
         LazyColumn(
@@ -298,6 +333,18 @@ fun CarMembersScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            item {
+                // Обе стороны совместного доступа рядом: свой код — чтобы позвать
+                // сюда, чужой — чтобы уйти в другую машину. Раньше «Присоединиться
+                // по коду» висело на списке автомобилей, где его никто не связывал
+                // с участниками, а приглашение пряталось за кнопкой внизу экрана.
+                SharedAccessCard(
+                    isOwner = uiState.canManage,
+                    onInvite = { showInviteDialog = true },
+                    onJoin = { showJoinDialog = true }
+                )
+            }
+
             item {
                 RoleInfoCard()
             }
@@ -311,7 +358,7 @@ fun CarMembersScreen(
                             Spacer(Modifier.height(16.dp))
                             Text("Нет участников", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(8.dp))
-                            Text("Пригласите других водителей\nили механиков для совместного учёта",
+                            Text("Пригласите тех, кто ездит на этой машине или её обслуживает",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -321,12 +368,77 @@ fun CarMembersScreen(
                 items(uiState.members, key = { it.id }) { member ->
                     MemberCard(
                         member = member,
-                        canRemove = uiState.currentUserRole == MemberRole.OWNER,
+                        canRemove = uiState.canManage,
                         onRemove = { viewModel.removeMember(member) }
                     )
                 }
             }
         }
+    }
+}
+
+/**
+ * Совместный доступ: позвать сюда и уйти в чужую машину.
+ *
+ * Приглашать может только владелец, а присоединиться — кто угодно, поэтому
+ * первая строка условная, вторая всегда на месте.
+ */
+@Composable
+private fun SharedAccessCard(
+    isOwner: Boolean,
+    onInvite: () -> Unit,
+    onJoin: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            if (isOwner) {
+                SharedAccessRow(
+                    icon = Icons.Default.PersonAdd,
+                    title = "Пригласить в эту машину",
+                    subtitle = "Создать код и передать его самому",
+                    onClick = onInvite
+                )
+                HorizontalDivider()
+            }
+            SharedAccessRow(
+                icon = Icons.Default.VpnKey,
+                title = "Присоединиться по коду",
+                subtitle = "Если код прислали вам — для другой машины",
+                onClick = onJoin
+            )
+        }
+    }
+}
+
+@Composable
+private fun SharedAccessRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            Icons.Default.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
     }
 }
 
@@ -434,7 +546,7 @@ private fun InviteMemberDialog(
     onConfirm: (String, MemberRole) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var email by remember { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf(MemberRole.DRIVER) }
 
     AlertDialog(
@@ -443,7 +555,7 @@ private fun InviteMemberDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Вы получите ссылку и отправите её сами — через любой мессенджер.",
+                    "Вы получите код и передадите его сами — любым способом.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -452,7 +564,7 @@ private fun InviteMemberDialog(
                     onValueChange = { email = it },
                     label = { Text("Email (необязательно)") },
                     supportingText = {
-                        Text("Если укажете — приглашение ещё и появится баннером у того, кто уже пользуется CarCost с этой почтой")
+                        Text("Если у человека уже есть CarCost на этой почте — он ещё и увидит приглашение баннером")
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -493,13 +605,13 @@ private fun InviteMemberDialog(
             }
         },
         confirmButton = {
-            // Email необязателен: ссылка работает и без него. Но если введён —
+            // Email необязателен: код работает и без него. Но если введён —
             // должен быть похож на адрес, иначе баннер всё равно не найдёт адресата
             val emailValid = email.isBlank() || email.contains("@")
             TextButton(
                 enabled = emailValid,
                 onClick = { onConfirm(email, selectedRole) }
-            ) { Text("Создать ссылку") }
+            ) { Text("Создать код") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Отмена") }

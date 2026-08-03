@@ -49,6 +49,30 @@ interface ExpenseTagDao {
     """)
     fun getTagsForExpense(expenseId: String): Flow<List<ExpenseTag>> // ✅ String UUID
 
+    /** Пара «расход → тег» для выборки тегов сразу по многим расходам */
+    data class ExpenseTagRow(val expenseId: String, val tagId: String, val name: String, val color: String, val userId: String)
+
+    /**
+     * Теги сразу для списка расходов — одним запросом.
+     *
+     * Раньше экран автомобиля запрашивал теги отдельно на КАЖДЫЙ расход, в цикле.
+     * На машине с тремя сотнями записей это триста запросов на одно открытие,
+     * причём каждый через Flow — то есть с постановкой и снятием наблюдателя за
+     * таблицей, а не простым чтением.
+     *
+     * Хуже того, цикл висел на потоке расходов, а синхронизация пишет их по
+     * одному: каждая вставка объявляла таблицу изменённой и запускала все триста
+     * запросов заново.
+     */
+    @Query("""
+        SELECT xt.expenseId AS expenseId, t.id AS tagId, t.name AS name,
+               t.color AS color, t.userId AS userId
+        FROM expense_tags AS t
+        INNER JOIN expense_tag_cross_ref AS xt ON t.id = xt.tagId
+        WHERE xt.expenseId IN (:expenseIds)
+    """)
+    suspend fun getTagsForExpenses(expenseIds: List<String>): List<ExpenseTagRow>
+
     // Получить расходы по тегу
     @Query("""
         SELECT e.* FROM expenses as e

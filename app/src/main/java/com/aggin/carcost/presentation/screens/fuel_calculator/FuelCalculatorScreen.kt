@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlin.math.roundToInt
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,7 +32,7 @@ fun FuelCalculatorScreen(
     var distanceKmStr by remember { mutableStateOf(if (initialDistanceKm > 0) "%.1f".format(initialDistanceKm) else "") }
     var avgL100Str    by remember { mutableStateOf(if (initialAvgL100 > 0) "%.1f".format(initialAvgL100) else "") }
     var pricePerLStr  by remember { mutableStateOf(if (initialPricePerL > 0) "%.2f".format(initialPricePerL) else "") }
-    var tankLitresStr by remember { mutableStateOf("") }
+    var tankLitresStr by rememberSaveable { mutableStateOf("") }
 
     // --- Derived ---
     val distanceKm = distanceKmStr.toDoubleOrNull() ?: 0.0

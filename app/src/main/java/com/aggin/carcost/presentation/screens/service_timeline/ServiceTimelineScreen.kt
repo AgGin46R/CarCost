@@ -25,6 +25,7 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
 import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.presentation.navigation.navigateOnce
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,8 +73,8 @@ fun ServiceTimelineScreen(
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
                     Spacer(Modifier.height(12.dp))
-                    Text("Нет записей об обслужива��ии", style = MaterialTheme.typography.titleMedium)
-                    Text("Добавьте расходы категории «Обслуживание» или «Ремонт»",
+                    Text("Нет записей об обслуживании", style = MaterialTheme.typography.titleMedium)
+                    Text("Добавьте расход категории «ТО» или «Ремонт» — он появится здесь",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
@@ -97,7 +98,7 @@ fun ServiceTimelineScreen(
                     isFirst = index == 0,
                     isLast = index == uiState.events.lastIndex,
                     onClick = {
-                        navController.navigate(
+                        navController.navigateOnce(
                             Screen.EditExpense.createRoute(event.expense.carId, event.expense.id)
                         )
                     }

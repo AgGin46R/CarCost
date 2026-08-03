@@ -233,6 +233,24 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         startLocationTracking()
     }
 
+    /**
+     * Снимает подписку на GPS при уходе с экрана.
+     *
+     * Раньше её снимал только onCleared(), а ViewModel живёт на записи стека
+     * навигации: переход вперёд — из диалога «Вы на месте» в добавление расхода
+     * или в таймер парковки — экран уничтожал, но GPS высокой точности
+     * продолжал опрашиваться раз в две секунды на невидимом экране, пока
+     * пользователь не вернётся и не уйдёт назад.
+     *
+     * Во время самой навигации координаты берёт foreground-сервис, поэтому
+     * маршрут от этого не рвётся.
+     */
+    fun stopLocationTracking() {
+        try {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+        } catch (_: Exception) {}
+    }
+
     // ── Search ───────────────────────────────────────────────────────────────
 
     fun onQueryChanged(query: String) {

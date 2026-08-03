@@ -7,4 +7,7 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Фон системного splash. Тот же синий, что у шапок и виджета, — чтобы
+         запуск не начинался со вспышки белого при тёмной теме телефона -->
+    <color name="splash_background">#FF1565C0</color>
 </resources>

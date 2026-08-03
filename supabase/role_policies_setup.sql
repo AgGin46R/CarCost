@@ -134,6 +134,66 @@ drop policy if exists "Members can manage gps_trips" on public.gps_trips;
 create policy "trips_all" on public.gps_trips
     for all using (is_car_participant(car_id)) with check (is_car_participant(car_id));
 
+-- ── Расходы, чат и приглашения ───────────────────────────────────────────────
+-- Добавлено позже остальных: в первый заход эти три таблицы пропустили, и дыра
+-- у них осталась. Она оказалась тяжелее, чем у напоминаний ТО: expenses_insert
+-- отвергал СОБСТВЕННЫЕ расходы создателя, репозиторий заворачивал отказ в
+-- runCatching, и запись оставалась только на телефоне — до первой переустановки.
+--
+-- Проверено подменой JWT: у автомобиля feacb71d-ad2f-440b-b36f-bb11d2b5d2aa его
+-- создатель получал is_car_owner OR is_car_member = false при
+-- is_car_participant = true. Таких автомобилей было 5 из 16.
+--
+-- Условие user_id = auth.uid() в insert сохранено намеренно: без него любой
+-- участник мог бы записать расход от чужого имени.
+drop policy if exists "expenses_select" on public.expenses;
+create policy "expenses_select" on public.expenses
+    for select using (user_id = auth.uid()::text or is_car_participant(car_id));
+
+drop policy if exists "expenses_insert" on public.expenses;
+create policy "expenses_insert" on public.expenses
+    for insert with check (user_id = auth.uid()::text and is_car_participant(car_id));
+
+drop policy if exists "expenses_update" on public.expenses;
+create policy "expenses_update" on public.expenses
+    for update using (user_id = auth.uid()::text or can_manage_car(car_id))
+    with check (user_id = auth.uid()::text or can_manage_car(car_id));
+
+drop policy if exists "expenses_delete" on public.expenses;
+create policy "expenses_delete" on public.expenses
+    for delete using (user_id = auth.uid()::text or can_manage_car(car_id));
+
+drop policy if exists "chat_select" on public.chat_messages;
+create policy "chat_select" on public.chat_messages
+    for select using (is_car_participant(car_id));
+
+drop policy if exists "chat_insert" on public.chat_messages;
+create policy "chat_insert" on public.chat_messages
+    for insert with check (auth.uid()::text = user_id and is_car_participant(car_id));
+
+drop policy if exists "invitations_owner_all" on public.car_invitations;
+create policy "invitations_owner_all" on public.car_invitations
+    for all using (can_manage_car(car_id)) with check (can_manage_car(car_id));
+
+-- Разовая правка данных: строка OWNER тем создателям, у кого её не было.
+-- Роль в приложении читается именно из car_members, и без этого экран
+-- «Участники» продолжал бы зависеть от того, открывали его хоть раз.
+insert into public.car_members (id, car_id, user_id, email, role, joined_at)
+select gen_random_uuid()::text, c.id, c.user_id, coalesce(u.email, ''), 'OWNER',
+       (extract(epoch from now()) * 1000)::bigint
+from public.cars c
+left join auth.users u on u.id::text = c.user_id
+where not exists (
+    select 1 from public.car_members m
+    where m.car_id = c.id and m.user_id = c.user_id
+);
+
+-- Проверено после применения:
+--   создатель        can_insert = true,  can_invite = true   (было false/false)
+--   посторонний      can_insert = false, can_invite = false
+--   водитель-участник читает 9 расходов владельца, управлять машиной не может
+--   автомобилей без строки владельца: 0 (было 5)
+
 -- ── Приём приглашения ────────────────────────────────────────────────────────
 -- Клиентским кодом это сделать нельзя: чтобы политика пустила, она должна знать
 -- про токен, а токен — как раз то, что предъявляет клиент. Отсюда SECURITY DEFINER.

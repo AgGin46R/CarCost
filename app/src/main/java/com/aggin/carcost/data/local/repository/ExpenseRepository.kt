@@ -70,6 +70,24 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     // Update
+
+    /**
+     * Запись, пришедшая С СЕРВЕРА, — без перештамповки updatedAt.
+     *
+     * Обычный update ставит updatedAt = сейчас. Для загрузки это ломало всё:
+     * скачанная запись немедленно становилась «новее» серверной, на следующей
+     * синхронизации уходила обратно UPDATE'ом, сервер ставил своё «сейчас» —
+     * и так по кругу, вечно. Каждая хоть раз синхронизированная запись давала
+     * лишний запрос при КАЖДОМ разворачивании приложения: у совладельца с 300
+     * расходами это 300 запросов на ровном месте.
+     *
+     * Здесь метка времени сохраняется серверная — она и есть источник истины
+     * для сравнения "кто новее".
+     */
+    suspend fun saveFromServer(expense: Expense) {
+        expenseDao.insertExpense(expense)
+    }
+
     suspend fun updateExpense(expense: Expense) {
         expenseDao.updateExpense(expense.copy(updatedAt = System.currentTimeMillis()))
     }
@@ -84,16 +102,24 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     // Business logic - Date ranges
-    fun getMonthlyExpenses(carId: String): Flow<Double> {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.DAY_OF_MONTH, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        val startOfMonth = calendar.timeInMillis
-        val endOfMonth = System.currentTimeMillis()
 
-        return getTotalExpensesInDateRange(carId, startOfMonth, endOfMonth)
+    /**
+     * Траты за последние 30 дней.
+     *
+     * Раньше считался календарный месяц, с 1-го числа. Каждое начало месяца
+     * карточка автомобиля обнулялась и показывала «—»: 2-го числа в окне лежал
+     * один день. При этом экран самой машины считал скользящие 30 дней и число
+     * показывал — то есть одна и та же подпись «За месяц» означала на двух
+     * экранах разное.
+     *
+     * Скользящее окно выбрано потому, что это глазная сводка, а не отчётный
+     * период: она должна быть осмысленной в любой день. Для бюджетов, которые
+     * действительно привязаны к календарному месяцу, есть отдельный расчёт.
+     */
+    fun getLast30DaysExpenses(carId: String): Flow<Double> {
+        val now = System.currentTimeMillis()
+        val thirtyDaysAgo = now - 30L * 24 * 60 * 60 * 1000
+        return getTotalExpensesInDateRange(carId, thirtyDaysAgo, now)
     }
 
     fun getYearlyExpenses(carId: String): Flow<Double> {

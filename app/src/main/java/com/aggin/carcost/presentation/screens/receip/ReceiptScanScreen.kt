@@ -31,6 +31,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -132,7 +133,7 @@ fun ReceiptScanScreen(
                         )
 
                         Text(
-                            text = "Приложение автоматически распознает сумму и дату",
+                            text = "Сумма и дата подставятся в форму автоматически",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -292,7 +293,7 @@ fun ReceiptScanScreen(
                             // Распознанный текст (свернуто)
                             if (uiState.receiptData?.text?.isNotBlank() == true) {
                                 Spacer(modifier = Modifier.height(12.dp))
-                                var showFullText by remember { mutableStateOf(false) }
+                                var showFullText by rememberSaveable { mutableStateOf(false) }
 
                                 TextButton(
                                     onClick = { showFullText = !showFullText }

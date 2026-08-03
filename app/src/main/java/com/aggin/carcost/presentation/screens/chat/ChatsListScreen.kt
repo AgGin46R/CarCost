@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import com.aggin.carcost.presentation.navigation.navigateOnce
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ fun ChatsListScreen(
                     CarChatItem(
                         preview = preview,
                         onClick = {
-                            navController.navigate(Screen.Chat.createRoute(preview.car.id))
+                            navController.navigateOnce(Screen.Chat.createRoute(preview.car.id))
                         }
                     )
                     HorizontalDivider(

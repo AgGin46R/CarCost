@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @Composable
 fun TagSelector(
@@ -29,7 +30,7 @@ fun TagSelector(
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    var showTagPicker by remember { mutableStateOf(false) }
+    var showTagPicker by rememberSaveable { mutableStateOf(false) }
 
     Column(modifier = modifier) {
         Row(

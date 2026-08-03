@@ -51,29 +51,39 @@ class App : Application() {
 
         /** Минимальный интервал между синхронизациями при разворачивании приложения */
         private const val FOREGROUND_SYNC_INTERVAL_MS = 60 * 60 * 1000L
+
+        @Volatile
+        private var mapKitReady = false
+
+        /**
+         * Инициализирует MapKit при первом обращении к карте.
+         *
+         * Раньше это делалось в onCreate на главном потоке при каждом запуске —
+         * нативная библиотека поднималась даже у тех, кто карту не открывает
+         * вовсе. Вызывать обязательно перед созданием MapView.
+         */
+        @Synchronized
+        fun ensureMapKit(context: android.content.Context) {
+            if (mapKitReady) return
+            try {
+                MapKitFactory.setApiKey(BuildConfig.YANDEX_MAPKIT_KEY)
+                MapKitFactory.initialize(context.applicationContext)
+                mapKitReady = true
+                Log.d(TAG, "Yandex MapKit initialized (lazily)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize MapKit", e)
+            }
+        }
     }
+
+    /** Область для инициализации, не нужной первому кадру */
+    private val backgroundInit = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
 
-        try {
-            // ✅ Инициализируем Yandex MapKit
-            MapKitFactory.setApiKey(BuildConfig.YANDEX_MAPKIT_KEY)
-            MapKitFactory.initialize(this)
-            Log.d(TAG, "Yandex MapKit initialized successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize MapKit", e)
-        }
-
-        try {
-            // Если приложение ещё не заведено на dev.vk.com, init может упасть.
-            // Ловим здесь, иначе не запустится всё приложение, а не только вход через VK.
-            VKID.init(this)
-            Log.d(TAG, "VK ID initialized successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize VK ID", e)
-        }
-
+        // ── Только то, без чего не нарисовать первый экран ────────────────────
+        // Supabase нужен сразу: восстановление сессии решает, какой экран открыть
         try {
             initializeSupabase()
             Log.d(TAG, "Supabase initialized successfully")
@@ -81,17 +91,39 @@ class App : Application() {
             Log.e(TAG, "Failed to initialize Supabase", e)
         }
 
-        NotificationHelper.createChannel(this)
-        scheduleMaintenanceCheck()
-        scheduleFuelReminder()
-        scheduleInsuranceCheck()
-        scheduleDocumentExpiryCheck()
-        scheduleWeeklySummary()
-        scheduleBudgetAlert()
-        scheduleFluidCheck()
-        scheduleYearOwnerCheck()
-        BackgroundSyncWorker.schedule(this)
-        UpdateCheckWorker.schedule(this)
+        // ── Остальное — в фон ─────────────────────────────────────────────────
+        // Раньше здесь подряд, на главном потоке и до первого кадра, выполнялись:
+        // инициализация нативного MapKit, инициализация VK ID и десять постановок
+        // периодических задач WorkManager. Ни одно из этого не нужно, чтобы
+        // показать список автомобилей, но всё это стояло между запуском и
+        // первым кадром.
+        //
+        // MapKit инициализируется лениво, при первом открытии карты
+        // (см. ensureMapKit) — большинство сеансов до карты вообще не доходит.
+        backgroundInit.launch {
+            try {
+                VKID.init(this@App)
+                Log.d(TAG, "VK ID initialized successfully")
+            } catch (e: Exception) {
+                // Если приложение не заведено в кабинете VK, init падает.
+                // Ловим, иначе перестанет работать не только вход через VK.
+                Log.e(TAG, "Failed to initialize VK ID", e)
+            }
+
+            NotificationHelper.createChannel(this@App)
+
+            scheduleMaintenanceCheck()
+            scheduleFuelReminder()
+            scheduleInsuranceCheck()
+            scheduleDocumentExpiryCheck()
+            scheduleWeeklySummary()
+            scheduleBudgetAlert()
+            scheduleFluidCheck()
+            scheduleYearOwnerCheck()
+            BackgroundSyncWorker.schedule(this@App)
+            UpdateCheckWorker.schedule(this@App)
+            Log.d(TAG, "Фоновая инициализация завершена")
+        }
 
         // Глобальная страховка: SocketException из любой корутины не должна крашить приложение.
         // RealtimeSyncManager имеет свой CoroutineExceptionHandler, но на случай если где-то

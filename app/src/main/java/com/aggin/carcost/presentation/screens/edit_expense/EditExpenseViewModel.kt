@@ -21,6 +21,20 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class EditExpenseUiState(
+    /**
+     * Исходная запись целиком.
+     *
+     * Нужна, чтобы сохранение делалось через copy(), а не сборкой нового
+     * Expense из полей формы. Форма показывает не все поля сущности, и всё,
+     * чего в ней нет, при пересборке молча уходило в значения по умолчанию:
+     * фото чека, список запчастей, заголовок, даты следующего ТО, время
+     * создания и автор записи.
+     *
+     * С автором получалось хуже всего: обнулённый userId при отправке
+     * подменялся текущим пользователем, и правка чужого расхода в общей машине
+     * переписывала плательщика на того, кто редактировал.
+     */
+    val original: Expense? = null,
     val expenseId: String = "",
     val carId: String = "",
     val category: ExpenseCategory = ExpenseCategory.FUEL,
@@ -79,6 +93,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                 val expense = expenseRepository.getExpenseById(expenseId)
                 if (expense != null) {
                     _uiState.value = EditExpenseUiState(
+                        original = expense,
                         expenseId = expense.id,
                         carId = expense.carId,
                         category = expense.category,
@@ -214,7 +229,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
         if (amount == null || amount <= 0) {
             _uiState.value = state.copy(
                 amountError = "Введите корректную сумму",
-                errorMessage = "Проверьте введенные данные"
+                errorMessage = "Проверьте введённые данные"
             )
             hasError = true
         }
@@ -222,7 +237,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
         if (odometer == null || odometer < 0) {
             _uiState.value = _uiState.value.copy(
                 odometerError = "Введите корректный пробег",
-                errorMessage = "Проверьте введенные данные"
+                errorMessage = "Проверьте введённые данные"
             )
             hasError = true
         }
@@ -233,9 +248,19 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             try {
-                val updatedExpense = Expense(
-                    id = state.expenseId,
-                    carId = state.carId,
+                // Только copy() от исходной записи. Сборка нового Expense из полей
+                // формы обнуляла всё, чего в форме нет: фото чека, запчасти,
+                // заголовок, даты следующего ТО, createdAt и автора.
+                val base = state.original
+                if (base == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isSaving = false,
+                        errorMessage = "Не удалось прочитать запись. Откройте расход заново"
+                    )
+                    return@launch
+                }
+
+                val updatedExpense = base.copy(
                     category = state.category,
                     amount = amount!!,
                     currency = "RUB",

@@ -188,7 +188,14 @@ class SyncRepository(
 
         // 1. Pull - получаем данные с сервера
         val remoteCarsResult = supabaseCarRepo.getAllCars()
-        val remoteCars = remoteCarsResult.getOrNull() ?: emptyList()
+        // Отказ загрузки — не «сервер пуст»: иначе локальная копия уходит
+        // upsert'ом поверх более свежей серверной. См. подробности в syncExpenses.
+        val remoteCars = remoteCarsResult.getOrNull()
+        if (remoteCars == null) {
+            pushFailures++
+            Log.w(TAG, "Пропуск автомобилей: не удалось загрузить с сервера")
+            return
+        }
 
         // 2. Push - отправляем локальные изменения
         val localCars = localCarRepo.getAllCars().first()
@@ -204,7 +211,7 @@ class SyncRepository(
                         Log.d(TAG, "Skipping push for shared car: ${localCar.id}")
                     } else {
                         Log.d(TAG, "Pushing new car: ${localCar.id}")
-                        val result = supabaseCarRepo.insertCar(localCar)
+                        val result = supabaseCarRepo.insertCar(localCar).trackPush("автомобиль")
                         result.getOrNull()?.let { insertedCar ->
                             if (insertedCar.id != localCar.id) {
                                 localCarRepo.updateCar(localCar.copy(id = insertedCar.id))
@@ -224,7 +231,7 @@ class SyncRepository(
                 // Автомобиль изменен на сервере позже
                 remoteCar.updatedAt > localCar.updatedAt -> {
                     Log.d(TAG, "Updating car locally: ${localCar.id}")
-                    localCarRepo.updateCar(remoteCar)
+                    localCarRepo.saveFromServer(remoteCar)
                 }
             }
         }
@@ -233,7 +240,7 @@ class SyncRepository(
         for (remoteCar in remoteCars) {
             if (localCars.none { it.id == remoteCar.id }) {
                 Log.d(TAG, "Pulling new car from server: ${remoteCar.id}")
-                localCarRepo.insertCar(remoteCar)
+                localCarRepo.saveFromServer(remoteCar)
             }
         }
     }
@@ -248,8 +255,21 @@ class SyncRepository(
 
         for (car in localCars) {
             // 1. Pull - получаем расходы с сервера
+            // Отказ загрузки НЕЛЬЗЯ считать пустым сервером.
+            // getOrNull() ?: emptyList() превращал «не смог прочитать» в «там ничего
+            // нет», после чего каждая локальная запись выглядела новой и уходила
+            // upsert'ом с локальным updatedAt. Для общей машины это прямая потеря
+            // данных: совладелец поправил расход, у меня лежит старая копия, загрузка
+            // отвалилась по таймауту — и моя старая версия затирала его правку.
+            // Пропускаем эту сущность до следующего раза; неудача засчитывается,
+            // поэтому выход из аккаунта не сотрёт неотправленное.
             val remoteExpensesResult = supabaseExpenseRepo.getExpensesByCarId(car.id)
-            val remoteExpenses = remoteExpensesResult.getOrNull() ?: emptyList()
+            val remoteExpenses = remoteExpensesResult.getOrNull()
+            if (remoteExpenses == null) {
+                pushFailures++
+                Log.w(TAG, "Пропуск расходов ${car.id}: не удалось загрузить")
+                continue
+            }
 
             // 2. Push - отправляем локальные изменения
             val localExpenses = localExpenseRepo.getExpensesByCarId(car.id).first()
@@ -261,7 +281,7 @@ class SyncRepository(
                     // Новый расход (только локально)
                     remoteExpense == null -> {
                         Log.d(TAG, "Pushing new expense: ${localExpense.id}")
-                        val result = supabaseExpenseRepo.insertExpense(localExpense)
+                        val result = supabaseExpenseRepo.insertExpense(localExpense).trackPush("расход")
                         result.getOrNull()?.let { insertedExpense ->
                             if (insertedExpense.id != localExpense.id) {
                                 localExpenseRepo.updateExpense(localExpense.copy(id = insertedExpense.id))
@@ -276,7 +296,7 @@ class SyncRepository(
                     // Расход изменен на сервере позже
                     remoteExpense.updatedAt > localExpense.updatedAt -> {
                         Log.d(TAG, "Updating expense locally: ${localExpense.id}")
-                        localExpenseRepo.updateExpense(remoteExpense)
+                        localExpenseRepo.saveFromServer(remoteExpense)
                     }
                 }
             }
@@ -285,7 +305,7 @@ class SyncRepository(
             for (remoteExpense in remoteExpenses) {
                 if (localExpenses.none { it.id == remoteExpense.id }) {
                     Log.d(TAG, "Pulling new expense from server: ${remoteExpense.id}")
-                    localExpenseRepo.insertExpense(remoteExpense)
+                    localExpenseRepo.saveFromServer(remoteExpense)
                 }
             }
         }
@@ -301,8 +321,21 @@ class SyncRepository(
 
         for (car in localCars) {
             // 1. Pull - получаем напоминания с сервера
+            // Отказ загрузки НЕЛЬЗЯ считать пустым сервером.
+            // getOrNull() ?: emptyList() превращал «не смог прочитать» в «там ничего
+            // нет», после чего каждая локальная запись выглядела новой и уходила
+            // upsert'ом с локальным updatedAt. Для общей машины это прямая потеря
+            // данных: совладелец поправил расход, у меня лежит старая копия, загрузка
+            // отвалилась по таймауту — и моя старая версия затирала его правку.
+            // Пропускаем эту сущность до следующего раза; неудача засчитывается,
+            // поэтому выход из аккаунта не сотрёт неотправленное.
             val remoteRemindersResult = supabaseReminderRepo.getRemindersByCarId(car.id)
-            val remoteReminders = remoteRemindersResult.getOrNull() ?: emptyList()
+            val remoteReminders = remoteRemindersResult.getOrNull()
+            if (remoteReminders == null) {
+                pushFailures++
+                Log.w(TAG, "Пропуск ТО ${car.id}: не удалось загрузить")
+                continue
+            }
 
             // 2. Push - отправляем локальные изменения
             val localReminders = localReminderRepo.getActiveReminders(car.id).first()
@@ -314,7 +347,7 @@ class SyncRepository(
                     // Новое напоминание (только локально)
                     remoteReminder == null -> {
                         Log.d(TAG, "Pushing new reminder: ${localReminder.id}")
-                        val result = supabaseReminderRepo.insertReminder(localReminder)
+                        val result = supabaseReminderRepo.insertReminder(localReminder).trackPush("напоминание ТО")
                         result.getOrNull()?.let { insertedReminder ->
                             if (insertedReminder.id != localReminder.id) {
                                 localReminderRepo.updateReminder(localReminder.copy(id = insertedReminder.id))
@@ -329,7 +362,7 @@ class SyncRepository(
                     // Напоминание изменено на сервере позже
                     remoteReminder.updatedAt > localReminder.updatedAt -> {
                         Log.d(TAG, "Updating reminder locally: ${localReminder.id}")
-                        localReminderRepo.updateReminder(remoteReminder)
+                        localReminderRepo.saveFromServer(remoteReminder)
                     }
                 }
             }
@@ -338,7 +371,7 @@ class SyncRepository(
             for (remoteReminder in remoteReminders) {
                 if (localReminders.none { it.id == remoteReminder.id }) {
                     Log.d(TAG, "Pulling new reminder from server: ${remoteReminder.id}")
-                    localReminderRepo.insertReminder(remoteReminder)
+                    localReminderRepo.saveFromServer(remoteReminder)
                 }
             }
         }
@@ -354,7 +387,14 @@ class SyncRepository(
 
         // 1. Pull - получаем теги с сервера
         val remoteTagsResult = supabaseTagRepo.getAllTags() // ✅ ИСПРАВЛЕНО
-        val remoteTags = remoteTagsResult.getOrNull() ?: emptyList()
+        // Отказ загрузки — не «сервер пуст»: иначе локальная копия уходит
+        // upsert'ом поверх более свежей серверной. См. подробности в syncExpenses.
+        val remoteTags = remoteTagsResult.getOrNull()
+        if (remoteTags == null) {
+            pushFailures++
+            Log.w(TAG, "Пропуск тегов: не удалось загрузить с сервера")
+            return
+        }
 
         // 2. Push - отправляем локальные теги
         val localTags = localTagRepo.getTagsByUser(userId).first()
@@ -366,7 +406,7 @@ class SyncRepository(
                 // Новый тег (только локально)
                 remoteTag == null -> {
                     Log.d(TAG, "Pushing new tag: ${localTag.id}")
-                    val result = supabaseTagRepo.insertTag(localTag)
+                    val result = supabaseTagRepo.insertTag(localTag).trackPush("тег")
                     result.getOrNull()?.let { insertedTag ->
                         if (insertedTag.id != localTag.id) {
                             // Обновляем ID, если нужно
@@ -432,7 +472,13 @@ class SyncRepository(
             try {
                 // 1. Pull - получаем планы с сервера
                 val remotePlansResult = supabasePlannedExpenseRepo.getPlannedExpensesByCarId(car.id)
-                val remotePlans = remotePlansResult.getOrNull() ?: emptyList()
+                // Отказ загрузки — не «сервер пуст». См. syncExpenses.
+                val remotePlans = remotePlansResult.getOrNull()
+                if (remotePlans == null) {
+                    pushFailures++
+                    Log.w(TAG, "Пропуск планов ${car.id}: не удалось загрузить")
+                    continue
+                }
 
                 // 2. Push - отправляем локальные изменения
                 val localPlans = localPlannedExpenseRepo.getPlannedExpensesByCarId(car.id).first()
@@ -444,7 +490,7 @@ class SyncRepository(
                         // Новый план (только локально)
                         remotePlan == null -> {
                             Log.d(TAG, "Pushing new planned expense: ${localPlan.id}")
-                            val result = supabasePlannedExpenseRepo.insertPlannedExpense(localPlan)
+                            val result = supabasePlannedExpenseRepo.insertPlannedExpense(localPlan).trackPush("план покупки")
                             result.fold(
                                 onSuccess = {
                                     // Помечаем как синхронизированный
@@ -526,7 +572,16 @@ class SyncRepository(
             _syncState.value = SyncState.Syncing
 
             val remoteExpensesResult = supabaseExpenseRepo.getExpensesByCarId(carId)
-            val remoteExpenses = remoteExpensesResult.getOrNull() ?: emptyList()
+            // Здесь синхронизируется одна машина, а не список: при отказе загрузки
+            // выходим сразу. Заливать локальные копии поверх неизвестного состояния
+            // сервера нельзя — можно затереть правки совладельца.
+            val remoteExpenses = remoteExpensesResult.getOrNull()
+            if (remoteExpenses == null) {
+                _syncState.value = SyncState.Error("Не удалось загрузить расходы")
+                return@withContext Result.failure(
+                    Exception("Не удалось загрузить расходы автомобиля")
+                )
+            }
             val localExpenses = localExpenseRepo.getExpensesByCarId(carId).first()
 
             // Синхронизация расходов
@@ -535,20 +590,20 @@ class SyncRepository(
 
                 when {
                     remoteExpense == null -> {
-                        supabaseExpenseRepo.insertExpense(localExpense)
+                        supabaseExpenseRepo.insertExpense(localExpense).trackPush("расход")
                     }
                     localExpense.updatedAt > remoteExpense.updatedAt -> {
                         supabaseExpenseRepo.updateExpense(localExpense).trackPush("расход")
                     }
                     remoteExpense.updatedAt > localExpense.updatedAt -> {
-                        localExpenseRepo.updateExpense(remoteExpense)
+                        localExpenseRepo.saveFromServer(remoteExpense)
                     }
                 }
             }
 
             for (remoteExpense in remoteExpenses) {
                 if (localExpenses.none { it.id == remoteExpense.id }) {
-                    localExpenseRepo.insertExpense(remoteExpense)
+                    localExpenseRepo.saveFromServer(remoteExpense)
                 }
             }
 
@@ -572,7 +627,14 @@ class SyncRepository(
             _syncState.value = SyncState.Syncing
 
             val remotePlansResult = supabasePlannedExpenseRepo.getPlannedExpensesByCarId(carId)
-            val remotePlans = remotePlansResult.getOrNull() ?: emptyList()
+            // Одна машина, не список: при отказе загрузки выходим, см. syncCarExpenses
+            val remotePlans = remotePlansResult.getOrNull()
+            if (remotePlans == null) {
+                _syncState.value = SyncState.Error("Не удалось загрузить планы покупок")
+                return@withContext Result.failure(
+                    Exception("Не удалось загрузить планы покупок")
+                )
+            }
             val localPlans = localPlannedExpenseRepo.getPlannedExpensesByCarId(carId).first()
 
             // Push локальных изменений
@@ -582,10 +644,12 @@ class SyncRepository(
                 when {
                     remotePlan == null -> {
                         supabasePlannedExpenseRepo.insertPlannedExpense(localPlan)
+                            .trackPush("план покупки")
                             .onSuccess { localPlannedExpenseRepo.updateSyncStatus(localPlan.id, true) }
                     }
                     localPlan.updatedAt > remotePlan.updatedAt -> {
                         supabasePlannedExpenseRepo.updatePlannedExpense(localPlan)
+                            .trackPush("план покупки")
                             .onSuccess { localPlannedExpenseRepo.updateSyncStatus(localPlan.id, true) }
                     }
                     remotePlan.updatedAt > localPlan.updatedAt -> {
@@ -746,7 +810,7 @@ class SyncRepository(
         val local = db.achievementDao().getAchievementsSync(userId)
         // Push local → remote (achievements are append-only)
         for (item in local) {
-            if (remote.none { it.id == item.id }) repo.upsert(item)
+            if (remote.none { it.id == item.id }) repo.upsert(item).trackPush("достижение")
         }
         // Pull remote → local
         for (item in remote) {

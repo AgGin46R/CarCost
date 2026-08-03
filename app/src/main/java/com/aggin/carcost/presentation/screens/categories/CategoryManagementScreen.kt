@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.TagWithExpenseCount
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -32,7 +33,7 @@ fun CategoryManagementScreen(
     viewModel: CategoryManagementViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var tagToEdit by remember { mutableStateOf<TagWithExpenseCount?>(null) }
     var tagToDelete by remember { mutableStateOf<TagWithExpenseCount?>(null) }
 
@@ -238,7 +239,7 @@ fun AddTagDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
     val colors = listOf(
         "#E57373", "#F06292", "#BA68C8", "#9575CD",
         "#7986CB", "#64B5F6", "#4FC3F7", "#4DD0E1",

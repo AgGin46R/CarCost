@@ -18,6 +18,10 @@ import com.aggin.carcost.domain.gamification.DriverScoreCalculator
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
 import com.aggin.carcost.data.remote.api.VkAuthApi
 import com.aggin.carcost.data.remote.api.VkLinkResult
+import com.aggin.carcost.data.remote.api.DeleteAccountApi
+import com.aggin.carcost.data.backup.BackupService
+import com.aggin.carcost.data.remote.repository.AccountDeletionSummary
+import com.aggin.carcost.data.remote.repository.SupabaseAccountRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.VkIdentity
 import com.aggin.carcost.supabase
@@ -49,6 +53,8 @@ data class ProfileUiState(
     val isVkAccount: Boolean = false,
     /** Привязка ВКонтакте, если есть */
     val vkLink: VkIdentity? = null,
+    /** Ответ о привязке уже получен. До этого null в vkLink не значит «не привязан» */
+    val isVkLinkKnown: Boolean = false,
     val isLinkingVk: Boolean = false,
     /** Разовое сообщение о результате привязки/отвязки */
     val vkLinkMessage: String? = null,
@@ -58,8 +64,57 @@ data class ProfileUiState(
     val logoutBlocked: Boolean = false,
     /** У аккаунта есть вход по паролю (нет у Google и ВКонтакте) */
     val hasPasswordLogin: Boolean = true,
-    val passwordChangeState: PasswordChangeState = PasswordChangeState.Idle
+    val passwordChangeState: PasswordChangeState = PasswordChangeState.Idle,
+    /** Удаление аккаунта: на каком шаге сейчас находимся */
+    val deletion: AccountDeletionState = AccountDeletionState.Idle,
+    /** Идёт сборка резервной копии из раздела «Мои данные» */
+    val isCreatingBackup: Boolean = false
 )
+
+/**
+ * Удаление аккаунта — три шага подряд, а не одна кнопка с «вы уверены?».
+ *
+ * Операция необратима и, если у человека есть общие машины, задевает ещё и
+ * посторонних. Поэтому: сначала показать, что именно исчезнет, потом дать
+ * забрать данные с собой, и только потом попросить подтверждение вводом.
+ */
+sealed interface AccountDeletionState {
+    object Idle : AccountDeletionState
+
+    /** Считаем, что исчезнет */
+    object LoadingSummary : AccountDeletionState
+
+    /** Шаг 1: показываем цифры */
+    data class Summary(val summary: AccountDeletionSummary) : AccountDeletionState
+
+    /** Шаг 2: предлагаем сохранить копию */
+    data class OfferBackup(
+        val summary: AccountDeletionSummary,
+        val isCreating: Boolean = false,
+        /** Файл готов — можно и поделиться, и идти дальше */
+        val backupFile: File? = null,
+        val backupError: String? = null
+    ) : AccountDeletionState
+
+    /** Шаг 3: подтверждение вводом слова */
+    data class Confirm(
+        val summary: AccountDeletionSummary,
+        val backupSaved: Boolean,
+        val typed: String = ""
+    ) : AccountDeletionState {
+        val canDelete: Boolean
+            get() = typed.trim().equals(AccountDeletionState.CONFIRM_WORD, ignoreCase = true)
+    }
+
+    object InProgress : AccountDeletionState
+
+    data class Failed(val message: String) : AccountDeletionState
+
+    companion object {
+        /** Слово, которое нужно набрать руками — защита от случайного нажатия */
+        const val CONFIRM_WORD = "УДАЛИТЬ"
+    }
+}
 
 sealed interface PasswordChangeState {
     object Idle : PasswordChangeState
@@ -81,6 +136,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     private val context = application.applicationContext
 
     private val syncRepo = SyncRepositoryFactory.create(application, database, supabaseAuth)
+    private val accountRepo = SupabaseAccountRepository()
+    private val backupService = BackupService(application)
 
     var tempCameraUri: Uri? = null
         private set
@@ -92,14 +149,29 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         loadUserData()
     }
 
+    /**
+     * Профиль собирается в два захода: сначала местное, потом сетевое.
+     *
+     * Раньше состояние выставлялось одним куском и только ПОСЛЕ `getVkLink()` —
+     * а это запрос к таблице vk_identities. Имя, фото и статистика лежат в Room и
+     * готовы мгновенно, но их держали до ответа сервера, и пару секунд человек
+     * видел чужой профиль: без имени, без фото и с надписью «ВКонтакте не
+     * привязан» при живой привязке.
+     *
+     * Отдельно: состояние теперь обновляется через copy, а не заменой целиком.
+     * Замена сбрасывала бы и то, что к загрузке отношения не имеет — например,
+     * открытый диалог удаления аккаунта закрывался бы сам при любом обновлении
+     * строки пользователя в базе.
+     */
     private fun loadUserData() {
-        viewModelScope.launch {
-            // Получаем текущего пользователя из Supabase
+        viewModelScope.launch(Dispatchers.IO) {
             val userId = supabaseAuth.getUserId()
 
             if (userId != null) {
-                // Загружаем пользователя из локальной БД
-                // getUserById() возвращает Flow, поэтому используем .first()
+                // Привязка ВКонтакте — единственное, что требует сети. Грузится
+                // параллельно и дописывается в состояние, когда придёт
+                launch { refreshVkLink() }
+
                 userDao.getUserById(userId).collect { user ->
                     if (user != null) {
                         val cars = carDao.getAllActiveCars().first()
@@ -125,27 +197,40 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                             DriverScoreCalculator.calculate(allExpenses, reminders, budgets, odometer)
                         } catch (e: Exception) { null }
 
-                        _uiState.value = ProfileUiState(
-                            user = user,
-                            statistics = UserStatistics(
-                                carsCount = cars.size,
-                                totalExpenses = allExpenses.sumOf { it.amount },
-                                totalOdometer = cars.sumOf { it.currentOdometer }
-                            ),
-                            driverScore = driverScore,
-                            isLoading = false,
-                            isVkAccount = supabaseAuth.isVkAccount(),
-                            vkLink = supabaseAuth.getVkLink(),
-                            hasPasswordLogin = supabaseAuth.hasPasswordLogin()
-                        )
+                        // isVkAccount и hasPasswordLogin читают метаданные уже
+                        // загруженной сессии — сети не требуют, ждать нечего
+                        _uiState.update {
+                            it.copy(
+                                user = user,
+                                statistics = UserStatistics(
+                                    carsCount = cars.size,
+                                    totalExpenses = allExpenses.sumOf { e -> e.amount },
+                                    totalOdometer = cars.sumOf { c -> c.currentOdometer }
+                                ),
+                                driverScore = driverScore,
+                                isLoading = false,
+                                isVkAccount = supabaseAuth.isVkAccount(),
+                                hasPasswordLogin = supabaseAuth.hasPasswordLogin()
+                            )
+                        }
                     } else {
-                        _uiState.value = ProfileUiState(isLoading = false)
+                        _uiState.update { it.copy(user = null, isLoading = false) }
                     }
                 }
             } else {
-                _uiState.value = ProfileUiState(isLoading = false)
+                _uiState.update { it.copy(user = null, isLoading = false) }
             }
         }
+    }
+
+    /**
+     * Привязка ВКонтакте. Пока ответа нет, состояние привязки считается
+     * неизвестным: иначе экран уверенно пишет «не привязан» о привязанном
+     * аккаунте — и это хуже, чем ничего не написать.
+     */
+    private suspend fun refreshVkLink() {
+        val link = supabaseAuth.getVkLink()
+        _uiState.update { it.copy(vkLink = link, isVkLinkKnown = true) }
     }
 
     fun createTempImageUri(context: Context): Uri? {
@@ -488,6 +573,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                             it.copy(
                                 isLinkingVk = false,
                                 vkLink = supabaseAuth.getVkLink(),
+                                isVkLinkKnown = true,
                                 vkLinkMessage = "ВКонтакте привязан"
                             )
                         }
@@ -528,7 +614,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             val result = supabaseAuth.unlinkVk()
             _uiState.update {
                 if (result.isSuccess) {
-                    it.copy(vkLink = null, vkLinkMessage = "ВКонтакте отвязан")
+                    it.copy(vkLink = null, isVkLinkKnown = true, vkLinkMessage = "ВКонтакте отвязан")
                 } else {
                     it.copy(vkLinkMessage = "Не удалось отвязать: ${result.exceptionOrNull()?.message}")
                 }
@@ -631,5 +717,198 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun dismissLogoutBlocked() {
         _uiState.update { it.copy(logoutBlocked = false) }
+    }
+
+    // ── Резервная копия ──────────────────────────────────────────────────────
+
+    /**
+     * Собирает копию и сразу предлагает её отправить.
+     *
+     * Файл кладётся в кэш, поэтому «создать и оставить» бессмысленно — система
+     * вычистит его при нехватке места. Копия имеет смысл только уехавшая с
+     * телефона: в облако, в мессенджер, куда угодно.
+     */
+    fun exportBackup(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(isCreatingBackup = true) }
+            try {
+                val file = backupService.createBackupFile()
+                withContext(Dispatchers.Main) { shareBackup(context, file) }
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileViewModel", "backup failed", e)
+                _uiState.update { it.copy(errorMessage = "Не удалось создать резервную копию") }
+            } finally {
+                _uiState.update { it.copy(isCreatingBackup = false) }
+            }
+        }
+    }
+
+    fun shareBackup(context: Context, file: File) {
+        try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file
+            )
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                putExtra(android.content.Intent.EXTRA_SUBJECT, "Резервная копия CarCost")
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(
+                android.content.Intent.createChooser(intent, "Куда сохранить копию")
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("ProfileViewModel", "share backup failed", e)
+            _uiState.update { it.copy(errorMessage = "Не удалось отправить файл") }
+        }
+    }
+
+    // ── Удаление аккаунта ────────────────────────────────────────────────────
+
+    /** Шаг 0 → 1: спрашиваем сервер, что именно исчезнет, и показываем цифры */
+    fun startAccountDeletion() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(deletion = AccountDeletionState.LoadingSummary) }
+
+            accountRepo.getDeletionSummary()
+                .onSuccess { summary ->
+                    _uiState.update { it.copy(deletion = AccountDeletionState.Summary(summary)) }
+                }
+                .onFailure { e ->
+                    // Без сводки шагать дальше нельзя: человек не увидит, что задевает
+                    // посторонних, а именно ради этого предупреждения всё и затевалось
+                    _uiState.update {
+                        it.copy(
+                            deletion = AccountDeletionState.Failed(
+                                "Не удалось получить данные об аккаунте. Проверьте связь и попробуйте снова"
+                            )
+                        )
+                    }
+                    android.util.Log.w("ProfileViewModel", "deletion summary failed", e)
+                }
+        }
+    }
+
+    /** Шаг 1 → 2 */
+    fun proceedToBackupOffer() {
+        val current = _uiState.value.deletion
+        if (current is AccountDeletionState.Summary) {
+            _uiState.update { it.copy(deletion = AccountDeletionState.OfferBackup(current.summary)) }
+        }
+    }
+
+    /**
+     * Собирает резервную копию перед удалением.
+     *
+     * Тот же формат, что и обычная копия в «Экспорте», — файл потом можно
+     * восстановить в новый аккаунт. Копия делается из локальной базы, поэтому
+     * работает и без сети.
+     */
+    fun createBackupBeforeDeletion() {
+        val current = _uiState.value.deletion
+        if (current !is AccountDeletionState.OfferBackup) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(deletion = current.copy(isCreating = true, backupError = null)) }
+            try {
+                val file = backupService.createBackupFile()
+                _uiState.update {
+                    it.copy(deletion = current.copy(isCreating = false, backupFile = file))
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileViewModel", "backup before deletion failed", e)
+                _uiState.update {
+                    it.copy(
+                        deletion = current.copy(
+                            isCreating = false,
+                            backupError = "Не удалось создать копию"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /** Шаг 2 → 3 */
+    fun proceedToFinalConfirm() {
+        val current = _uiState.value.deletion
+        if (current is AccountDeletionState.OfferBackup) {
+            _uiState.update {
+                it.copy(
+                    deletion = AccountDeletionState.Confirm(
+                        summary = current.summary,
+                        backupSaved = current.backupFile != null
+                    )
+                )
+            }
+        }
+    }
+
+    fun updateDeletionConfirmText(text: String) {
+        val current = _uiState.value.deletion
+        if (current is AccountDeletionState.Confirm) {
+            _uiState.update { it.copy(deletion = current.copy(typed = text)) }
+        }
+    }
+
+    fun cancelAccountDeletion() {
+        _uiState.update { it.copy(deletion = AccountDeletionState.Idle) }
+    }
+
+    /**
+     * Точка невозврата.
+     *
+     * Порядок важен: сначала сервер, потом локальная база. Если стереть локальные
+     * данные первыми и запрос упадёт, человек останется с живым аккаунтом и пустым
+     * телефоном — то есть потеряет всё, ничего не удалив.
+     *
+     * Синхронизацию перед удалением намеренно НЕ делаем: отправлять записи на
+     * сервер, который через секунду их сотрёт, бессмысленно. Данные забираются
+     * резервной копией на предыдущем шаге.
+     */
+    fun deleteAccount(navController: NavController) {
+        val current = _uiState.value.deletion
+        if (current !is AccountDeletionState.Confirm || !current.canDelete) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(deletion = AccountDeletionState.InProgress) }
+
+            val jwt = supabase.auth.currentAccessTokenOrNull()
+            if (jwt.isNullOrBlank()) {
+                _uiState.update {
+                    it.copy(
+                        deletion = AccountDeletionState.Failed(
+                            "Сессия истекла. Войдите заново и повторите удаление"
+                        )
+                    )
+                }
+                return@launch
+            }
+
+            DeleteAccountApi.deleteAccount(jwt)
+                .onSuccess {
+                    // Токен уведомлений — до выхода, иначе на удалённый аккаунт
+                    // продолжат приходить пуши по чужим машинам
+                    runCatching { FcmTokenManager.deleteCurrentToken() }
+                    runCatching { supabaseAuth.signOut() }
+                    runCatching { database.clearAllTables() }
+
+                    withContext(Dispatchers.Main) {
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    // Ничего локально не тронуто — можно просто попробовать ещё раз
+                    _uiState.update {
+                        it.copy(
+                            deletion = AccountDeletionState.Failed(
+                                e.message ?: "Не удалось удалить аккаунт"
+                            )
+                        )
+                    }
+                }
+        }
     }
 }

@@ -17,6 +17,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.aggin.carcost.presentation.common.formatDateCompact
 import com.aggin.carcost.presentation.common.displayName
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -33,8 +34,8 @@ fun ExpenseFilterDialog(
     var startDate by remember { mutableStateOf(currentFilter.startDate) }
     var endDate by remember { mutableStateOf(currentFilter.endDate) }
 
-    var showStartDatePicker by remember { mutableStateOf(false) }
-    var showEndDatePicker by remember { mutableStateOf(false) }
+    var showStartDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showEndDatePicker by rememberSaveable { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

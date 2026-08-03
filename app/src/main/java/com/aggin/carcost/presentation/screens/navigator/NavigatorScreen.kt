@@ -43,6 +43,8 @@ import com.yandex.mapkit.map.InputListener
 import com.yandex.mapkit.map.MapObjectCollection
 import com.yandex.mapkit.mapview.MapView
 import kotlin.math.roundToInt
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,11 +54,20 @@ fun NavigatorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // MapKit lifecycle
+    // MapKit поднимается лениво: он больше не инициализируется при каждом
+    // запуске приложения, а только когда впервые понадобилась карта.
+    // getInstance() без initialize() бросает исключение, поэтому вызов
+    // обязан быть ДО него.
+    com.aggin.carcost.App.ensureMapKit(androidx.compose.ui.platform.LocalContext.current)
+
     DisposableEffect(Unit) {
         MapKitFactory.getInstance().onStart()
         viewModel.retryLocationTracking()
-        onDispose { MapKitFactory.getInstance().onStop() }
+        onDispose {
+            MapKitFactory.getInstance().onStop()
+            // Гасился только MapKit, а GPS оставался включённым
+            viewModel.stopLocationTracking()
+        }
     }
 
     // Init TTS speaker
@@ -74,12 +85,12 @@ fun NavigatorScreen(
     val poiMarkers = remember { mutableListOf<com.yandex.mapkit.map.PlacemarkMapObject>() }
 
     // Save-favorites dialog
-    var showSaveDialog by remember { mutableStateOf(false) }
-    var saveName by remember { mutableStateOf("") }
+    var showSaveDialog by rememberSaveable { mutableStateOf(false) }
+    var saveName by rememberSaveable { mutableStateOf("") }
     var saveType by remember { mutableStateOf(FavoritePlaceType.OTHER) }
 
     // First GPS fix → pan to user (IDLE only, once)
-    var didInitialMove by remember { mutableStateOf(false) }
+    var didInitialMove by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(uiState.currentLat, uiState.currentLon) {
         val lat = uiState.currentLat
         val lon = uiState.currentLon
@@ -257,7 +268,7 @@ fun NavigatorScreen(
     }
 
     // Arrival dialog
-    var showArrivalDialog by remember { mutableStateOf(false) }
+    var showArrivalDialog by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(uiState.mode) {
         if (uiState.mode == NavigatorMode.ARRIVED) showArrivalDialog = true
     }
@@ -265,18 +276,18 @@ fun NavigatorScreen(
     if (showArrivalDialog) {
         AlertDialog(
             onDismissRequest = { showArrivalDialog = false; viewModel.clearDestination() },
-            title = { Text("Вы прибыли! 🎉") },
+            title = { Text("Вы на месте") },
             text = { Text("Что делаем дальше?") },
             confirmButton = {
                 Column {
                     TextButton(onClick = {
                         showArrivalDialog = false
                         val carId = uiState.selectedCarId.ifBlank { return@TextButton }
-                        navController.navigate(Screen.AddExpense.createRoute(carId))
+                        navController.navigateOnce(Screen.AddExpense.createRoute(carId))
                     }) { Text("Записать расход") }
                     TextButton(onClick = {
                         showArrivalDialog = false
-                        navController.navigate(Screen.ParkingTimer.route)
+                        navController.navigateOnce(Screen.ParkingTimer.route)
                     }) { Text("Таймер парковки") }
                 }
             },

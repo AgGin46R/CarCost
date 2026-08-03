@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.aggin.carcost.presentation.navigation.navigateOnce
 
 /**
  * Reusable empty-state placeholder. Shows a large icon inside a colored circle,
@@ -24,7 +25,7 @@ import androidx.compose.ui.unit.dp
  *     title = "Расходов пока нет",
  *     subtitle = "Добавьте первый расход через кнопку ниже",
  *     actionLabel = "Добавить расход",
- *     onAction = { navController.navigate(...) }
+ *     onAction = { navController.navigateOnce(...) }
  * )
  * ```
  */

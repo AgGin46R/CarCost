@@ -21,6 +21,7 @@ import androidx.navigation.NavController
 import com.aggin.carcost.presentation.components.SkeletonCardList
 import com.aggin.carcost.presentation.navigation.Screen
 import kotlin.math.abs
+import com.aggin.carcost.presentation.navigation.navigateOnce
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,7 +51,7 @@ fun MaintenanceDashboardScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navController.navigate(Screen.EditMaintenanceReminder.createRoute()) }
+                onClick = { navController.navigateOnce(Screen.EditMaintenanceReminder.createRoute()) }
             ) {
                 Icon(Icons.Default.Add, "Добавить напоминание ТО")
             }
@@ -191,7 +192,7 @@ private fun ReminderCard(item: ReminderWithCar, navController: NavController) {
 
     Card(
         onClick = {
-            navController.navigate(
+            navController.navigateOnce(
                 Screen.EditMaintenanceReminder.createRoute(reminderId = item.reminder.id)
             )
         },

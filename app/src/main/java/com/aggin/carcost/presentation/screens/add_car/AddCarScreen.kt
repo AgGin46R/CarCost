@@ -36,6 +36,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import java.util.Locale
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -45,7 +46,7 @@ fun AddCarScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
 
     val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
         rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)
@@ -253,7 +254,7 @@ fun AddCarScreen(
             OutlinedTextField(
                 value = uiState.vin,
                 onValueChange = { viewModel.updateVin(it) },
-                label = { Text("VIN номер") },
+                label = { Text("VIN") },
                 placeholder = { Text("1HGBH41JXMN109186") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -265,7 +266,7 @@ fun AddCarScreen(
                 value = uiState.color,
                 onValueChange = { viewModel.updateColor(it) },
                 label = { Text("Цвет") },
-                placeholder = { Text("Черный") },
+                placeholder = { Text("Чёрный") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 enabled = !uiState.isSaving

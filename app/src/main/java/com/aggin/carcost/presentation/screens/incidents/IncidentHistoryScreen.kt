@@ -37,6 +37,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +86,7 @@ fun IncidentHistoryScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Нажмите + чтобы добавить",
+                        "Записывайте ДТП и повреждения — пригодится при продаже и в спорах со страховой",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -220,7 +221,7 @@ private fun IncidentCard(
 
             if (incident.insuranceClaimNumber != null) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Страховой номер: ${incident.insuranceClaimNumber}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Номер выплаты: ${incident.insuranceClaimNumber}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             if (incident.photoUri != null) {
@@ -254,8 +255,8 @@ private fun IncidentFormDialog(
     onUpdateNotes: (String) -> Unit,
     onUploadPhoto: (Uri) -> Unit
 ) {
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showRepairDatePicker by remember { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showRepairDatePicker by rememberSaveable { mutableStateOf(false) }
 
     val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
         rememberPermissionState(Manifest.permission.READ_MEDIA_IMAGES)

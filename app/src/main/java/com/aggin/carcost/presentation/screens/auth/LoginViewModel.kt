@@ -5,7 +5,6 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.aggin.carcost.data.auth.GoogleSignInHelper
 import com.aggin.carcost.data.auth.VkSignInHelper
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.remote.api.VkAuthApi
@@ -64,7 +63,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         if (!emailRegex.matches(state.email.trim())) {
-            _uiState.value = state.copy(errorMessage = "Введите корректный email адрес")
+            _uiState.value = state.copy(errorMessage = "Введите корректный email")
             return
         }
 
@@ -154,60 +153,6 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun signInWithGoogle(context: Context) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        // launch на Main — CredentialManager требует Main-поток для показа UI
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-            try {
-                val tokenResult = GoogleSignInHelper.getIdToken(context)
-
-                if (tokenResult.isFailure) {
-                    val msg = tokenResult.exceptionOrNull()?.message
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = if (msg == "Отменено пользователем") null else (msg ?: "Ошибка Google Sign-In")
-                        )
-                    }
-                    return@launch
-                }
-
-                val token = tokenResult.getOrThrow()
-                Log.d("LoginViewModel", "Got Google token, signing in to Supabase...")
-
-                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    supabaseAuth.signInWithGoogle(token)
-                }
-
-                result.fold(
-                    onSuccess = { userInfo ->
-                        Log.d("LoginViewModel", "Supabase Google sign-in success: ${userInfo.id}")
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            saveUserLocally(
-                                userId = userInfo.id,
-                                email = userInfo.email ?: "",
-                                displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"'),
-                                photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
-                            )
-                        }
-                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
-                        backgroundScope.launch {
-                            try { syncRepo.fullSync() } catch (_: Exception) { }
-                        }
-                    },
-                    onFailure = { e ->
-                        Log.e("LoginViewModel", "Supabase Google sign-in failed", e)
-                        _uiState.update {
-                            it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка входа через Google")
-                        }
-                    }
-                )
-            } catch (e: Exception) {
-                Log.e("LoginViewModel", "signInWithGoogle exception", e)
-                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
-            }
-        }
-    }
 
     fun signInWithVk(context: Context) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -248,11 +193,19 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                     onSuccess = { userInfo ->
                         Log.d("LoginViewModel", "Supabase VK sign-in success: ${userInfo.id}")
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            // Имя и фото берём из ТАБЛИЦЫ профиля, а не из метаданных VK.
+                            // В метаданных всегда лежит вкшный аватар, и он затирал
+                            // бы фото, выбранное пользователем в CarCost. В таблице
+                            // же лежит актуальное: триггер подставляет туда данные из
+                            // ВК, только пока человек не выбрал своё.
+                            val profile = runCatching { fetchUserProfileFromSupabase(userInfo.id) }.getOrNull()
                             saveUserLocally(
                                 userId = userInfo.id,
                                 email = userInfo.email ?: "",
-                                displayName = userInfo.userMetadata?.get("full_name")?.toString()?.trim('"'),
-                                photoUrl = userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
+                                displayName = profile?.displayName
+                                    ?: userInfo.userMetadata?.get("full_name")?.toString()?.trim('"'),
+                                photoUrl = profile?.photoUrl
+                                    ?: userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
                             )
                         }
                         _uiState.update { it.copy(isLoading = false, isSuccess = true) }

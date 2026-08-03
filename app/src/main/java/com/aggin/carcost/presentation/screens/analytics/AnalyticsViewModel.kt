@@ -17,6 +17,8 @@ import java.util.*
 import kotlin.math.abs
 import com.aggin.carcost.presentation.common.displayName
 import com.aggin.carcost.domain.fuel.FuelConsumptionCalculator
+import com.aggin.carcost.domain.contribution.ContributionCalculator
+import io.github.jan.supabase.postgrest.from
 
 // Данные для круговой диаграммы
 data class CategoryExpense(
@@ -50,7 +52,9 @@ data class ExpenseForecast(
     val nextMonthEstimate: Double,
     val nextYearEstimate: Double,
     val averageMonthly: Double,
-    val trend: String // "increasing", "decreasing", "stable"
+    val trend: String, // "increasing", "decreasing", "stable"
+    /** Сколько завершённых месяцев легло в основу — чтобы подпись не врала */
+    val basedOnMonths: Int
 )
 
 // Топ месяцев по расходам
@@ -112,7 +116,11 @@ data class AnalyticsUiState(
     val odometerHistory: List<OdometerPoint> = emptyList(),
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
-    val anomalies: List<ExpenseAnomaly> = emptyList()
+    val anomalies: List<ExpenseAnomaly> = emptyList(),
+    /** Кто сколько внёс. Пусто, когда участник один — тогда секции нет */
+    val contributions: List<ContributionCalculator.Contribution> = emptyList(),
+    /** userId → как показывать человека. Заполняется отдельно от цифр */
+    val contributorNames: Map<String, String> = emptyMap()
 )
 
 /**
@@ -132,12 +140,19 @@ class EnhancedAnalyticsViewModel(
     savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
+    private companion object {
+        /** Минимум завершённых месяцев, ниже которого прогноз не показывается */
+        const val MIN_MONTHS_FOR_FORECAST = 2
+    }
+
     private val carId: String = savedStateHandle.get<String>("carId") ?: ""
 
     private val database = AppDatabase.getDatabase(application)
     private val carDao = database.carDao()
     private val expenseDao = database.expenseDao()
     private val gpsTripDao = database.gpsTripDao()
+    private val carMemberDao = database.carMemberDao()
+    private val userDao = database.userDao()
 
     private val _uiState = MutableStateFlow(AnalyticsUiState())
     val uiState: StateFlow<AnalyticsUiState> = _uiState.asStateFlow()
@@ -173,8 +188,62 @@ class EnhancedAnalyticsViewModel(
                 .distinctUntilChanged()
                 .map { (expenses, trips) -> calculateAnalytics(car, expenses, trips) }
                 .collect { state ->
-                    _uiState.value = state
+                    // Имена подтягиваются отдельно: они не нужны для цифр, а ждать
+                    // их значило бы держать весь экран пустым ради подписей
+                    _uiState.value = state.copy(contributorNames = _uiState.value.contributorNames)
+                    loadContributorNames(state.contributions)
                 }
+        }
+    }
+
+    /**
+     * Подписи для разбивки «кто сколько заплатил».
+     *
+     * Порядок источников от дешёвого к дорогому: локальный профиль → email из
+     * локальной таблицы участников → таблица users на сервере. Первые два
+     * работают офлайн, поэтому строка почти никогда не остаётся безымянной.
+     */
+    private suspend fun loadContributorNames(contributions: List<ContributionCalculator.Contribution>) {
+        val ids = contributions.mapNotNull { it.userId }
+        val known = _uiState.value.contributorNames
+        val missing = ids.filter { !known.containsKey(it) }
+        if (missing.isEmpty()) return
+
+        val resolved = mutableMapOf<String, String>()
+
+        missing.forEach { id ->
+            userDao.getUserById(id).firstOrNull()
+                ?.displayName?.takeIf { it.isNotBlank() }
+                ?.let { resolved[id] = it }
+        }
+
+        // Запасной вариант — почта из участников: имени может не быть, но
+        // «kolya@mail.ru» всё равно понятнее, чем идентификатор
+        val afterProfiles = missing.filterNot { resolved.containsKey(it) }
+        if (afterProfiles.isNotEmpty()) {
+            val members = carMemberDao.getMembersByCarId(carId).firstOrNull().orEmpty()
+            afterProfiles.forEach { id ->
+                members.find { it.userId == id }?.email?.takeIf { it.isNotBlank() }
+                    ?.let { resolved[id] = it }
+            }
+        }
+
+        val stillMissing = missing.filterNot { resolved.containsKey(it) }
+        if (stillMissing.isNotEmpty()) {
+            try {
+                com.aggin.carcost.supabase.from("users")
+                    .select { filter { isIn("id", stillMissing) } }
+                    .decodeList<com.aggin.carcost.data.remote.repository.SupabaseUserDto>()
+                    .forEach { dto ->
+                        dto.displayName?.takeIf { it.isNotBlank() }?.let { resolved[dto.id] = it }
+                    }
+            } catch (_: Exception) {
+                // Офлайн — останется email или «Участник», экран от этого не ломается
+            }
+        }
+
+        if (resolved.isNotEmpty()) {
+            _uiState.update { it.copy(contributorNames = it.contributorNames + resolved) }
         }
     }
 
@@ -214,13 +283,19 @@ class EnhancedAnalyticsViewModel(
         val categoryExpenses = calculateCategoryExpenses(expenses, totalExpenses)
         val monthlyExpenses = calculateMonthlyExpenses(expenses)
         val fuelStatistics = calculateFuelStatistics(expenses, kmDriven)
-        val forecast = calculateForecast(expenses, averagePerMonth)
+        val forecast = calculateForecast(expenses)
         val (currentMonth, previousMonth, comparison) = compareMonths(expenses)
         val topMonths = calculateTopMonths(monthlyExpenses)
         val yearComparison = calculateYearComparison(expenses)
         val categoryTrends = calculateCategoryTrends(expenses)
         val odometerHistory = calculateOdometerHistory(expenses)
         val anomalies = detectAnomalies(expenses)
+
+        // Разбивка по плательщикам показывается только в общей машине:
+        // у одиночной там всегда «вы — 100 %», что не сообщает ничего
+        val contributionResult = ContributionCalculator.calculate(expenses)
+        val contributions =
+            if (contributionResult.isWorthShowing) contributionResult.contributions else emptyList()
 
         return AnalyticsUiState(
             car = car,
@@ -242,7 +317,8 @@ class EnhancedAnalyticsViewModel(
             gpsTripStats = gpsTripStats,
             odometerHistory = odometerHistory,
             isLoading = false,
-            anomalies = anomalies
+            anomalies = anomalies,
+            contributions = contributions
         )
     }
 
@@ -373,28 +449,41 @@ class EnhancedAnalyticsViewModel(
         return anomalies.sortedByDescending { kotlin.math.abs(it.changePercent) }
     }
 
-    private fun calculateForecast(expenses: List<Expense>, averagePerMonth: Double): ExpenseForecast {
+    /**
+     * Прогноз расходов. `null`, пока не набралось двух ЗАВЕРШЁННЫХ месяцев.
+     *
+     * Два условия, которых раньше не было.
+     *
+     * Первое — порог. Карточка рисовалась всегда, с любой историей. Одна
+     * заправка на 500 ₽ в день установки давала «прогноз на год», посчитанный
+     * по единственной записи: цифра выглядит вычисленной, но не опирается ни на
+     * что. Отсутствие прогноза честнее выдуманного прогноза.
+     *
+     * Второе — текущий месяц не участвует. Третьего числа в нём лежит десятая
+     * часть месячных трат, и он тянул среднее вниз, а тренд — в «снижение»
+     * каждое начало месяца.
+     */
+    private fun calculateForecast(expenses: List<Expense>): ExpenseForecast? {
         val calendar = Calendar.getInstance()
-        val monthlyTotals = expenses
-            .groupBy { expense ->
-                calendar.timeInMillis = expense.date
-                "${calendar.get(Calendar.YEAR)}-${"%02d".format(calendar.get(Calendar.MONTH))}"
-            }
-            .mapValues { it.value.sumOf { exp -> exp.amount } }
-            .toSortedMap()
-            .values.toList()
-
-        if (monthlyTotals.size < 2) {
-            return ExpenseForecast(
-                nextMonthEstimate = averagePerMonth,
-                nextYearEstimate = averagePerMonth * 12,
-                averageMonthly = averagePerMonth,
-                trend = "stable"
-            )
+        fun monthKey(date: Long): String {
+            calendar.timeInMillis = date
+            return "%04d-%02d".format(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH))
         }
 
-        val recentMonths = monthlyTotals.takeLast(3)
-        val olderMonths = monthlyTotals.dropLast(3)
+        val currentMonth = monthKey(System.currentTimeMillis())
+        val completeMonths = expenses
+            .groupBy { monthKey(it.date) }
+            // Ключи одного формата, поэтому сравнение строк — это сравнение дат.
+            // Заодно отсекаются записи, ошибочно датированные будущим.
+            .filterKeys { it < currentMonth }
+            .toSortedMap()
+            .map { (_, monthExpenses) -> monthExpenses.sumOf { it.amount } }
+
+        if (completeMonths.size < MIN_MONTHS_FOR_FORECAST) return null
+
+        val overallAvg = completeMonths.average()
+        val recentMonths = completeMonths.takeLast(3)
+        val olderMonths = completeMonths.dropLast(3)
 
         val recentAvg = recentMonths.average()
         val olderAvg = if (olderMonths.isNotEmpty()) olderMonths.average() else recentAvg
@@ -405,14 +494,15 @@ class EnhancedAnalyticsViewModel(
             else -> "stable"
         }
 
-        // Взвешенный прогноз: 70% от последних 3 месяцев + 30% общий средний
-        val weightedEstimate = recentAvg * 0.7 + averagePerMonth * 0.3
+        // Взвешенный прогноз: 70% от последних месяцев + 30% от всей истории
+        val weightedEstimate = recentAvg * 0.7 + overallAvg * 0.3
 
         return ExpenseForecast(
             nextMonthEstimate = weightedEstimate,
             nextYearEstimate = weightedEstimate * 12,
-            averageMonthly = averagePerMonth,
-            trend = trend
+            averageMonthly = overallAvg,
+            trend = trend,
+            basedOnMonths = recentMonths.size
         )
     }
 

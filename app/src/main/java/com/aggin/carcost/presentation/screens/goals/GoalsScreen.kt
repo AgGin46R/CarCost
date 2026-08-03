@@ -29,6 +29,7 @@ import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.domain.gamification.AchievementChecker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.rememberSaveable
 
 data class GoalsUiState(
     val goals: List<SavingsGoal> = emptyList(),
@@ -103,7 +104,7 @@ fun GoalsScreen(
         factory = GoalsViewModelFactory(context.applicationContext as Application, carId)
     )
     val uiState by viewModel.uiState.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     if (showAddDialog) {
         AddGoalDialog(
@@ -170,10 +171,10 @@ private fun GoalCard(
     onAdd: (Double) -> Unit,
     onDelete: () -> Unit
 ) {
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     if (showAddDialog) {
-        var amountText by remember { mutableStateOf("") }
+        var amountText by rememberSaveable { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
             title = { Text("Добавить средства") },
@@ -271,8 +272,8 @@ private fun AddGoalDialog(
     onConfirm: (String, Double) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var targetText by remember { mutableStateOf("") }
+    var title by rememberSaveable { mutableStateOf("") }
+    var targetText by rememberSaveable { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,

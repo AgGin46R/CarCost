@@ -52,6 +52,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
+import com.aggin.carcost.presentation.navigation.navigateOnce
 
 data class GpsTripUiState(
     val isRecording: Boolean = false,
@@ -171,7 +172,7 @@ fun GpsTripScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("GPS Поездки") },
+                title = { Text("Поездки по GPS") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
@@ -260,7 +261,7 @@ fun GpsTripScreen(
                         trip = trip,
                         dateFmt = dateFmt,
                         onDelete = { viewModel.deleteTrip(trip) },
-                        onShowMap = { navController.navigate(Screen.TripMap.createRoute(trip.id)) }
+                        onShowMap = { navController.navigateOnce(Screen.TripMap.createRoute(trip.id)) }
                     )
                 }
             } else if (!uiState.isRecording) {
@@ -327,7 +328,7 @@ private fun TripControlCard(
                 Spacer(Modifier.height(12.dp))
                 Text("Запись пробега по GPS",
                     fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                Text("Нажмите Старт для начала поездки",
+                Text("Нажмите «Старт», чтобы начать запись",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
 

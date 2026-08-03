@@ -9,6 +9,8 @@ import java.util.Calendar
 import java.util.Locale
 import com.aggin.carcost.presentation.common.displayName
 import com.aggin.carcost.presentation.common.emoji
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Rules-based CarBot engine. No external API — fully offline.
@@ -71,7 +73,7 @@ class CarBotEngine(private val db: AppDatabase) {
     /** Backward-compat wrapper that always returns a string. */
     suspend fun processQuery(text: String, carId: String?): String =
         rulesBasedQuery(text, carId)
-            ?: "🤔 Я не понял вопрос. Попробуйте спросить иначе или нажмите **Помощь**, чтобы увидеть что я умею."
+            ?: "Не понял вопрос. Попробуйте иначе или нажмите **Помощь** — там список того, что я умею."
 
     /** Check for proactive alerts (overdue TO, expiring insurance, budget overflow). */
     suspend fun checkProactiveAlerts(carId: String?): String? {
@@ -81,7 +83,14 @@ class CarBotEngine(private val db: AppDatabase) {
 
         // Overdue maintenance
         try {
-            val reminders = db.maintenanceReminderDao().getRemindersByCarIdSync(car.id)
+            // getRemindersByCarIdSync — несуспендящий запрос, Room выполняет его
+            // на вызывающем потоке. Вызов идёт из viewModelScope.launch, то есть с
+            // главного, и Room бросал исключение. Оно тут же гасилось окружающим
+            // catch — поэтому бот не падал, а просто НИКОГДА не показывал
+            // предупреждения о просроченном ТО.
+            val reminders = withContext(Dispatchers.IO) {
+                db.maintenanceReminderDao().getRemindersByCarIdSync(car.id)
+            }
             reminders.filter { it.isActive }.forEach { r ->
                 val kmLeft = r.nextChangeOdometer - car.currentOdometer
                 if (kmLeft <= 0) {
@@ -315,7 +324,11 @@ ${if (avgSpeed != null) "Средняя скорость: ${"%.0f".format(avgSpe
 
     private suspend fun answerMaintenance(car: Car?): String {
         if (car == null) return noCar()
-        val reminders = db.maintenanceReminderDao().getRemindersByCarIdSync(car.id)
+        // Тот же несуспендящий запрос — с главного потока он бросает исключение.
+        // Здесь catch'а рядом нет вовсе, так что это был прямой путь к падению
+        val reminders = withContext(Dispatchers.IO) {
+            db.maintenanceReminderDao().getRemindersByCarIdSync(car.id)
+        }
         if (reminders.isEmpty()) return "🔧 Напоминания о ТО для ${car.brand} ${car.model} не настроены."
 
         val sb = StringBuilder("🔧 **ТО ${car.brand} ${car.model} (пробег: ${ruFmt.format(car.currentOdometer)} км):**\n\n")

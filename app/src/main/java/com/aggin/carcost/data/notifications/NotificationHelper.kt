@@ -18,6 +18,8 @@ object NotificationHelper {
     const val NAV_TYPE_CHAT = "chat"
     const val NAV_TYPE_CAR = "car"
     const val NAV_TYPE_ADD_EXPENSE = "add_expense"
+    /** Форма расхода с уже выбранной заправкой — самый частый ввод, с виджета */
+    const val NAV_TYPE_ADD_FUEL = "add_fuel"
     const val NAV_TYPE_GPS_TRIP = "gps_trip"
     const val NAV_TYPE_NAVIGATOR = "navigator"
     const val NAV_TYPE_UPDATE = "update"
@@ -79,7 +81,7 @@ object NotificationHelper {
         kmLeft: Int
     ) {
         val body = when {
-            kmLeft <= 0 -> "$serviceType — требуется сейчас!"
+            kmLeft <= 0 -> "$serviceType — пора делать"
             kmLeft <= 100 -> "$serviceType — осталось $kmLeft км"
             else -> "$serviceType — через $kmLeft км"
         }

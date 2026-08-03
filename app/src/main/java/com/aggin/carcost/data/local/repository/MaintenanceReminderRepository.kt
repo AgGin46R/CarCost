@@ -22,6 +22,24 @@ class MaintenanceReminderRepository(private val dao: MaintenanceReminderDao) {
         return reminder.id // ✅ Возвращаем ID
     }
 
+
+    /**
+     * Запись, пришедшая С СЕРВЕРА, — без перештамповки updatedAt.
+     *
+     * Обычный update ставит updatedAt = сейчас. Для загрузки это ломало всё:
+     * скачанная запись немедленно становилась «новее» серверной, на следующей
+     * синхронизации уходила обратно UPDATE'ом, сервер ставил своё «сейчас» —
+     * и так по кругу, вечно. Каждая хоть раз синхронизированная запись давала
+     * лишний запрос при КАЖДОМ разворачивании приложения: у совладельца с 300
+     * расходами это 300 запросов на ровном месте.
+     *
+     * Здесь метка времени сохраняется серверная — она и есть источник истины
+     * для сравнения "кто новее".
+     */
+    suspend fun saveFromServer(reminder: MaintenanceReminder) {
+        dao.insertReminder(reminder)
+    }
+
     suspend fun updateReminder(reminder: MaintenanceReminder) {
         dao.updateReminder(reminder.copy(updatedAt = System.currentTimeMillis()))
     }

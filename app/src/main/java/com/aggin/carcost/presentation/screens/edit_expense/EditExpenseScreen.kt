@@ -22,6 +22,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.aggin.carcost.presentation.common.displayName
 import com.aggin.carcost.presentation.common.formatDateLong
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -140,7 +141,7 @@ fun EditExpenseScreen(
                 )
 
                 // Дата
-                var showDatePicker by remember { mutableStateOf(false) }
+                var showDatePicker by rememberSaveable { mutableStateOf(false) }
 
                 OutlinedTextField(
                     value = formatDate(uiState.date),
@@ -456,7 +457,7 @@ fun ServiceTypeDropdown(
     onServiceTypeSelected: (ServiceType?) -> Unit,
     enabled: Boolean
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
         expanded = expanded,

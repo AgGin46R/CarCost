@@ -180,7 +180,7 @@ class ExportViewModel(
                 else ""
 
                 _uiState.update {
-                    it.copy(isExporting = false, exportSuccessMessage = "Файл создан$periodNote!")
+                    it.copy(isExporting = false, exportSuccessMessage = "Файл создан$periodNote")
                 }
             } catch (e: Exception) {
                 _uiState.update {

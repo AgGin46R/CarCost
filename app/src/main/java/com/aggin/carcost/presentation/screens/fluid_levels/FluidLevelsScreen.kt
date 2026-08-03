@@ -72,7 +72,7 @@ fun FluidLevelsScreen(
             ) {
                 item {
                     Text(
-                        text = "Отслеживайте уровни технических жидкостей вашего автомобиля",
+                        text = "Отмечайте уровень при проверке — приложение напомнит, когда смотреть снова",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp)

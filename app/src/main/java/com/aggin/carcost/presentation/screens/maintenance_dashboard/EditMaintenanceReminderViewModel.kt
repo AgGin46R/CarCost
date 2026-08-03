@@ -71,15 +71,17 @@ class EditMaintenanceReminderViewModel(application: Application) : AndroidViewMo
 
     fun loadReminder(reminderId: String) {
         viewModelScope.launch {
-            // Search through all car reminders to find by id
-            val cars = _uiState.value.cars.ifEmpty { carDao.getAllActiveCarsSync() }
-            var found: MaintenanceReminder? = null
-            for (car in cars) {
-                val reminders = reminderDao.getRemindersByCarIdSync(car.id)
-                found = reminders.firstOrNull { it.id == reminderId }
-                if (found != null) break
+            // Прямой запрос по id вместо перебора всех машин. Прежний перебор шёл
+            // через несуспендящий getRemindersByCarIdSync, а Room выполняет такие
+            // запросы на вызывающем потоке — то есть на главном, и падал с
+            // «Cannot access database on the main thread» при каждом открытии ТО.
+            val found = reminderDao.getReminderById(reminderId)
+            if (found == null) {
+                // Запись могли удалить со второго устройства, пока экран открывали
+                _uiState.update { it.copy(error = "Напоминание не найдено") }
+                return@launch
             }
-            found?.let { r ->
+            found.let { r ->
                 editingId = r.id
                 _uiState.update {
                     it.copy(

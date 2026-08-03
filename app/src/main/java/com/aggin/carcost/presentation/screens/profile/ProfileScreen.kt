@@ -38,6 +38,8 @@ import com.aggin.carcost.ui.theme.AccentScheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.isGranted
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 /** Домен синтетических адресов, которые Edge Function vk-auth выдаёт VK-аккаунтам без почты */
 private const val VK_EMAIL_DOMAIN = "vk.carcost.app"
@@ -105,12 +107,17 @@ private fun InvitationAddressCard(address: String) {
 @Composable
 private fun SignInMethodsCard(
     vkLink: com.aggin.carcost.data.remote.repository.VkIdentity?,
+    /** Ответ сервера получен. Пока false, vkLink == null не означает «не привязан» */
+    isLinkKnown: Boolean,
     canUnlink: Boolean,
     isLinking: Boolean,
     onLink: () -> Unit,
     onUnlink: () -> Unit
 ) {
-    var showUnlinkDialog by remember { mutableStateOf(false) }
+    // Привязка — единственное на этом экране, что нельзя узнать локально.
+    // Пока она едет, экран не имеет права ничего утверждать.
+    val notLinked = isLinkKnown && vkLink == null
+    var showUnlinkDialog by rememberSaveable { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -138,9 +145,10 @@ private fun SignInMethodsCard(
                     Text("ВКонтакте", style = MaterialTheme.typography.bodyLarge)
                     Text(
                         text = when {
-                            vkLink == null -> "Не привязан"
-                            vkLink.displayName.isNotBlank() -> vkLink.displayName
-                            else -> "Привязан"
+                            vkLink != null && vkLink.displayName.isNotBlank() -> vkLink.displayName
+                            vkLink != null -> "Привязан"
+                            notLinked -> "Не привязан"
+                            else -> "Проверяем…"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -151,6 +159,9 @@ private fun SignInMethodsCard(
 
                 when {
                     isLinking -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    // Кнопки нет, пока неизвестно: «Привязать» на привязанном
+                    // аккаунте — приглашение к бессмысленному действию
+                    !isLinkKnown -> Unit
                     vkLink == null -> TextButton(onClick = onLink) { Text("Привязать") }
                     canUnlink -> TextButton(onClick = { showUnlinkDialog = true }) {
                         Text("Отвязать", color = MaterialTheme.colorScheme.error)
@@ -159,7 +170,7 @@ private fun SignInMethodsCard(
                 }
             }
 
-            if (vkLink == null) {
+            if (notLinked) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "После привязки вход через ВКонтакте будет вести в этот же аккаунт, " +
@@ -195,16 +206,17 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showEditDialog by remember { mutableStateOf(false) }
-    var showPasswordDialog by remember { mutableStateOf(false) }
-    var showLogoutDialog by remember { mutableStateOf(false) }
-    var showPhotoOptionsDialog by remember { mutableStateOf(false) }
+    var showEditDialog by rememberSaveable { mutableStateOf(false) }
+    var showPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    var showLogoutDialog by rememberSaveable { mutableStateOf(false) }
+    var showJoinByCodeDialog by rememberSaveable { mutableStateOf(false) }
+    var showPhotoOptionsDialog by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
     val currentTheme by settingsManager.themeFlow.collectAsState(initial = "System")
     val currentAccent by settingsManager.accentFlow.collectAsState(initial = "Blue")
-    var showAppearanceDialog by remember { mutableStateOf(false) }
+    var showAppearanceDialog by rememberSaveable { mutableStateOf(false) }
 
     val notifMaintenance by settingsManager.notifMaintenanceFlow.collectAsState(initial = true)
     val notifInsurance by settingsManager.notifInsuranceFlow.collectAsState(initial = true)
@@ -294,6 +306,7 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(16.dp))
             SignInMethodsCard(
                 vkLink = uiState.vkLink,
+                isLinkKnown = uiState.isVkLinkKnown,
                 // Аккаунт создан через VK — отвязка отняла бы единственный способ войти
                 canUnlink = !uiState.isVkAccount,
                 isLinking = uiState.isLinkingVk,
@@ -349,16 +362,41 @@ fun ProfileScreen(
                 onEditProfile = { showEditDialog = true },
                 onChangePassword = { showPasswordDialog = true },
                 onChangeAppearance = { showAppearanceDialog = true },
+                onJoinByCode = { showJoinByCodeDialog = true },
+                onBackup = { viewModel.exportBackup(context) },
+                onDeleteAccount = { viewModel.startAccountDeletion() },
                 onLogout = { showLogoutDialog = true },
                 // У аккаунтов через VK и Google пароля нет — ни сменить его,
                 // ни проверить текущий невозможно
-                showChangePassword = uiState.hasPasswordLogin
+                showChangePassword = uiState.hasPasswordLogin,
+                isBackupInProgress = uiState.isCreatingBackup
             )
 
             Spacer(modifier = Modifier.height(16.dp))
             AppInfoSection()
         }
     }
+
+    if (showJoinByCodeDialog) {
+        com.aggin.carcost.presentation.components.JoinByCodeDialog(
+            onDismiss = { showJoinByCodeDialog = false },
+            onSubmit = { code ->
+                showJoinByCodeDialog = false
+                navController.navigateOnce(Screen.AcceptInvite.createRoute(code))
+            }
+        )
+    }
+
+    AccountDeletionDialogs(
+        state = uiState.deletion,
+        onCancel = { viewModel.cancelAccountDeletion() },
+        onProceedToBackup = { viewModel.proceedToBackupOffer() },
+        onCreateBackup = { viewModel.createBackupBeforeDeletion() },
+        onShareBackup = { file -> viewModel.shareBackup(context, file) },
+        onProceedToConfirm = { viewModel.proceedToFinalConfirm() },
+        onTypedChange = { viewModel.updateDeletionConfirmText(it) },
+        onDelete = { viewModel.deleteAccount(navController) }
+    )
 
     // Диалог выбора источника фото
     if (showPhotoOptionsDialog) {
@@ -830,98 +868,396 @@ fun StatisticItem(
     }
 }
 
+/**
+ * Действия профиля, разложенные по смыслу.
+ *
+ * Раньше это был столбик из восьми одинаковых карточек подряд: «Редактировать
+ * профиль», «Чаты», «Внешний вид», «Достижения», «Выйти» — всё одного веса, и
+ * глазу не за что зацепиться. Теперь связанное лежит в одной карточке, между
+ * разделами есть заголовки, а необратимое отделено от повседневного.
+ */
 @Composable
 fun ActionsSection(
     navController: NavController,
     onEditProfile: () -> Unit,
     onChangePassword: () -> Unit,
     onChangeAppearance: () -> Unit,
+    onJoinByCode: () -> Unit,
+    onBackup: () -> Unit,
+    onDeleteAccount: () -> Unit,
     onLogout: () -> Unit,
-    showChangePassword: Boolean = true
+    showChangePassword: Boolean = true,
+    isBackupInProgress: Boolean = false
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Text(
-            text = "Действия",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        ActionItem(icon = Icons.Default.Edit, title = "Редактировать профиль", onClick = onEditProfile)
-        ActionItem(
-            icon = Icons.AutoMirrored.Filled.Chat,
-            title = "Чаты",
-            onClick = { navController.navigate(Screen.ChatsList.route) }
-        )
-        ActionItem(icon = Icons.Default.Palette, title = "Внешний вид", onClick = onChangeAppearance)
-        if (showChangePassword) {
-            ActionItem(icon = Icons.Default.Lock, title = "Сменить пароль", onClick = onChangePassword)
+        SettingsGroup("Профиль") {
+            SettingsRow(Icons.Default.Edit, "Редактировать профиль", onClick = onEditProfile)
+            SettingsRow(Icons.Default.Palette, "Внешний вид", onClick = onChangeAppearance)
+            if (showChangePassword) {
+                SettingsRow(Icons.Default.Lock, "Сменить пароль", onClick = onChangePassword)
+            }
         }
-        ActionItem(
-            icon = Icons.Default.Category,
-            title = "Категории и теги",
-            onClick = { navController.navigate(Screen.CategoryManagement.route) }
+
+        // Обязательная точка входа, а не удобство: присоединяются к ЧУЖОЙ машине,
+        // а экран «Участники» открывается только изнутри машины, где ты уже
+        // состоишь. У человека без автомобилей другого пути принять приглашение нет.
+        SettingsGroup("Совместный доступ") {
+            SettingsRow(
+                Icons.Default.VpnKey,
+                "Присоединиться по коду",
+                subtitle = "Код присылает владелец автомобиля",
+                onClick = onJoinByCode
+            )
+        }
+
+        SettingsGroup("Приложение") {
+            SettingsRow(
+                Icons.AutoMirrored.Filled.Chat, "Чаты",
+                onClick = { navController.navigateOnce(Screen.ChatsList.route) }
+            )
+            SettingsRow(
+                Icons.Default.Category, "Категории и теги",
+                onClick = { navController.navigateOnce(Screen.CategoryManagement.route) }
+            )
+            SettingsRow(
+                Icons.Default.EmojiEvents, "Достижения",
+                onClick = { navController.navigateOnce(Screen.Achievements.route) }
+            )
+            SettingsRow(
+                Icons.Default.BugReport, "Сообщить об ошибке",
+                onClick = { navController.navigateOnce(Screen.BugReport.route) }
+            )
+        }
+
+        SettingsGroup("Мои данные") {
+            SettingsRow(
+                Icons.Default.Backup,
+                "Резервная копия",
+                subtitle = if (isBackupInProgress) "Собираем файл…" else "Файл со всеми автомобилями и расходами",
+                enabled = !isBackupInProgress,
+                onClick = onBackup
+            )
+            SettingsRow(
+                Icons.Default.DeleteForever,
+                "Удалить аккаунт",
+                subtitle = "Вместе со всеми данными, без возможности вернуть",
+                isDestructive = true,
+                onClick = onDeleteAccount
+            )
+        }
+
+        SettingsGroup(null) {
+            SettingsRow(
+                Icons.Default.Logout,
+                "Выйти из аккаунта",
+                isDestructive = true,
+                showChevron = false,
+                onClick = onLogout
+            )
+        }
+    }
+}
+
+/**
+ * Удаление аккаунта. Три экрана подряд, и это не перестраховка.
+ *
+ * Операция необратима, а при общих машинах задевает посторонних, которые о ней
+ * даже не узнают. Поэтому сначала называем цифры, потом даём забрать данные, и
+ * только потом просим набрать слово руками — чтобы «Удалить» нельзя было нажать
+ * по инерции, как «ОК».
+ */
+@Composable
+fun AccountDeletionDialogs(
+    state: AccountDeletionState,
+    onCancel: () -> Unit,
+    onProceedToBackup: () -> Unit,
+    onCreateBackup: () -> Unit,
+    onShareBackup: (java.io.File) -> Unit,
+    onProceedToConfirm: () -> Unit,
+    onTypedChange: (String) -> Unit,
+    onDelete: () -> Unit
+) {
+    when (state) {
+        is AccountDeletionState.Idle -> Unit
+
+        is AccountDeletionState.LoadingSummary -> AlertDialog(
+            onDismissRequest = onCancel,
+            title = { Text("Удаление аккаунта") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Считаем, что будет удалено…")
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = onCancel) { Text("Отмена") } }
         )
-        ActionItem(
-            icon = Icons.Default.EmojiEvents,
-            title = "Достижения",
-            onClick = { navController.navigate(Screen.Achievements.route) }
+
+        // ── Шаг 1: что именно исчезнет ────────────────────────────────────────
+        is AccountDeletionState.Summary -> AlertDialog(
+            onDismissRequest = onCancel,
+            icon = {
+                Icon(Icons.Default.WarningAmber, null, tint = MaterialTheme.colorScheme.error)
+            },
+            title = { Text("Удалить аккаунт?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Будет удалено безвозвратно:")
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        DeletionFact("Автомобилей", state.summary.ownedCars)
+                        DeletionFact("Записей о расходах", state.summary.expenses)
+                    }
+                    Text(
+                        "Вместе с ними — история обслуживания, документы, страховки, " +
+                            "фотографии, чеки и переписка.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Самое важное предупреждение: человек распоряжается не только
+                    // своими данными. Без этой строки он нажимает вслепую.
+                    if (state.summary.touchesOtherPeople) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Text(
+                                otherPeopleWarning(
+                                    people = state.summary.otherParticipants,
+                                    cars = state.summary.sharedCars
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onProceedToBackup) { Text("Продолжить") }
+            },
+            dismissButton = { TextButton(onClick = onCancel) { Text("Отмена") } }
         )
-        // ✅ ДОБАВЛЕНО: Кнопка отчета об ошибках
-        ActionItem(
-            icon = Icons.Default.BugReport,
-            title = "Сообщить об ошибке",
-            onClick = { navController.navigate(Screen.BugReport.route) }
+
+        // ── Шаг 2: забрать данные с собой ─────────────────────────────────────
+        is AccountDeletionState.OfferBackup -> AlertDialog(
+            onDismissRequest = onCancel,
+            icon = { Icon(Icons.Default.Backup, null) },
+            title = { Text("Сохранить копию данных?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Файл со всеми автомобилями и расходами. Его можно будет " +
+                            "восстановить в новый аккаунт — это единственный способ " +
+                            "не потерять историю."
+                    )
+                    when {
+                        state.backupFile != null -> Text(
+                            "Копия готова: ${state.backupFile.name}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        state.backupError != null -> Text(
+                            state.backupError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                when {
+                    state.isCreating -> TextButton(onClick = {}, enabled = false) {
+                        Text("Собираем…")
+                    }
+                    // Файл готов — предлагаем именно отправить его, иначе он
+                    // останется во временной папке и исчезнет вместе с кэшем
+                    state.backupFile != null -> TextButton(
+                        onClick = { onShareBackup(state.backupFile) }
+                    ) { Text("Сохранить файл") }
+
+                    else -> TextButton(onClick = onCreateBackup) { Text("Создать копию") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onProceedToConfirm) {
+                    Text(if (state.backupFile != null) "Дальше" else "Пропустить")
+                }
+            }
         )
-        ActionItem(
-            icon = Icons.Default.Logout,
-            title = "Выйти из аккаунта",
-            onClick = onLogout,
-            isDestructive = true
+
+        // ── Шаг 3: подтверждение вводом ───────────────────────────────────────
+        is AccountDeletionState.Confirm -> AlertDialog(
+            onDismissRequest = onCancel,
+            icon = {
+                Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error)
+            },
+            title = { Text("Последний шаг") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (!state.backupSaved) {
+                        Text(
+                            "Копия данных не сохранена — восстановить будет нечем.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Text("Наберите «${AccountDeletionState.CONFIRM_WORD}», чтобы подтвердить.")
+                    OutlinedTextField(
+                        value = state.typed,
+                        onValueChange = onTypedChange,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = onDelete,
+                    enabled = state.canDelete,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Удалить навсегда") }
+            },
+            dismissButton = { TextButton(onClick = onCancel) { Text("Отмена") } }
+        )
+
+        is AccountDeletionState.InProgress -> AlertDialog(
+            onDismissRequest = {},   // прерывать посреди удаления нечем и незачем
+            title = { Text("Удаляем аккаунт") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Не закрывайте приложение")
+                }
+            },
+            confirmButton = {}
+        )
+
+        is AccountDeletionState.Failed -> AlertDialog(
+            onDismissRequest = onCancel,
+            icon = { Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Не получилось") },
+            // Ничего не удалено — важно сказать прямо, иначе человек решит,
+            // что аккаунт стёрт наполовину
+            text = { Text("${state.message}.\n\nДанные на месте, ничего не удалено.") },
+            confirmButton = { TextButton(onClick = onCancel) { Text("Закрыть") } }
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ActionItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    onClick: () -> Unit,
-    isDestructive: Boolean = false
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isDestructive)
-                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
+private fun DeletionFact(label: String, count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Text("$count", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * Собирается целой фразой, а не из кусков: при склейке «$n человек потеряют»
+ * на одном участнике получается «1 человек потеряют». Здесь заодно согласуется
+ * глагол.
+ */
+private fun otherPeopleWarning(people: Int, cars: Int): String {
+    val peoplePart = when {
+        people % 10 == 1 && people % 100 != 11 -> "$people человек потеряет"
+        people % 10 in 2..4 && people % 100 !in 12..14 -> "$people человека потеряют"
+        else -> "$people человек потеряют"
+    }
+    val carsPart = when {
+        cars % 10 == 1 && cars % 100 != 11 -> "$cars машине"
+        else -> "$cars машинам"
+    }
+    return "Ещё $peoplePart доступ к $carsPart, которыми вы пользуетесь вместе, " +
+        "— вместе со всей историей. Предупредите их заранее."
+}
+
+/** Заголовок + одна карточка на группу: связанное держится вместе */
+@Composable
+fun SettingsGroup(
+    title: String?,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (title != null) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 32.dp, bottom = 8.dp)
+            )
+        }
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                .padding(horizontal = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             )
-            Spacer(modifier = Modifier.width(16.dp))
+        ) {
+            Column(content = content)
+        }
+    }
+}
+
+@Composable
+fun SettingsRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String? = null,
+    isDestructive: Boolean = false,
+    enabled: Boolean = true,
+    showChevron: Boolean = true,
+    onClick: () -> Unit
+) {
+    val tint = when {
+        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        isDestructive -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = tint)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                color = if (isDestructive) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurface
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        // Стрелка отличает переход на другой экран от действия на месте
+        if (showChevron) {
+            Icon(
+                Icons.Default.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
         }
     }
@@ -959,6 +1295,13 @@ fun NotificationSection(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
+
+            // Пока уведомления запрещены системой, все переключатели ниже —
+            // ложь: они сохраняются, но ни одно напоминание не придёт
+            com.aggin.carcost.presentation.components.NotificationsDisabledWarning(
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
             NotifToggleRow("Напоминания о ТО", notifMaintenance, onToggleMaintenance)
             NotifToggleRow("Страховка", notifInsurance, onToggleInsurance)
             NotifToggleRow("Еженедельный дайджест", notifDigest, onToggleDigest)
@@ -1020,6 +1363,19 @@ fun NotificationSection(
 
 @Composable
 private fun NotifToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+
+    // Момент, когда человек включает напоминание, — единственный, когда просить
+    // разрешение уместно: он только что сказал, что хочет его получать.
+    // Раньше спрашивали один раз в онбординге и больше никогда.
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            com.aggin.carcost.presentation.components.openNotificationSettings(context)
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1028,7 +1384,22 @@ private fun NotifToggleRow(label: String, checked: Boolean, onCheckedChange: (Bo
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = { value ->
+                // Настройку сохраняем в любом случае: она про желание человека,
+                // а не про состояние системного разрешения
+                onCheckedChange(value)
+
+                if (value && !com.aggin.carcost.presentation.components.notificationsEnabled(context)) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        com.aggin.carcost.presentation.components.openNotificationSettings(context)
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -1089,9 +1460,9 @@ fun ChangePasswordDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit
 ) {
-    var oldPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
+    var oldPassword by rememberSaveable { mutableStateOf("") }
+    var newPassword by rememberSaveable { mutableStateOf("") }
+    var confirmPassword by rememberSaveable { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
     val inProgress = state is PasswordChangeState.InProgress

@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.aggin.carcost.data.local.database.AppDatabase
+import com.aggin.carcost.data.sync.OfflineQueue
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
@@ -70,7 +72,8 @@ class CarDetailViewModel(
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
     private val expenseRepository = ExpenseRepository(database.expenseDao())
-    private val tagRepository = ExpenseTagRepository(database.expenseTagDao())
+    private val tagDao = database.expenseTagDao()
+    private val tagRepository = ExpenseTagRepository(tagDao)
     private val reminderRepository = MaintenanceReminderRepository(database.maintenanceReminderDao())
 
     private val supabaseAuth = SupabaseAuthRepository()
@@ -218,22 +221,31 @@ class CarDetailViewModel(
         viewModelScope.launch {
             // Загружаем теги для всех расходов
             expenseRepository.getExpensesByCarId(carId).collect { expenses ->
-                val tagsMap = mutableMapOf<String, List<ExpenseTag>>()
-
-                // Для каждого расхода получаем теги синхронно
-                expenses.forEach { expense ->
-                    try {
-                        // Получаем текущее значение из Flow
-                        tagRepository.getTagsForExpense(expense.id).firstOrNull()?.let { tags ->
-                            tagsMap[expense.id] = tags
-                        }
-                    } catch (e: Exception) {
-                        Log.e("CarDetail", "Error loading tags for expense ${expense.id}", e)
+                // Один запрос на все расходы вместо запроса на каждый.
+                // Было: 300 расходов — 300 обращений к базе, каждое через Flow
+                // (постановка и снятие наблюдателя), и весь цикл повторялся
+                // заново на каждую вставку во время синхронизации.
+                _expensesWithTags.value = try {
+                    if (expenses.isEmpty()) {
+                        emptyMap()
+                    } else {
+                        tagDao.getTagsForExpenses(expenses.map { it.id })
+                            .groupBy { it.expenseId }
+                            .mapValues { (_, rows) ->
+                                rows.map { row ->
+                                    ExpenseTag(
+                                        id = row.tagId,
+                                        name = row.name,
+                                        color = row.color,
+                                        userId = row.userId
+                                    )
+                                }
+                            }
                     }
+                } catch (e: Exception) {
+                    Log.e("CarDetail", "Error loading tags", e)
+                    emptyMap()
                 }
-
-                // Обновляем состояние один раз для всех расходов
-                _expensesWithTags.value = tagsMap
             }
         }
     }
@@ -246,15 +258,24 @@ class CarDetailViewModel(
                 val result = supabaseExpenseRepo.getExpensesByCarId(carId)
                 result.fold(
                     onSuccess = { expenses ->
-                        expenses.forEach { expense ->
-                            // Use @Update for existing expenses to avoid triggering ON DELETE CASCADE
-                            // on expense_tag_cross_ref (which @Insert(REPLACE) would cause via DELETE+INSERT).
-                            // Only insert (REPLACE) when the expense doesn't exist locally yet.
-                            val local = expenseRepository.getExpenseById(expense.id)
-                            when {
-                                local == null -> expenseRepository.insertExpense(expense)
-                                expense.updatedAt > local.updatedAt -> expenseRepository.updateExpense(expense)
-                                // Equal or local is newer — skip, no-op
+                        // Одной транзакцией. Раньше запись шла по одной, и Room
+                        // объявлял таблицу изменённой после каждой — экран
+                        // пересобирался столько раз, сколько приехало записей.
+                        // Внутри транзакции оповещение откладывается до коммита.
+                        database.withTransaction {
+                            expenses.forEach { expense ->
+                                // Use @Update for existing expenses to avoid triggering ON DELETE CASCADE
+                                // on expense_tag_cross_ref (which @Insert(REPLACE) would cause via DELETE+INSERT).
+                                // Only insert (REPLACE) when the expense doesn't exist locally yet.
+                                val local = expenseRepository.getExpenseById(expense.id)
+                                when {
+                                    local == null -> expenseRepository.insertExpense(expense)
+                                    // saveFromServer, а не updateExpense: обычный
+                                    // update штампует updatedAt = сейчас, и запись
+                                    // тут же уезжала бы обратно на сервер
+                                    expense.updatedAt > local.updatedAt -> expenseRepository.saveFromServer(expense)
+                                    // Equal or local is newer — skip, no-op
+                                }
                             }
                         }
                         Log.d("CarDetail", "Synced ${expenses.size} expenses")
@@ -284,15 +305,36 @@ class CarDetailViewModel(
         }
     }
 
+    /**
+     * Удаление расхода — локально и на сервере.
+     *
+     * Результат серверного удаления раньше просто отбрасывался, а внутри
+     * репозитория всё обёрнуто в try/catch — то есть внешний catch не срабатывал
+     * никогда. При отказе (нет сети, отклонение по правам) запись исчезала
+     * локально, но оставалась на сервере, и следующая синхронизация возвращала
+     * её обратно: человек удалял ошибочную заправку в метро, а через час она
+     * появлялась снова.
+     *
+     * Теперь неудача кладётся в очередь отложенных записей. Очередь и её воркер
+     * с повторными попытками в проекте были написаны, но не вызывались ниоткуда —
+     * `enqueue` встречался только в примере в комментарии.
+     */
     fun deleteExpense(expense: Expense) {
         viewModelScope.launch {
             try {
                 expenseRepository.deleteExpense(expense)
 
-                // Удаляем из Supabase
                 supabaseExpenseRepo.deleteExpense(expense.id)
-
-                Log.d("CarDetail", "Expense deleted: ${expense.id}")
+                    .onSuccess { Log.d("CarDetail", "Expense deleted: ${expense.id}") }
+                    .onFailure { error ->
+                        Log.w("CarDetail", "Удаление на сервере не прошло — в очередь", error)
+                        OfflineQueue.enqueue(
+                            context = getApplication(),
+                            tableName = "expenses",
+                            operation = "DELETE",
+                            payload = """{"id":"${expense.id}"}"""
+                        )
+                    }
             } catch (e: Exception) {
                 Log.e("CarDetail", "Delete failed", e)
             }

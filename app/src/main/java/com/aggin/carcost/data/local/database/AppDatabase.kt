@@ -483,6 +483,20 @@ val MIGRATION_34_35 = object : Migration(34, 35) {
  * ушли NhtsaApiService и сущность VinCache. Таблицу нужно снести явно: Room
  * хранит identityHash схемы и при расхождении откажется открывать базу.
  */
+/**
+ * Автор расхода.
+ *
+ * Колонка добавляется пустой: у существующих записей плательщик неизвестен, и
+ * проставить туда текущего пользователя значило бы приписать ему чужие траты в
+ * общей машине. Синхронизация подтянет настоящего автора с сервера — там это
+ * поле было всегда.
+ */
+val MIGRATION_38_39 = object : Migration(38, 39) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE expenses ADD COLUMN userId TEXT")
+    }
+}
+
 val MIGRATION_37_38 = object : Migration(37, 38) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("DROP TABLE IF EXISTS vin_cache")
@@ -672,7 +686,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         PendingWrite::class,
         FluidLevel::class
     ],
-    version = 38,
+    version = 39,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -738,7 +752,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_34_35,
                         MIGRATION_35_36,
                         MIGRATION_36_37,
-                        MIGRATION_37_38
+                        MIGRATION_37_38,
+                        MIGRATION_38_39
                     )
                     .build()
                 INSTANCE = instance

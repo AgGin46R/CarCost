@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState as rememberHScrollState
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.ui.draw.clip
@@ -45,6 +46,8 @@ import com.google.accompanist.permissions.rememberPermissionState
 import java.util.*
 import com.aggin.carcost.presentation.common.displayName
 import com.aggin.carcost.presentation.common.formatDateLong
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -193,7 +196,9 @@ fun AddExpenseScreen(
                         color = MaterialTheme.colorScheme.secondaryContainer
                     ) {
                         Text(
-                            text = "🔧 Техобслуживание",
+                            // Название категории должно совпадать с тем, что стоит
+                            // в выборе категории ниже, иначе это выглядит как две разные
+                            text = "🔧 ТО",
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -222,7 +227,7 @@ fun AddExpenseScreen(
 
             // --- НОВАЯ КНОПКА "СКАНИРОВАТЬ ЧЕК" ---
             OutlinedButton(
-                onClick = { navController.navigate(Screen.ReceiptScan.createRoute(carId)) },
+                onClick = { navController.navigateOnce(Screen.ReceiptScan.createRoute(carId)) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.ReceiptLong, null)
@@ -232,6 +237,27 @@ fun AddExpenseScreen(
             // --- КОНЕЦ НОВОЙ КНОПКИ ---
 
             HorizontalDivider()
+
+            // Повтор предыдущей записи этой категории: заправка почти всегда
+            // повторяет прошлую по АЗС и описанию, и перепечатывать это руками
+            // каждый раз — главная причина, по которой учёт забрасывают
+            uiState.lastSimilar?.let { last ->
+                OutlinedButton(
+                    onClick = { viewModel.repeatLast() },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isSaving
+                ) {
+                    Icon(Icons.Default.History, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = last.location?.takeIf { it.isNotBlank() }
+                            ?.let { "Как в прошлый раз — $it" }
+                            ?: "Как в прошлый раз",
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
 
             // Основная информация
             Text(
@@ -287,7 +313,7 @@ fun AddExpenseScreen(
             }
 
             // Дата
-            var showDatePicker by remember { mutableStateOf(false) }
+            var showDatePicker by rememberSaveable { mutableStateOf(false) }
 
             OutlinedTextField(
                 value = formatDate(uiState.date),
@@ -654,7 +680,7 @@ fun ServiceTypeDropdown(
     onServiceTypeSelected: (ServiceType?) -> Unit,
     enabled: Boolean
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
         expanded = expanded,

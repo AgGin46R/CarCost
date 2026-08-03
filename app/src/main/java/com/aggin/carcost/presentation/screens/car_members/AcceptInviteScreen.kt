@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.aggin.carcost.presentation.navigation.navigateOnce
 
 sealed class AcceptInviteState {
     object Loading : AcceptInviteState()
@@ -160,7 +161,7 @@ fun AcceptInviteScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        "Вы успешно присоединились!",
+                        "Вы присоединились",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
@@ -173,7 +174,7 @@ fun AcceptInviteScreen(
                     Spacer(Modifier.height(8.dp))
                     Button(
                         onClick = {
-                            navController.navigate(Screen.Home.route) {
+                            navController.navigateOnce(Screen.Home.route) {
                                 popUpTo(0) { inclusive = true }
                             }
                         },

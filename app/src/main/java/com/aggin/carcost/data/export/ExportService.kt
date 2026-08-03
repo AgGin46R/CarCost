@@ -18,6 +18,8 @@ import com.itextpdf.layout.element.Table
 import com.itextpdf.layout.properties.TextAlignment
 import com.itextpdf.layout.properties.UnitValue
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -26,11 +28,18 @@ class ExportService(private val context: Context) {
     private val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("ru"))
     private val dateOnlyFormat = SimpleDateFormat("dd.MM.yyyy", Locale("ru"))
 
-    fun exportToCsv(
+    /**
+     * Выполняется на IO: чтение двух TTF целиком, парсинг шрифтов, сборка
+     * таблицы по шесть ячеек на расход и запись файла раньше шли на главном
+     * потоке. Индикатор «Создание файла...» не успевал отрисоваться — он
+     * выставлялся в том же кадре, который и блокировался, — а на сотнях
+     * записей это оборачивалось ANR.
+     */
+    suspend fun exportToCsv(
         car: Car,
         expenses: List<Expense>,
         reminders: List<MaintenanceReminder>
-    ): File {
+    ): File = withContext(Dispatchers.IO) {
         val fileName = "CarCost_${car.brand}_${car.model}_${System.currentTimeMillis()}.csv"
         val file = File(context.getExternalFilesDir(null), fileName)
         file.bufferedWriter().use { writer ->
@@ -88,17 +97,24 @@ class ExportService(private val context: Context) {
                 )
             }
         }
-        return file
+        file
     }
 
     /**
      * Экспорт данных автомобиля в PDF
      */
-    fun exportToPdf(
+    /**
+     * Выполняется на IO: чтение двух TTF целиком, парсинг шрифтов, сборка
+     * таблицы по шесть ячеек на расход и запись файла раньше шли на главном
+     * потоке. Индикатор «Создание файла...» не успевал отрисоваться — он
+     * выставлялся в том же кадре, который и блокировался, — а на сотнях
+     * записей это оборачивалось ANR.
+     */
+    suspend fun exportToPdf(
         car: Car,
         expenses: List<Expense>,
         reminders: List<MaintenanceReminder>
-    ): File {
+    ): File = withContext(Dispatchers.IO) {
         val fileName = "CarCost_${car.brand}_${car.model}_${System.currentTimeMillis()}.pdf"
         val file = File(context.getExternalFilesDir(null), fileName)
 
@@ -120,7 +136,7 @@ class ExportService(private val context: Context) {
         val boldFont = PdfFontFactory.createFont(boldFontProgram)
         // --- КОНЕЦ БЛОКА ЗАГРУЗКИ ---
 
-        document.add(Paragraph("CarCost - Отчет по автомобилю").setFont(boldFont).setFontSize(20f).setTextAlignment(TextAlignment.CENTER))
+        document.add(Paragraph("CarCost — отчёт по автомобилю").setFont(boldFont).setFontSize(20f).setTextAlignment(TextAlignment.CENTER))
         document.add(Paragraph("Дата создания: ${dateFormat.format(Date())}").setFont(regularFont).setFontSize(10f).setTextAlignment(TextAlignment.CENTER))
         document.add(Paragraph("\n"))
 
@@ -206,7 +222,7 @@ class ExportService(private val context: Context) {
         }
 
         document.close()
-        return file
+        file
     }
 
     fun shareFile(file: File) {
@@ -219,10 +235,10 @@ class ExportService(private val context: Context) {
             }
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, "CarCost - Экспорт данных")
-            putExtra(Intent.EXTRA_TEXT, "Отчет по автомобилю из приложения CarCost")
+            putExtra(Intent.EXTRA_TEXT, "Отчёт по автомобилю из приложения CarCost")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val chooserIntent = Intent.createChooser(intent, "Отправить отчет").apply {
+        val chooserIntent = Intent.createChooser(intent, "Отправить отчёт").apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(chooserIntent)

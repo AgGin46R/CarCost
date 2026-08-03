@@ -38,6 +38,8 @@ import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.presentation.navigation.Screen
 import kotlinx.coroutines.launch
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 // Цвета в стиле мокапа
 private val BackgroundDark = Color(0xFF0D1117)
@@ -106,8 +108,8 @@ fun OnboardingScreen(navController: NavController) {
     val settingsManager = remember { SettingsManager(context) }
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { pages.size })
-    var loadDemoData by remember { mutableStateOf(false) }
-    var isSeedingDemo by remember { mutableStateOf(false) }
+    var loadDemoData by rememberSaveable { mutableStateOf(false) }
+    var isSeedingDemo by rememberSaveable { mutableStateOf(false) }
 
     // Request POST_NOTIFICATIONS when the user reaches the last (Notifications) page
     val notificationPermLauncher = rememberLauncherForActivityResult(

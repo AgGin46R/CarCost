@@ -302,6 +302,43 @@ Deno.serve(async (req) => {
 
     const [userId, email, isNewUser] = await resolveUser(profile)
 
+    // ── Профиль: имя и аватар из ВКонтакте ──────────────────────────────────
+    //
+    // Раньше avatar_url попадал только в user_metadata и только при СОЗДАНИИ
+    // пользователя (createAuthUser). При повторных входах обновлялась одна
+    // vk_identities, а таблица users не трогалась вовсе — и фото профиля не
+    // появлялось никогда. Проверено на боевых данных: у VK-пользователя аватар
+    // в vk_identities был, а users.photo_url оставался пустым.
+    //
+    // ВАЖНО: photo_url и display_name здесь НЕ переписываются. Их ведёт триггер
+    // sync_vk_profile_to_user (см. supabase/vk_profile_sync.sql): он ставит
+    // аватар из ВК, только пока пользователь не выбрал своё фото в приложении.
+    // Безусловный upsert отсюда затирал бы выбор человека при каждом входе.
+    //
+    // Ошибка здесь не должна ломать вход — человек уже прошёл проверку в VK,
+    // и отказать ему из-за картинки было бы неправильно.
+    try {
+      await supabase.from('users').upsert({
+        id:            userId,
+        email,
+        last_login_at: Date.now(),
+      })
+
+      // Метаданные сессии читает приложение сразу после входа, до первой
+      // синхронизации. Здесь свежий аватар уместен: это сведения из ВК как
+      // таковые, а не поле профиля, которым распоряжается пользователь.
+      await supabase.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          vk_id:      profile.vkUserId,
+          vk_email:   profile.email,
+          full_name:  displayName(profile),
+          avatar_url: profile.avatarUrl,
+        },
+      })
+    } catch (err) {
+      console.error('Не удалось обновить профиль (вход продолжается):', err)
+    }
+
     // Магическая ссылка — способ выдать клиенту сессию, не пересылая токены руками
     const { data: link, error: linkErr } = await supabase.auth.admin.generateLink({
       type: 'magiclink',

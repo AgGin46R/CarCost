@@ -28,6 +28,8 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -63,6 +65,25 @@ class RealtimeSyncManager(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + exceptionHandler)
 
     private var activeChannel: RealtimeChannel? = null
+
+    /**
+     * Область жизни ОДНОГО подключения канала.
+     *
+     * Тринадцать сборщиков событий раньше запускались в общий `scope`, который
+     * живёт всё время работы процесса, а их Job нигде не сохранялись.
+     * `connectChannel()` вызывается при каждом выходе приложения на передний
+     * план, на каждое обновление токена (примерно раз в час) и после любой
+     * сетевой ошибки — и каждый раз добавлял ещё тринадцать. За день с плохой
+     * связью их набирались сотни.
+     *
+     * Это не только память: пока старые каналы ещё отдают события, одна вставка
+     * расхода обрабатывалась несколько раз — запись писалась в базу повторно, и
+     * пользователь получал пачку одинаковых уведомлений о трате совладельца.
+     *
+     * Теперь каждое подключение получает свою дочернюю область, и отключение
+     * канала гасит ровно его сборщиков.
+     */
+    private var channelScope: CoroutineScope? = null
 
     /**
      * Ensures a car with the given [carId] exists in local Room DB.
@@ -155,6 +176,14 @@ class RealtimeSyncManager(private val context: Context) {
             val ch = supabase.channel("carcost-sync")
             activeChannel = ch
 
+            // Своя область на это подключение: при отключении гасятся ровно
+            // её сборщики, а не копятся поверх старых
+            val chScope = CoroutineScope(
+                SupervisorJob(scope.coroutineContext[kotlinx.coroutines.Job]) +
+                    Dispatchers.IO + exceptionHandler
+            )
+            channelScope = chScope
+
             // ── Expenses ─────────────────────────────────────────────────────
 
             ch.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
@@ -167,7 +196,7 @@ class RealtimeSyncManager(private val context: Context) {
                     Log.d(TAG, "📥 Expense inserted: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = false)
                 } catch (e: Exception) { Log.e(TAG, "Error handling expense insert", e) }
-            }.catch { Log.w(TAG, "Expense insert flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Expense insert flow error: ${it.message}") }.launchIn(chScope)
 
             ch.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
                 table = "expenses"
@@ -179,7 +208,7 @@ class RealtimeSyncManager(private val context: Context) {
                     Log.d(TAG, "✏️ Expense updated: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = true)
                 } catch (e: Exception) { Log.e(TAG, "Error handling expense update", e) }
-            }.catch { Log.w(TAG, "Expense update flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Expense update flow error: ${it.message}") }.launchIn(chScope)
 
             ch.postgresChangeFlow<PostgresAction.Delete>(schema = "public") {
                 table = "expenses"
@@ -189,7 +218,7 @@ class RealtimeSyncManager(private val context: Context) {
                     db.expenseDao().deleteExpenseById(dto.id)
                     Log.d(TAG, "🗑️ Expense deleted: ${dto.id}")
                 } catch (e: Exception) { Log.e(TAG, "Error handling expense delete", e) }
-            }.catch { Log.w(TAG, "Expense delete flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Expense delete flow error: ${it.message}") }.launchIn(chScope)
 
             // ── Cars ──────────────────────────────────────────────────────────
 
@@ -201,7 +230,7 @@ class RealtimeSyncManager(private val context: Context) {
                     db.carDao().insertCar(dto.toCar())
                     Log.d(TAG, "🚗 Car synced: ${dto.id}")
                 } catch (e: Exception) { Log.e(TAG, "Error handling car insert", e) }
-            }.catch { Log.w(TAG, "Car insert flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Car insert flow error: ${it.message}") }.launchIn(chScope)
 
             ch.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
                 table = "cars"
@@ -211,7 +240,7 @@ class RealtimeSyncManager(private val context: Context) {
                     db.carDao().insertCar(dto.toCar())
                     Log.d(TAG, "🚗 Car updated: ${dto.id}")
                 } catch (e: Exception) { Log.e(TAG, "Error handling car update", e) }
-            }.catch { Log.w(TAG, "Car update flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Car update flow error: ${it.message}") }.launchIn(chScope)
 
             // ── Maintenance Reminders ─────────────────────────────────────────
 
@@ -225,7 +254,7 @@ class RealtimeSyncManager(private val context: Context) {
                     Log.d(TAG, "🔧 Reminder inserted: ${dto.id}")
                     maybeNotifyReminder(dto, isUpdate = false)
                 } catch (e: Exception) { Log.e(TAG, "Error handling reminder insert", e) }
-            }.catch { Log.w(TAG, "Reminder insert flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Reminder insert flow error: ${it.message}") }.launchIn(chScope)
 
             ch.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
                 table = "maintenance_reminders"
@@ -237,7 +266,7 @@ class RealtimeSyncManager(private val context: Context) {
                     Log.d(TAG, "🔧 Reminder updated: ${dto.id}")
                     maybeNotifyReminder(dto, isUpdate = true)
                 } catch (e: Exception) { Log.e(TAG, "Error handling reminder update", e) }
-            }.catch { Log.w(TAG, "Reminder update flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Reminder update flow error: ${it.message}") }.launchIn(chScope)
 
             // ── Chat Messages ─────────────────────────────────────────────────
 
@@ -251,7 +280,7 @@ class RealtimeSyncManager(private val context: Context) {
                     Log.d(TAG, "💬 Chat message received: ${dto.id}")
                     maybeNotifyChat(dto)
                 } catch (e: Exception) { Log.e(TAG, "Error handling chat message", e) }
-            }.catch { Log.w(TAG, "Chat insert flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Chat insert flow error: ${it.message}") }.launchIn(chScope)
 
             ch.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
                 table = "chat_messages"
@@ -261,7 +290,7 @@ class RealtimeSyncManager(private val context: Context) {
                     db.chatMessageDao().insert(dto.toChatMessage())
                     Log.d(TAG, "✏️ Chat message updated: ${dto.id}")
                 } catch (e: Exception) { Log.e(TAG, "Error handling chat update", e) }
-            }.catch { Log.w(TAG, "Chat update flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Chat update flow error: ${it.message}") }.launchIn(chScope)
 
             ch.postgresChangeFlow<PostgresAction.Delete>(schema = "public") {
                 table = "chat_messages"
@@ -273,7 +302,7 @@ class RealtimeSyncManager(private val context: Context) {
                     db.chatMessageDao().deleteById(id)
                     Log.d(TAG, "🗑️ Chat message deleted: $id")
                 } catch (e: Exception) { Log.e(TAG, "Error handling chat delete", e) }
-            }.catch { Log.w(TAG, "Chat delete flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Chat delete flow error: ${it.message}") }.launchIn(chScope)
 
             // ── Chat reactions ────────────────────────────────────────────────
             ch.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
@@ -299,7 +328,7 @@ class RealtimeSyncManager(private val context: Context) {
                         Log.d(TAG, "👍 Reaction inserted: ${dto.emoji} on ${dto.messageId}")
                     }
                 } catch (e: Exception) { Log.e(TAG, "Error handling reaction insert", e) }
-            }.catch { Log.w(TAG, "Reaction insert flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Reaction insert flow error: ${it.message}") }.launchIn(chScope)
 
             ch.postgresChangeFlow<PostgresAction.Delete>(schema = "public") {
                 table = "chat_reactions"
@@ -309,7 +338,7 @@ class RealtimeSyncManager(private val context: Context) {
                     db.chatReactionDao().deleteById(id)
                     Log.d(TAG, "👎 Reaction deleted: $id")
                 } catch (e: Exception) { Log.e(TAG, "Error handling reaction delete", e) }
-            }.catch { Log.w(TAG, "Reaction delete flow error: ${it.message}") }.launchIn(scope)
+            }.catch { Log.w(TAG, "Reaction delete flow error: ${it.message}") }.launchIn(chScope)
 
             // ── Car Invitations ───────────────────────────────────────────────
 
@@ -328,7 +357,7 @@ class RealtimeSyncManager(private val context: Context) {
                         NotificationHelper.sendInvitationNotification(context, notifId, carName)
                         Log.d(TAG, "📨 Invitation received for car ${dto.carId}")
                     } catch (e: Exception) { Log.e(TAG, "Error handling invitation insert", e) }
-                }.catch { Log.w(TAG, "Invitation insert flow error: ${it.message}") }.launchIn(scope)
+                }.catch { Log.w(TAG, "Invitation insert flow error: ${it.message}") }.launchIn(chScope)
             }
 
             ch.subscribe()
@@ -347,6 +376,10 @@ class RealtimeSyncManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Error disconnecting Realtime channel: ${e.message}")
         } finally {
+            // Сборщики старого канала обязаны умереть вместе с ним, иначе
+            // события обрабатываются столько раз, сколько было переподключений
+            channelScope?.cancel()
+            channelScope = null
             activeChannel = null
         }
     }

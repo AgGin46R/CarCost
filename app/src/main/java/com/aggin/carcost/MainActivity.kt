@@ -3,6 +3,7 @@ package com.aggin.carcost
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +34,17 @@ class MainActivity : ComponentActivity() {
         private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Ставится ДО super.onCreate — иначе окно успеет отрисоваться пустым
+        val splash = installSplashScreen()
+
         super.onCreate(savedInstanceState)
+
+        // Заставка висит, пока не станет ясно, какой экран показывать первым:
+        // прочитаны настройки и восстановлена сессия. Внутри AppStartup стоит
+        // предел ожидания, поэтому «навсегда» здесь невозможно
+        splash.setKeepOnScreenCondition { !AppStartup.isReady.value }
+        lifecycleScope.launch { AppStartup.prepare(applicationContext) }
+
         pendingInviteToken = intent?.data
             ?.takeIf { it.scheme == "carcost" && it.host == "invite" }
             ?.getQueryParameter("token")
@@ -121,6 +132,8 @@ class MainActivity : ComponentActivity() {
         return when (navType) {
             NotificationHelper.NAV_TYPE_CHAT        -> "chat/$carId"
             NotificationHelper.NAV_TYPE_ADD_EXPENSE -> "add_expense/$carId"
+            // Категория задаётся тем же параметром, что и у чипов быстрого ввода
+            NotificationHelper.NAV_TYPE_ADD_FUEL    -> "add_expense/$carId?category=FUEL"
             NotificationHelper.NAV_TYPE_GPS_TRIP    -> "gps_trip/$carId"
             NotificationHelper.NAV_TYPE_NAVIGATOR   -> "navigator"
             else -> "car_detail/$carId"

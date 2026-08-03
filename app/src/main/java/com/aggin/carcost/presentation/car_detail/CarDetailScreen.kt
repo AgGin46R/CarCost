@@ -47,6 +47,8 @@ import kotlin.math.roundToInt
 import com.aggin.carcost.presentation.common.icon
 import com.aggin.carcost.presentation.common.displayName
 import com.aggin.carcost.presentation.common.formatDateShort
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,8 +58,8 @@ fun CarDetailScreen(
     viewModel: CarDetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showMenu by remember { mutableStateOf(false) }
-    var showFilterDialog by remember { mutableStateOf(false) }
+    var showMenu by rememberSaveable { mutableStateOf(false) }
+    var showFilterDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -76,13 +78,13 @@ fun CarDetailScreen(
                 },
                 actions = {
                     // Chat moved here for quick access — Planned Purchases moved to overflow menu
-                    IconButton(onClick = { navController.navigate(Screen.Chat.createRoute(carId)) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.Chat.createRoute(carId)) }) {
                         Icon(Icons.Default.Chat, "Чат")
                     }
-                    IconButton(onClick = { navController.navigate(Screen.Map.createRoute(carId)) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.Map.createRoute(carId)) }) {
                         Icon(Icons.Default.Map, "Карта")
                     }
-                    IconButton(onClick = { navController.navigate(Screen.Analytics.createRoute(carId)) }) {
+                    IconButton(onClick = { navController.navigateOnce(Screen.Analytics.createRoute(carId)) }) {
                         Icon(Icons.Default.Assessment, "Аналитика")
                     }
                     Box {
@@ -99,7 +101,7 @@ fun CarDetailScreen(
                                     text = { Text("Редактировать") },
                                     onClick = {
                                         showMenu = false
-                                        navController.navigate(Screen.EditCar.createRoute(carId))
+                                        navController.navigateOnce(Screen.EditCar.createRoute(carId))
                                     },
                                     leadingIcon = { Icon(Icons.Default.Edit, null) }
                                 )
@@ -108,7 +110,7 @@ fun CarDetailScreen(
                                 text = { Text("Планы покупок") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.PlannedExpenses.createRoute(carId))
+                                    navController.navigateOnce(Screen.PlannedExpenses.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Assignment, null) }
                             )
@@ -116,7 +118,7 @@ fun CarDetailScreen(
                                 text = { Text("Документы и страховки") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.Documents.createRoute(carId))
+                                    navController.navigateOnce(Screen.Documents.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Folder, null) }
                             )
@@ -124,7 +126,7 @@ fun CarDetailScreen(
                                 text = { Text("Бюджет") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.Budget.createRoute(carId))
+                                    navController.navigateOnce(Screen.Budget.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.AccountBalanceWallet, null) }
                             )
@@ -132,7 +134,7 @@ fun CarDetailScreen(
                                 text = { Text("Стоимость владения") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.Tco.createRoute(carId))
+                                    navController.navigateOnce(Screen.Tco.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.MonetizationOn, null) }
                             )
@@ -140,15 +142,15 @@ fun CarDetailScreen(
                                 text = { Text("Таймлайн ТО") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.ServiceTimeline.createRoute(carId))
+                                    navController.navigateOnce(Screen.ServiceTimeline.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Timeline, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("GPS Поездка") },
+                                text = { Text("Поездки по GPS") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.GpsTrip.createRoute(carId))
+                                    navController.navigateOnce(Screen.GpsTrip.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Map, null) }
                             )
@@ -156,7 +158,7 @@ fun CarDetailScreen(
                                 text = { Text("Участники") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.CarMembers.createRoute(carId))
+                                    navController.navigateOnce(Screen.CarMembers.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Group, null) }
                             )
@@ -164,7 +166,7 @@ fun CarDetailScreen(
                                 text = { Text("Цели накопления") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.Goals.createRoute(carId))
+                                    navController.navigateOnce(Screen.Goals.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Savings, null) }
                             )
@@ -172,7 +174,7 @@ fun CarDetailScreen(
                                 text = { Text("История инцидентов") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.IncidentHistory.createRoute(carId))
+                                    navController.navigateOnce(Screen.IncidentHistory.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Warning, null) }
                             )
@@ -180,7 +182,7 @@ fun CarDetailScreen(
                                 text = { Text("Уровни жидкостей") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.FluidLevels.createRoute(carId))
+                                    navController.navigateOnce(Screen.FluidLevels.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.WaterDrop, null) }
                             )
@@ -188,7 +190,7 @@ fun CarDetailScreen(
                                 text = { Text("Экспорт данных") },
                                 onClick = {
                                     showMenu = false
-                                    navController.navigate(Screen.Export.createRoute(carId))
+                                    navController.navigateOnce(Screen.Export.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.Download, null) }
                             )
@@ -207,7 +209,7 @@ fun CarDetailScreen(
                 onClick = {
                     if (isMechanic) {
                         // Механик может добавлять только расходы на ТО, категория зафиксирована
-                        navController.navigate(
+                        navController.navigateOnce(
                             Screen.AddExpense.createRoute(
                                 carId,
                                 category = ExpenseCategory.MAINTENANCE.name,
@@ -215,7 +217,7 @@ fun CarDetailScreen(
                             )
                         )
                     } else {
-                        navController.navigate(Screen.AddExpense.createRoute(carId))
+                        navController.navigateOnce(Screen.AddExpense.createRoute(carId))
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
@@ -298,7 +300,7 @@ fun CarDetailScreen(
                         canEditDelete = canEditDelete,
                         onDelete = { viewModel.deleteExpense(expense) },
                         onEdit = {
-                            navController.navigate(Screen.EditExpense.createRoute(expense.carId, expense.id))
+                            navController.navigateOnce(Screen.EditExpense.createRoute(expense.carId, expense.id))
                         }
                     )
                 }
@@ -382,7 +384,7 @@ fun CarInfoCard(uiState: CarDetailUiState) {
                     icon = Icons.Default.AttachMoney
                 )
                 StatItem(
-                    label = "За месяц",
+                    label = "За 30 дней",
                     value = formatCurrency(uiState.monthlyExpenses, uiState.car?.currency ?: "RUB"),
                     icon = Icons.Default.CalendarMonth
                 )
@@ -524,7 +526,7 @@ fun SwipeableExpenseCard(
     onDelete: () -> Unit,
     onEdit: () -> Unit
 ) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val hapticLong = rememberHapticLongPress()
@@ -896,7 +898,7 @@ private fun QuickAddRow(carId: String, navController: NavController, isMechanic:
             FilterChip(
                 selected = false,
                 onClick = {
-                    navController.navigate(
+                    navController.navigateOnce(
                         Screen.AddExpense.createRoute(
                             carId,
                             category = category.name,
@@ -921,7 +923,7 @@ fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
         score.total >= 40 -> "Среднее"         to colorScheme.error.copy(alpha = 0.75f)
         else              -> "Требует внимания" to colorScheme.error
     }
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),

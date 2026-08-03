@@ -41,6 +41,7 @@ import com.patrykandpatrick.vico.core.entry.entryModelOf
 import kotlin.math.abs
 import com.aggin.carcost.presentation.common.color
 import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.presentation.navigation.navigateOnce
 
 /**
  * Валюта текущего автомобиля.
@@ -101,7 +102,7 @@ fun EnhancedAnalyticsScreen(
                     IconButton(onClick = {
                         // Pre-fill with avg consumption if available
                         val avgL100 = uiState.fuelStatistics?.averageConsumption ?: 0.0
-                        navController.navigate(
+                        navController.navigateOnce(
                             com.aggin.carcost.presentation.navigation.Screen.FuelCalculator
                                 .createRoute(avgL100 = avgL100)
                         )
@@ -165,6 +166,15 @@ fun EnhancedAnalyticsScreen(
                         item { AnomalyCard(uiState.anomalies) }
                     }
 
+                    if (uiState.contributions.isNotEmpty()) {
+                        item {
+                            ContributionsCard(
+                                contributions = uiState.contributions,
+                                names = uiState.contributorNames
+                            )
+                        }
+                    }
+
                     if (uiState.categoryExpenses.isNotEmpty()) {
                         item { PieChartCard(uiState.categoryExpenses) }
                     }
@@ -185,8 +195,14 @@ fun EnhancedAnalyticsScreen(
                         item { FuelStatisticsCard(fs) }
                     }
 
-                    uiState.forecast?.let { forecast ->
+                    // Прогноза может не быть — пока мало истории. Тогда вместо
+                    // исчезнувшего блока показываем, чего именно не хватает:
+                    // пропавшая карточка выглядит как сбой, а не как «рано».
+                    val forecast = uiState.forecast
+                    if (forecast != null) {
                         item { ForecastCard(forecast) }
+                    } else {
+                        item { ForecastPendingCard() }
                     }
                 }
             }
@@ -233,7 +249,8 @@ fun GpsTripStatsCard(stats: GpsTripStats) {
                 )
                 GpsStat(
                     icon = Icons.Default.Timeline,
-                    label = "Средняя",
+                    // «Средняя» — средняя что? Значение в километрах, речь о длине поездки
+                    label = "Ср. поездка",
                     value = "%.1f км".format(stats.avgTripDistanceKm)
                 )
                 if (stats.avgSpeedKmh != null) {
@@ -789,7 +806,9 @@ fun ForecastCard(forecast: ExpenseForecast) {
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "На основе последних 3 месяцев",
+                // Раньше здесь стояло «На основе последних 3 месяцев» независимо
+                // от того, сколько месяцев на самом деле было в расчёте
+                "По ${forecast.basedOnMonths} завершённым месяцам — текущий ещё не кончился",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
             )
@@ -830,6 +849,131 @@ fun ForecastCard(forecast: ExpenseForecast) {
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Кто сколько внёс в общую машину.
+ *
+ * Показывается только когда плательщиков больше одного — у одиночной машины это
+ * всегда «вы, 100 %».
+ *
+ * Кроме доли показывается отклонение от равного деления: сама по себе доля
+ * «62 %» ничего не решает, а «на 12 400 ₽ больше поровну» — это уже разговор о
+ * том, кто кому сколько должен, ради которого секция и нужна.
+ */
+@Composable
+fun ContributionsCard(
+    contributions: List<com.aggin.carcost.domain.contribution.ContributionCalculator.Contribution>,
+    names: Map<String, String>
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Groups, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Кто сколько заплатил",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+
+            contributions.forEach { c ->
+                val label = when {
+                    c.userId == null -> "Автор неизвестен"
+                    else -> names[c.userId] ?: "Участник"
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(label, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "${currencyFormat(c.amount)} · ${(c.share * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                LinearProgressIndicator(
+                    progress = { c.share.toFloat().coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    color = if (c.userId == null) MaterialTheme.colorScheme.outline
+                            else MaterialTheme.colorScheme.primary
+                )
+
+                c.deviationFromEqual?.let { deviation ->
+                    // Копейки в такой фразе только мешают
+                    if (kotlin.math.abs(deviation) >= 1.0) {
+                        Text(
+                            text = if (deviation > 0)
+                                "на ${currencyFormat(deviation)} больше поровну"
+                            else
+                                "на ${currencyFormat(-deviation)} меньше поровну",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+
+                if (c != contributions.last()) Spacer(Modifier.height(14.dp))
+            }
+
+            if (contributions.any { it.userId == null }) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Записи без автора сделаны до того, как приложение начало " +
+                        "запоминать, кто платил.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Заглушка прогноза, пока истории мало.
+ *
+ * Прогноз по одной записи — это не прогноз, а та же запись, умноженная на
+ * двенадцать. Вместо неё говорим прямо, чего ждём.
+ */
+@Composable
+fun ForecastPendingCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.QueryStats,
+                    null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Прогноз расходов",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Появится, когда наберутся два полных месяца учёта. " +
+                    "Считать по неполному месяцу нечестно — цифра получится случайной.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+            )
         }
     }
 }

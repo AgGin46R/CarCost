@@ -1,0 +1,16 @@
+<resources>
+    <!--
+        Тёмный вариант основной темы.
+
+        Theme.CarCost наследуется от android:Theme.Material.Light, и она же стоит
+        как postSplashScreenTheme. Между снятием заставки и первым кадром Compose
+        показывается windowBackground — то есть у человека с тёмной темой в этом
+        промежутке вспыхивал белый прямоугольник. Само приложение тёмную тему
+        поддерживает полностью, вспышка была только в этой щели.
+
+        values-night применяется системой автоматически, менять код не требуется.
+    -->
+    <style name="Theme.CarCost" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF121212</item>
+    </style>
+</resources>

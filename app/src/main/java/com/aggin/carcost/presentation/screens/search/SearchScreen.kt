@@ -26,6 +26,8 @@ import java.util.*
 import com.aggin.carcost.presentation.common.emoji
 import com.aggin.carcost.presentation.common.displayName
 import androidx.compose.material.icons.filled.FilterList
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +37,7 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusRequester = remember { FocusRequester() }
-    var showFilterSheet by remember { mutableStateOf(false) }
+    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -119,14 +121,17 @@ fun SearchScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
-                            // Раньше показывался размер уже обрезанного списка, и было
-                            // не отличить «нашлось ровно 100» от «нашлось 3000»
+                            // Отбор идёт в SQL с пределом, поэтому точного числа
+                            // совпадений тут больше нет — запрос берёт на строку
+                            // больше предела, и её наличие означает «есть ещё».
+                            // Считать все совпадения ради подписи значило бы
+                            // выполнять второй тяжёлый запрос на каждую букву.
                             val truncated = uiState.totalMatches > uiState.results.size
                             Text(
                                 if (truncated)
-                                    "Найдено ${uiState.totalMatches}, показаны первые ${uiState.results.size}"
+                                    "Показаны первые ${uiState.results.size}, есть ещё"
                                 else
-                                    "Найдено: ${uiState.totalMatches}",
+                                    "Найдено: ${uiState.results.size}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
@@ -136,7 +141,7 @@ fun SearchScreen(
                             SearchResultCard(
                                 result = result,
                                 onClick = {
-                                    navController.navigate(
+                                    navController.navigateOnce(
                                         Screen.EditExpense.createRoute(
                                             result.expense.carId,
                                             result.expense.id

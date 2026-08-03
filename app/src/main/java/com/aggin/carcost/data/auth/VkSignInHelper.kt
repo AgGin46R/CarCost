@@ -30,7 +30,7 @@ data class VkAuthResult(
 )
 
 /**
- * Обёртка над VK ID SDK по образцу [GoogleSignInHelper].
+ * Обёртка над VK ID SDK.
  *
  * VKID.init() вызывается в App.onCreate(); если он упал (например, приложение
  * ещё не заведено на dev.vk.com), обращение к VKID.instance бросит исключение —

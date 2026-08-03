@@ -116,7 +116,7 @@ class BugReportViewModel(application: Application) : AndroidViewModel(applicatio
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        errorMessage = "Ошибка отправки отчета: ${e.localizedMessage}"
+                        errorMessage = "Ошибка отправки отчёта: ${e.localizedMessage}"
                     )
                 }
             }

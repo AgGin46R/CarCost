@@ -125,32 +125,26 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             .filter { cat -> categoryRuName(cat).lowercase().contains(lowerQuery) }
             .toSet()
 
-        val searchedCars = cars.filter { filter.carId == null || it.id == filter.carId }
-        val allExpenses = mutableListOf<Expense>()
-        for (car in searchedCars) {
-            allExpenses += expenseDao.getExpensesByCarIdSync(car.id)
-        }
-
-        val matched = allExpenses
-            .filter { expense ->
-                // Пустой запрос при активном фильтре означает «всё, что подходит под фильтр»
-                lowerQuery.length < 2 ||
-                    expense.title?.lowercase()?.contains(lowerQuery) == true ||
-                    expense.description?.lowercase()?.contains(lowerQuery) == true ||
-                    expense.location?.lowercase()?.contains(lowerQuery) == true ||
-                    expense.workshopName?.lowercase()?.contains(lowerQuery) == true ||
-                    expense.maintenanceParts?.lowercase()?.contains(lowerQuery) == true ||
-                    "%.0f".format(expense.amount).contains(lowerQuery) ||
-                    expense.category in matchedCategories
-            }
-            .filter { expense ->
-                (filter.categories.isEmpty() || expense.category in filter.categories) &&
-                    (filter.startDate == null || expense.date >= filter.startDate) &&
-                    (filter.endDate == null || expense.date <= filter.endDate) &&
-                    (filter.minAmount == null || expense.amount >= filter.minAmount) &&
-                    (filter.maxAmount == null || expense.amount <= filter.maxAmount)
-            }
-            .sortedByDescending { it.date }
+        // Отбор целиком в SQL. Раньше сюда поднимались все расходы всех машин —
+        // по запросу на машину — и фильтровались в Kotlin, хотя до выдачи
+        // доходила максимум сотня строк.
+        //
+        // Берём на одну строку больше предела: если она пришла, значит совпадений
+        // больше, чем показано, и об этом надо сказать честно.
+        val matched = expenseDao.searchWithFilters(
+            query = lowerQuery,
+            queryTooShort = if (lowerQuery.length < 2) 1 else 0,
+            carId = filter.carId,
+            categories = filter.categories.toList(),
+            hasCategoryFilter = if (filter.categories.isEmpty()) 0 else 1,
+            matchedCategories = matchedCategories.toList(),
+            hasMatchedCategories = if (matchedCategories.isEmpty()) 0 else 1,
+            startDate = filter.startDate,
+            endDate = filter.endDate,
+            minAmount = filter.minAmount,
+            maxAmount = filter.maxAmount,
+            limit = RESULT_LIMIT + 1
+        )
 
         val results = matched
             .take(RESULT_LIMIT)

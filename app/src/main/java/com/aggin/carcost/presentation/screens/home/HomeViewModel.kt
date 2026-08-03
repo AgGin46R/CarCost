@@ -218,7 +218,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 combine(cars.map { car ->
                     combine(
                         reminderRepository.getActiveReminders(car.id),
-                        expenseRepository.getMonthlyExpenses(car.id),
+                        expenseRepository.getLast30DaysExpenses(car.id),
                         settingsManager.lastChatSeenFlow(car.id).flatMapLatest { lastSeen ->
                             val currentUserId = supabaseAuth.getUserId() ?: ""
                             database.chatMessageDao().getUnreadCount(car.id, lastSeen, currentUserId)
