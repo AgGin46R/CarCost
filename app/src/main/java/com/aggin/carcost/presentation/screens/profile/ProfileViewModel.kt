@@ -172,55 +172,91 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 // параллельно и дописывается в состояние, когда придёт
                 launch { refreshVkLink() }
 
-                userDao.getUserById(userId).collect { user ->
-                    if (user != null) {
-                        val cars = carDao.getAllActiveCars().first()
-                        val allExpenses = mutableListOf<Expense>()
-                        cars.forEach { car ->
-                            val carExpenses = expenseDao.getExpensesByCar(car.id).first()
-                            allExpenses.addAll(carExpenses)
-                        }
-
-                        // Compute driver score from first car's data (or aggregate)
-                        val driverScore = try {
-                            val cal = java.util.Calendar.getInstance()
-                            val month = cal.get(java.util.Calendar.MONTH) + 1
-                            val year = cal.get(java.util.Calendar.YEAR)
-                            val firstCar = cars.firstOrNull()
-                            val reminders = if (firstCar != null)
-                                reminderDao.getAllRemindersByCarId(firstCar.id).first()
-                            else emptyList()
-                            val budgets = if (firstCar != null)
-                                budgetDao.getBudgetsByCarIdAndPeriod(firstCar.id, month, year).first()
-                            else emptyList()
-                            val odometer = cars.maxOfOrNull { it.currentOdometer } ?: 0
-                            DriverScoreCalculator.calculate(allExpenses, reminders, budgets, odometer)
-                        } catch (e: Exception) { null }
-
-                        // isVkAccount и hasPasswordLogin читают метаданные уже
-                        // загруженной сессии — сети не требуют, ждать нечего
+                // Личность — своим потоком
+                launch {
+                    userDao.getUserById(userId).collect { user ->
                         _uiState.update {
                             it.copy(
                                 user = user,
-                                statistics = UserStatistics(
-                                    carsCount = cars.size,
-                                    totalExpenses = allExpenses.sumOf { e -> e.amount },
-                                    totalOdometer = cars.sumOf { c -> c.currentOdometer }
-                                ),
-                                driverScore = driverScore,
                                 isLoading = false,
+                                // Читают метаданные уже загруженной сессии — сети не требуют
                                 isVkAccount = supabaseAuth.isVkAccount(),
                                 hasPasswordLogin = supabaseAuth.hasPasswordLogin()
                             )
                         }
-                    } else {
-                        _uiState.update { it.copy(user = null, isLoading = false) }
                     }
+                }
+
+                // Статистика — СВОИМ потоком, по машинам и расходам.
+                //
+                // Раньше она считалась внутри подписки на таблицу пользователей.
+                // При добавлении расхода эта строка не меняется, поэтому сумма
+                // не пересчитывалась: при первом открытии, пока локальная база
+                // ещё пуста, показывался ноль — и оставался нулём, сколько бы
+                // записей человек ни внёс, до перезахода в аккаунт.
+                //
+                // Сумму считает SQL. Прежний способ — поднять в память все
+                // расходы всех машин и сложить — стоил заметной паузы на
+                // большой истории ради одного числа.
+                launch {
+                    combine(
+                        carDao.getAllActiveCars(),
+                        expenseDao.getTotalAmountOfAllExpenses()
+                    ) { cars, total -> cars to (total ?: 0.0) }
+                        .collect { (cars, total) ->
+                            _uiState.update {
+                                it.copy(
+                                    statistics = UserStatistics(
+                                        carsCount = cars.size,
+                                        totalExpenses = total,
+                                        totalOdometer = cars.sumOf { c -> c.currentOdometer }
+                                    ),
+                                    isLoading = false
+                                )
+                            }
+                            recalculateDriverScore(cars)
+                        }
                 }
             } else {
                 _uiState.update { it.copy(user = null, isLoading = false) }
             }
         }
+    }
+
+    /**
+     * Рейтинг водителя.
+     *
+     * Пересчитывается вместе со статистикой — то есть при любом изменении машин
+     * или расходов, а не только когда меняется строка профиля.
+     *
+     * Здесь расходы всё-таки поднимаются в память: расчёту нужен список записей,
+     * а не сумма. Зато это происходит на фоновом потоке и только при реальном
+     * изменении данных.
+     */
+    private suspend fun recalculateDriverScore(cars: List<com.aggin.carcost.data.local.database.entities.Car>) {
+        val score = try {
+            val allExpenses = mutableListOf<Expense>()
+            cars.forEach { car -> allExpenses += expenseDao.getExpensesByCarIdSync(car.id) }
+
+            val cal = java.util.Calendar.getInstance()
+            val month = cal.get(java.util.Calendar.MONTH) + 1
+            val year = cal.get(java.util.Calendar.YEAR)
+            val firstCar = cars.firstOrNull()
+
+            val reminders = if (firstCar != null)
+                reminderDao.getAllRemindersByCarId(firstCar.id).first() else emptyList()
+            val budgets = if (firstCar != null)
+                budgetDao.getBudgetsByCarIdAndPeriod(firstCar.id, month, year).first() else emptyList()
+
+            DriverScoreCalculator.calculate(
+                allExpenses, reminders, budgets,
+                cars.maxOfOrNull { it.currentOdometer } ?: 0
+            )
+        } catch (e: Exception) {
+            android.util.Log.w("ProfileViewModel", "Не удалось посчитать рейтинг", e)
+            null
+        }
+        _uiState.update { it.copy(driverScore = score) }
     }
 
     /**

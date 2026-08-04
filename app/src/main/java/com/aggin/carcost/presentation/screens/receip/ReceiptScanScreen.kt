@@ -32,6 +32,8 @@ import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -45,6 +47,9 @@ fun ReceiptScanScreen(
 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var imageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    // Колбэки выбора файла и съёмки приходят на главный поток; работу с
+    // изображением уводим отсюда в корутину
+    val scope = rememberCoroutineScope()
 
     // --- ЛОГИКА ЗАПРОСА РАЗРЕШЕНИЯ НА КАМЕРУ ---
     val cameraPermissionState = rememberPermissionState(
@@ -63,13 +68,20 @@ fun ReceiptScanScreen(
     ) { uri: Uri? ->
         uri?.let {
             selectedImageUri = it
-            // Загружаем bitmap
-            val inputStream: InputStream? = context.contentResolver.openInputStream(it)
-            imageBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-
-            // Запускаем сканирование
-            viewModel.scanReceipt(it, context)
+            // Превью грузится уменьшенным и на фоновом потоке.
+            //
+            // Колбэк выбора файла всегда приходит на главный поток, а здесь стоял
+            // decodeStream без уменьшения: снимок с камеры на 12 Мп разворачивался
+            // в память целиком (около 48 МБ) прямо в кадре отрисовки. На слабом
+            // телефоне это не подтормаживание, а падение по нехватке памяти —
+            // причём картинка нужна лишь для показа в рамке размером с экран.
+            //
+            // Распознаванию полное разрешение тоже не нужно из этого места: ML Kit
+            // читает файл сам, по Uri.
+            scope.launch {
+                imageBitmap = viewModel.loadPreview(context, it)
+                viewModel.scanReceipt(it, context)
+            }
         }
     }
 

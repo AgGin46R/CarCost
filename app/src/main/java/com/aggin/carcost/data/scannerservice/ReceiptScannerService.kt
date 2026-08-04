@@ -15,6 +15,8 @@ import java.util.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class ReceiptData(
     val amount: Double? = null,
@@ -35,7 +37,16 @@ class ReceiptScannerService(private val context: Context) {
     /**
      * Сканировать чек из Uri изображения
      */
-    suspend fun scanReceipt(imageUri: Uri): ReceiptData = suspendCancellableCoroutine { continuation ->
+    /**
+     * Распознаёт чек по Uri.
+     *
+     * withContext(IO) обязателен: `InputImage.fromFilePath` читает и декодирует
+     * файл СИНХРОННО на вызывающем потоке, а suspendCancellableCoroutine сам по
+     * себе поток не меняет. Вызов приходит из viewModelScope, то есть с главного,
+     * и полноразмерный снимок разворачивался прямо в кадре отрисовки.
+     */
+    suspend fun scanReceipt(imageUri: Uri): ReceiptData = withContext(Dispatchers.IO) {
+        suspendCancellableCoroutine { continuation ->
         try {
             val image = InputImage.fromFilePath(context, imageUri)
 
@@ -62,6 +73,7 @@ class ReceiptScannerService(private val context: Context) {
             if (continuation.isActive) {
                 continuation.resume(ReceiptData(text = "Ошибка: ${e.message}"))
             }
+        }
         }
     }
 
@@ -361,5 +373,15 @@ class ReceiptScannerService(private val context: Context) {
         } catch (e: Exception) {
             false
         }
+    }
+
+    /**
+     * Освобождает распознаватель ML Kit.
+     *
+     * TextRecognizer держит нативные ресурсы и рабочий поток. Раньше метода не
+     * было вовсе, и ни один созданный распознаватель не закрывался.
+     */
+    fun close() {
+        runCatching { recognizer.close() }
     }
 }
