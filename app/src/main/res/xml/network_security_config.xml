@@ -7,8 +7,15 @@
         </trust-anchors>
     </base-config>
 
-    <!-- Разрешаем HTTPS для Supabase -->
+    <!--
+        Только HTTPS, без исключений.
+
+        mycarcost.ru — свой сервер, куда переехал Supabase. Домены supabase.co
+        оставлены: пока облачный проект жив, к нему ещё можно откатиться одной
+        строкой в local.properties. Когда его выключат — эти две строки удалить.
+    -->
     <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">mycarcost.ru</domain>
         <domain includeSubdomains="true">supabase.co</domain>
         <domain includeSubdomains="true">api.supabase.com</domain>
     </domain-config>

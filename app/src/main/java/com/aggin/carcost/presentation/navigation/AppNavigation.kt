@@ -67,6 +67,7 @@ sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Register : Screen("register")
     object ForgotPassword : Screen("forgot_password")
+    object PrivacyPolicy : Screen("privacy_policy")
     object Home : Screen("home")
     object Profile : Screen("profile")
     object AddCar : Screen("add_car")
@@ -326,6 +327,11 @@ fun AppNavigation(
 
         composable(Screen.ForgotPassword.route) {
             com.aggin.carcost.presentation.screens.auth.ForgotPasswordScreen(navController = navController)
+        }
+
+        // Доступен и до входа: согласие при регистрации ссылается именно сюда
+        composable(Screen.PrivacyPolicy.route) {
+            com.aggin.carcost.presentation.screens.legal.PrivacyPolicyScreen(navController = navController)
         }
 
         // Главные экраны

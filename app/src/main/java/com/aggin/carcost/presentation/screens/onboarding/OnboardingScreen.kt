@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -276,92 +278,106 @@ fun OnboardingScreen(navController: NavController) {
 
 @Composable
 private fun OnboardingPageContent(page: OnboardingPage) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Иконка в круглом контейнере
-        Box(
+    // Содержимое страницы фиксированное и на обычном экране помещается, но при
+    // крупном системном шрифте заголовок с описанием разрастаются вдвое. Column
+    // без прокрутки в такой ситуации не уводит лишнее вниз, а сплющивает нижние
+    // элементы — текст превратился бы в обрезанную полоску.
+    //
+    // Одной verticalScroll мало: внутри прокрутки высота не ограничена, и
+    // Arrangement.Center перестаёт центрировать — страница уехала бы к верхнему
+    // краю. Поэтому heightIn(min = maxHeight): содержимое занимает минимум экран,
+    // центрируется как раньше, а когда перерастает — начинает прокручиваться.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val screenHeight = maxHeight
+        Column(
             modifier = Modifier
-                .size(140.dp)
-                .clip(CircleShape)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            page.iconBackground,
-                            BackgroundDark
-                        )
-                    )
-                )
-                .background(page.iconBackground),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = screenHeight)
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            // Внешнее свечение
+            // Иконка в круглом контейнере
             Box(
                 modifier = Modifier
-                    .size(120.dp)
+                    .size(140.dp)
                     .clip(CircleShape)
-                    .background(page.iconTint.copy(alpha = 0.08f)),
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                page.iconBackground,
+                                BackgroundDark
+                            )
+                        )
+                    )
+                    .background(page.iconBackground),
                 contentAlignment = Alignment.Center
             ) {
+                // Внешнее свечение
                 Box(
                     modifier = Modifier
-                        .size(90.dp)
+                        .size(120.dp)
                         .clip(CircleShape)
-                        .background(page.iconTint.copy(alpha = 0.12f)),
+                        .background(page.iconTint.copy(alpha = 0.08f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = page.icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(52.dp),
-                        tint = page.iconTint
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(90.dp)
+                            .clip(CircleShape)
+                            .background(page.iconTint.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = page.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(52.dp),
+                            tint = page.iconTint
+                        )
+                    }
                 }
             }
-        }
 
-        Spacer(Modifier.height(48.dp))
+            Spacer(Modifier.height(48.dp))
 
-        // Заголовок раздела
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = page.iconTint.copy(alpha = 0.15f)
-        ) {
+            // Заголовок раздела
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = page.iconTint.copy(alpha = 0.15f)
+            ) {
+                Text(
+                    text = page.title,
+                    color = page.iconTint,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Основной заголовок
             Text(
-                text = page.title,
-                color = page.iconTint,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                text = page.subtitle,
+                color = TextPrimary,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center,
+                lineHeight = 34.sp
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            // Описание
+            Text(
+                text = page.description,
+                color = TextSecondary,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 22.sp
             )
         }
-
-        Spacer(Modifier.height(16.dp))
-
-        // Основной заголовок
-        Text(
-            text = page.subtitle,
-            color = TextPrimary,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-            textAlign = TextAlign.Center,
-            lineHeight = 34.sp
-        )
-
-        Spacer(Modifier.height(20.dp))
-
-        // Описание
-        Text(
-            text = page.description,
-            color = TextSecondary,
-            fontSize = 15.sp,
-            textAlign = TextAlign.Center,
-            lineHeight = 22.sp
-        )
     }
 }

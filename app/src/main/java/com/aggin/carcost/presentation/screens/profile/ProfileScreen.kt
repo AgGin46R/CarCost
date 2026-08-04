@@ -930,6 +930,14 @@ fun ActionsSection(
                 Icons.Default.BugReport, "Сообщить об ошибке",
                 onClick = { navController.navigateOnce(Screen.BugReport.route) }
             )
+            // Согласие даётся при регистрации, но сам документ должен оставаться
+            // доступным и после неё — этого требует RuStore, да и просто разумно
+            SettingsRow(
+                Icons.Default.PrivacyTip,
+                "Политика конфиденциальности",
+                subtitle = "Какие данные собираются и зачем",
+                onClick = { navController.navigateOnce(Screen.PrivacyPolicy.route) }
+            )
         }
 
         SettingsGroup("Мои данные") {

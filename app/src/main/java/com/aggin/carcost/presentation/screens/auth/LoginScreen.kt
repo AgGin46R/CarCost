@@ -1,6 +1,8 @@
 package com.aggin.carcost.presentation.screens.auth
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
@@ -61,13 +63,18 @@ fun LoginScreen(
             )
         }
     ) { paddingValues ->
+        // Прокрутка — по той же причине, что и на экране регистрации: Column без
+        // неё не уводит лишнее содержимое вниз, а сплющивает нижние элементы в
+        // полоску. Здесь форма пока помещается, но с открытой клавиатурой окно
+        // сжимается (windowSoftInputMode=adjustResize), и без прокрутки кнопки
+        // под полем пароля стали бы недоступны.
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Логотип
             Icon(

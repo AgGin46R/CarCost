@@ -19,6 +19,15 @@
 --
 --  ВНИМАНИЕ: notify_push глушит любые ошибки (EXCEPTION WHEN OTHERS THEN NULL),
 --  поэтому при несовпадении секрета пуши умрут МОЛЧА. Проверять по логам функции.
+--
+--  ── После переезда на свой сервер ───────────────────────────────────────────
+--  Адрес сменился с https://<ref>.supabase.co на http://kong:8000 — это имя
+--  шлюза во внутренней сети docker. Запрос больше не выходит в интернет, чтобы
+--  вернуться обратно: не зависит ни от сертификата, ни от того, резолвится ли
+--  домен, и не считается внешним трафиком.
+--
+--  anon-ключ тоже сменился: облачный выписан другим проектом и здесь
+--  недействителен. Подставлять актуальный из /opt/supabase/.env (ANON_KEY).
 -- ════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION public.notify_app_update()
@@ -28,10 +37,10 @@ CREATE OR REPLACE FUNCTION public.notify_app_update()
 AS $function$
 BEGIN
     PERFORM net.http_post(
-        url     := 'https://mkwwidzaovxosnhsjomy.supabase.co/functions/v1/send-version-push',
+        url     := 'http://kong:8000/functions/v1/send-version-push',
         headers := jsonb_build_object(
             'Content-Type', 'application/json',
-            'apikey',       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rd3dpZHphb3Z4b3NuaHNqb215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2NDgzNTEsImV4cCI6MjA3OTIyNDM1MX0.jycoe9IJe2xUv7QXP8aafubFBzebK6tsjKr0Ca4gh_M',
+            'apikey',       '__ANON_KEY__',
             'x-webhook-secret', '__WEBHOOK_SECRET__'
         ),
         body := jsonb_build_object(
@@ -58,10 +67,10 @@ CREATE OR REPLACE FUNCTION public.notify_push(
 AS $function$
 BEGIN
     PERFORM net.http_post(
-        url := 'https://mkwwidzaovxosnhsjomy.supabase.co/functions/v1/send-push-notification',
+        url := 'http://kong:8000/functions/v1/send-push-notification',
         headers := jsonb_build_object(
             'Content-Type', 'application/json',
-            'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rd3dpZHphb3Z4b3NuaHNqb215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2NDgzNTEsImV4cCI6MjA3OTIyNDM1MX0.jycoe9IJe2xUv7QXP8aafubFBzebK6tsjKr0Ca4gh_M',
+            'Authorization', 'Bearer __ANON_KEY__',
             'x-webhook-secret', '__WEBHOOK_SECRET__'
         ),
         body := jsonb_build_object(

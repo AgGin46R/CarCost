@@ -84,8 +84,23 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                         Log.d("Login", "UserInfo: id=${userInfo.id}, email=${userInfo.email}")
                         Log.d("Login", "UserMetadata: ${userInfo.userMetadata}")
 
-                        // Загружаем профиль из Supabase таблицы users
-                        viewModelScope.launch {
+                        // Профиль грузится и сохраняется ДО перехода на главный экран.
+                        //
+                        // Раньше здесь был вложенный viewModelScope.launch, а переход
+                        // выполнялся сразу, не дожидаясь его. Но переход выкидывает экран
+                        // входа из стека (popUpTo с inclusive), ViewModel уничтожается, и
+                        // viewModelScope отменяется вместе с незавершённой корутиной —
+                        // строка профиля просто не успевала записаться в локальную базу.
+                        // Пользователь попадал в приложение с пустым профилем: без имени,
+                        // без почты и без фото, вместо имени — «Пользователь».
+                        //
+                        // Гонка не всегда проигрывалась: пока запрос успевал уложиться в
+                        // доли секунды, всё выглядело исправным. Проявилось после переезда
+                        // на свой сервер, где первое соединение занимает чуть дольше.
+                        //
+                        // Вход через ВКонтакте ниже всегда делал это правильно, через
+                        // withContext, — здесь та же схема.
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             val userProfile = try {
                                 fetchUserProfileFromSupabase(userInfo.id)
                             } catch (e: Exception) {
@@ -108,7 +123,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                             Log.d("Login", "✅ User saved locally with displayName: ${user.displayName}, photoUrl: ${user.photoUrl}")
                         }
 
-                        // Сразу переходим на главный экран
+                        // Переходим на главный экран — профиль к этому моменту уже в базе
                         _uiState.value = state.copy(
                             isLoading = false,
                             isSuccess = true

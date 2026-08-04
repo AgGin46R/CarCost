@@ -21,6 +21,9 @@ import androidx.navigation.NavController
 import com.aggin.carcost.R
 import com.aggin.carcost.presentation.navigation.navigateOnce
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +34,7 @@ fun RegisterScreen(
     viewModel: RegisterViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
 
@@ -59,13 +63,27 @@ fun RegisterScreen(
             )
         }
     ) { paddingValues ->
+        // Прокрутка обязательна, а не «на всякий случай».
+        //
+        // Column без неё раздаёт детям высоту в пределах экрана. Когда содержимое
+        // перестаёт помещаться, последним элементам достаётся ноль — они не
+        // уезжают вниз, а сплющиваются в полоску прямо на месте. Поймано после
+        // добавления блока согласия на обработку данных: кнопка регистрации
+        // через ВКонтакте превратилась в пустую рамку высотой в пару пикселей.
+        //
+        // Форма и так на грани по высоте, а с открытой клавиатурой окно ещё и
+        // сжимается (windowSoftInputMode=adjustResize) — без прокрутки нижние
+        // поля становятся недоступны.
+        //
+        // Arrangement.Center убран намеренно: внутри прокрутки высота не
+        // ограничена, центрировать не по чему, и он лишь вводил бы в заблуждение.
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Логотип
             Icon(
@@ -174,7 +192,50 @@ fun RegisterScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Согласие на обработку данных ──────────────────────────────────
+            //
+            // Требование RuStore: пользователя нужно уведомить о сборе данных и
+            // получить согласие ДО того, как аккаунт будет создан. Поэтому
+            // флажок гасит обе кнопки регистрации — и по почте, и через ВК:
+            // обе заводят учётную запись и начинают обработку данных.
+            //
+            // Согласие должно быть активным действием, поэтому именно флажок,
+            // а не строка мелким шрифтом «продолжая, вы соглашаетесь».
+            var consentGiven by rememberSaveable { mutableStateOf(false) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top
+            ) {
+                Checkbox(
+                    checked = consentGiven,
+                    onCheckedChange = { consentGiven = it },
+                    enabled = !uiState.isLoading
+                )
+                Column(modifier = Modifier.padding(top = 12.dp)) {
+                    Text(
+                        text = "Я согласен на обработку моих персональных данных",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = "Политика конфиденциальности",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .clickable {
+                                navController.navigateOnce(
+                                    com.aggin.carcost.presentation.navigation.Screen.PrivacyPolicy.route
+                                )
+                            }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Кнопка регистрации
             Button(
@@ -182,7 +243,7 @@ fun RegisterScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = !uiState.isLoading
+                enabled = !uiState.isLoading && consentGiven
             ) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator(
@@ -198,13 +259,12 @@ fun RegisterScreen(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(12.dp))
 
-            val context = LocalContext.current
-
             // Кнопка регистрации через ВКонтакте
             OutlinedButton(
                 onClick = { viewModel.signInWithVk(context) },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = !uiState.isLoading
+                // Вход через ВК тоже заводит учётную запись — согласие нужно и здесь
+                enabled = !uiState.isLoading && consentGiven
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_vk),

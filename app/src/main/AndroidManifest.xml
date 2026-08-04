@@ -18,7 +18,15 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!--
+        ACCESS_BACKGROUND_LOCATION удалено: оно объявлялось, но НИ РАЗУ не
+        запрашивалось в коде. Запись поездок идёт через сервис переднего плана
+        с постоянным уведомлением, а ему это разрешение не требуется.
+
+        RuStore относит его к чувствительным и просит обосновать каждое —
+        обосновывать разрешение ради несуществующей функции нечем, и лишний
+        повод для отказа при модерации не нужен.
+    -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
