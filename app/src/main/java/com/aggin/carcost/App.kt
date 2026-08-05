@@ -9,7 +9,6 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.aggin.carcost.data.notifications.BackgroundSyncWorker
-import com.aggin.carcost.data.update.UpdateCheckWorker
 import com.aggin.carcost.data.notifications.BudgetAlertWorker
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
@@ -123,7 +122,6 @@ class App : Application() {
             scheduleFluidCheck()
             scheduleYearOwnerCheck()
             BackgroundSyncWorker.schedule(this@App)
-            UpdateCheckWorker.schedule(this@App)
             Log.d(TAG, "Фоновая инициализация завершена")
         }
 

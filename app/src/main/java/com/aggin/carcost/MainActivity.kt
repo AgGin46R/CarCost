@@ -16,8 +16,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.notifications.NotificationHelper
-import com.aggin.carcost.data.update.AppUpdateManager
-import com.aggin.carcost.data.update.VersionInfo
 import com.aggin.carcost.presentation.navigation.AppNavigation
 import com.aggin.carcost.ui.theme.CarCostTheme
 import com.google.firebase.messaging.FirebaseMessaging
@@ -54,19 +52,17 @@ class MainActivity : ComponentActivity() {
             val settingsManager = SettingsManager(LocalContext.current)
             val theme by settingsManager.themeFlow.collectAsState(initial = "System")
             val accent by settingsManager.accentFlow.collectAsState(initial = "Blue")
-            var pendingUpdate by remember { mutableStateOf<VersionInfo?>(null) }
-            val updateManager = remember { AppUpdateManager(this) }
-
-            // Check for update on start OR when opened from update push notification
-            LaunchedEffect(Unit) {
-                pendingUpdate = updateManager.checkForUpdate()
-            }
-            LaunchedEffect(pendingNavRoute) {
-                if (pendingNavRoute == "__update__") {
-                    pendingUpdate = updateManager.checkForUpdate()
-                    pendingNavRoute = null
-                }
-            }
+            // Самообновление убрано: обновления идут через магазин.
+            //
+            // Приложение само скачивало APK и просило его установить — для этого
+            // нужно разрешение REQUEST_INSTALL_PACKAGES, которое RuStore относит
+            // к чувствительным и требует обосновывать. Обосновывать нечем:
+            // магазин обновляет приложения сам, а второй механизм рядом с ним
+            // означал бы, что у людей стоят версии, которых в магазине нет.
+            //
+            // Серверная часть (таблица app_config, триггер, send-version-push)
+            // намеренно оставлена нетронутой: если механизм понадобится вне
+            // магазина, возвращается откатом одного коммита.
 
             CarCostTheme(themeSetting = theme, accentSetting = accent) {
                 Surface(
@@ -79,36 +75,6 @@ class MainActivity : ComponentActivity() {
                         onNavRouteConsumed = { pendingNavRoute = null }
                     )
 
-                    pendingUpdate?.let { info ->
-                        AlertDialog(
-                            onDismissRequest = { if (!info.forceUpdate) pendingUpdate = null },
-                            title = { Text("Доступно обновление ${info.versionName}") },
-                            text = {
-                                Text(
-                                    buildString {
-                                        if (info.releaseNotes.isNotBlank()) {
-                                            appendLine(info.releaseNotes)
-                                            appendLine()
-                                        }
-                                        append("Обновление будет загружено в фоне и установлено автоматически.")
-                                    }
-                                )
-                            },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    updateManager.downloadAndInstall(info.apkUrl)
-                                    if (!info.forceUpdate) pendingUpdate = null
-                                }) { Text("Обновить") }
-                            },
-                            dismissButton = if (info.forceUpdate) null else {
-                                {
-                                    TextButton(onClick = { pendingUpdate = null }) {
-                                        Text("Позже")
-                                    }
-                                }
-                            }
-                        )
-                    }
                 }
             }
         }
@@ -125,8 +91,6 @@ class MainActivity : ComponentActivity() {
     private fun extractNavRoute(intent: android.content.Intent?): String? {
         val navType = intent?.getStringExtra(NotificationHelper.EXTRA_NAV_TYPE)
             ?: return null
-        // Update notifications have no carId — handle first
-        if (navType == NotificationHelper.NAV_TYPE_UPDATE) return "__update__"
         val carId = intent.getStringExtra(NotificationHelper.EXTRA_NAV_CAR_ID)
             ?: return null
         return when (navType) {

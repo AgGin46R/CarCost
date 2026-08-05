@@ -12,7 +12,12 @@
         tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!--
+        REQUEST_INSTALL_PACKAGES удалено вместе с самообновлением: приложение
+        больше не скачивает и не ставит APK само, обновления идут через магазин.
+        RuStore относит это разрешение к чувствительным и требует обоснования,
+        а обосновывать механизм, дублирующий магазин, нечем.
+    -->
 
     <!-- Разрешения для карты и геолокации -->
     <uses-permission android:name="android.permission.INTERNET" />
