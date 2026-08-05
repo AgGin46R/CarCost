@@ -22,6 +22,8 @@ import com.aggin.carcost.data.notifications.NotificationHelper
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
+import com.aggin.carcost.data.remote.rustore.RuStorePushTokenManager
+import ru.rustore.sdk.pushclient.RuStorePushClient
 import com.aggin.carcost.data.sync.RealtimeSyncManager
 import com.aggin.carcost.data.sync.SyncRepositoryFactory
 import com.vk.id.VKID
@@ -146,21 +148,54 @@ class App : Application() {
             Log.e(TAG, "Failed to initialize RealtimeSyncManager", e)
         }
 
-        // Регистрируем FCM токен в Supabase (нужен для push когда приложение закрыто)
+        initRuStorePush()
+
+        // Регистрируем пуш-токены в Supabase (нужны для push когда приложение закрыто).
+        // Токенов может быть два: Firebase и RuStore — какой сработает, зависит от
+        // устройства, поэтому регистрируем оба и решение оставляем серверу.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             FcmTokenManager.registerCurrentToken()
+            RuStorePushTokenManager.registerCurrentToken()
         }
 
-        // Reconnect Realtime and refresh FCM token every time app comes to foreground
+        // Reconnect Realtime and refresh push tokens every time app comes to foreground
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 realtimeSync?.reconnectIfNeeded()
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                     FcmTokenManager.registerCurrentToken()
+                    RuStorePushTokenManager.registerCurrentToken()
                 }
                 syncIfStale()
             }
         })
+    }
+
+    /**
+     * Поднимает пуши RuStore — для устройств без сервисов Google.
+     *
+     * Падать здесь нельзя ни при каких обстоятельствах: приложение RuStore может
+     * быть не установлено, устареть или быть лишено фоновой работы. Любая такая
+     * ситуация — не ошибка, а обычное состояние телефона, на котором доставку
+     * возьмёт на себя Firebase. Поэтому всё завёрнуто в catch и только логируется.
+     *
+     * Без идентификатора проекта инициализация пропускается: приложение
+     * собирается и работает, просто уведомления идут одним транспортом.
+     */
+    private fun initRuStorePush() {
+        if (BuildConfig.RUSTORE_PUSH_PROJECT_ID.isBlank()) {
+            Log.d(TAG, "RuStore Push не настроен — идентификатор проекта пуст")
+            return
+        }
+        try {
+            RuStorePushClient.init(
+                application = this,
+                projectId = BuildConfig.RUSTORE_PUSH_PROJECT_ID
+            )
+            Log.d(TAG, "RuStore Push инициализирован")
+        } catch (e: Exception) {
+            Log.w(TAG, "RuStore Push недоступен: ${e.message}")
+        }
     }
 
     /**

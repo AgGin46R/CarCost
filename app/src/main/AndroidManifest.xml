@@ -97,6 +97,23 @@
             </intent-filter>
         </service>
 
+        <!--
+            RuStore Push — второй транспорт, для устройств без сервисов Google.
+            Доставка идёт через установленное приложение RuStore; если его нет,
+            сервис просто не получит сообщений, и уведомления придут по Firebase.
+
+            Мета-данные с каналом уведомлений SDK не задаём: сообщения у нас
+            data-only, показывает их наш собственный код в PushMessageHandler,
+            а не SDK.
+        -->
+        <service
+            android:name=".data.remote.rustore.CarCostRuStoreMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.rustore.sdk.pushclient.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -16,6 +16,7 @@ import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.domain.gamification.DriverScore
 import com.aggin.carcost.domain.gamification.DriverScoreCalculator
 import com.aggin.carcost.data.remote.fcm.FcmTokenManager
+import com.aggin.carcost.data.remote.rustore.RuStorePushTokenManager
 import com.aggin.carcost.data.remote.api.VkAuthApi
 import com.aggin.carcost.data.remote.api.VkLinkResult
 import com.aggin.carcost.data.remote.api.DeleteAccountApi
@@ -123,6 +124,15 @@ sealed interface PasswordChangeState {
     data class Error(val message: String) : PasswordChangeState
 }
 
+/**
+ * Сколько ждать восстановления сессии перед тем, как признать пользователя
+ * неавторизованным. Две секунды — с запасом: восстановление читает токен из
+ * локального хранилища, сети не требует. Если не уложились, экран останется
+ * пустым, и это правильное поведение для действительно вышедшего человека.
+ */
+private const val SESSION_WAIT_TIMEOUT_MS = 2_000L
+private const val SESSION_WAIT_STEP_MS = 100L
+
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
@@ -165,7 +175,26 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
      */
     private fun loadUserData() {
         viewModelScope.launch(Dispatchers.IO) {
-            val userId = supabaseAuth.getUserId()
+            // Ждём восстановления сессии, а не спрашиваем идентификатор разово.
+            //
+            // Раньше getUserId() вызывался один раз при создании экрана. Если
+            // приложение долго не открывали, сессия к этому моменту ещё
+            // восстанавливается из хранилища, и метод возвращает null — тогда
+            // блок ниже пропускался ЦЕЛИКОМ: не подписывались ни профиль, ни
+            // машины, ни расходы. На экране оставались начальные нули, и в
+            // статистике честно горело «потрачено 0», пока человек не обновит
+            // экран: пересозданная модель заставала сессию уже готовой.
+            //
+            // Ждём ограниченное время, а не бесконечно: если сессии нет вовсе
+            // (человек не авторизован), экран просто останется пустым, как и
+            // задумано, а корутина не повиснет навсегда.
+            var userId = supabaseAuth.getUserId()
+            var waited = 0L
+            while (userId == null && waited < SESSION_WAIT_TIMEOUT_MS) {
+                kotlinx.coroutines.delay(SESSION_WAIT_STEP_MS)
+                waited += SESSION_WAIT_STEP_MS
+                userId = supabaseAuth.getUserId()
+            }
 
             if (userId != null) {
                 // Привязка ВКонтакте — единственное, что требует сети. Грузится
@@ -503,8 +532,26 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             try {
                 val currentUser = _uiState.value.user ?: return@launch
 
-                // Обновляем в Supabase
-                supabaseAuth.updateProfile(displayName = newName)
+                // Сервер первым, и его ответ обязателен к проверке.
+                //
+                // Раньше результат updateProfile выбрасывался, а локальная запись
+                // и экран обновлялись безусловно. updateProfile при этом глушит
+                // исключения внутри себя и возвращает Result.failure — то есть при
+                // неудачной отправке человек видел новое имя, а на сервере
+                // оставалось старое. При следующем входе профиль подтягивался с
+                // сервера и затирал введённое, а чат, который берёт имена из
+                // серверной таблицы, показывал старое имя всегда.
+                //
+                // Поэтому: не сохранилось на сервере — не сохраняем и локально,
+                // и говорим об этом вслух. Молча расходиться эти две копии не должны.
+                val result = supabaseAuth.updateProfile(displayName = newName)
+                if (result.isFailure) {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "Не удалось сохранить имя: " +
+                            (result.exceptionOrNull()?.message ?: "нет связи с сервером")
+                    )
+                    return@launch
+                }
 
                 // Обновляем локально
                 val updatedUser = currentUser.copy(displayName = newName)
@@ -718,8 +765,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 // Дальше — разрушительная часть, она же точка невозврата
                 _uiState.update { it.copy(isSigningOut = true, logoutBlocked = false) }
 
-                // Удаляем FCM токен чтобы не получать чужие уведомления после выхода
+                // Удаляем пуш-токены, чтобы не получать чужие уведомления после
+                // выхода. Токенов два — Firebase и RuStore; какой из них реально
+                // зарегистрирован, зависит от устройства, поэтому чистим оба.
                 FcmTokenManager.deleteCurrentToken()
+                RuStorePushTokenManager.deleteCurrentToken()
 
                 // Сессию VK нужно сбросить отдельно: иначе следующий вход через VK
                 // молча вернёт того же пользователя, без выбора аккаунта
@@ -926,6 +976,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     // Токен уведомлений — до выхода, иначе на удалённый аккаунт
                     // продолжат приходить пуши по чужим машинам
                     runCatching { FcmTokenManager.deleteCurrentToken() }
+                    runCatching { RuStorePushTokenManager.deleteCurrentToken() }
                     runCatching { supabaseAuth.signOut() }
                     runCatching { database.clearAllTables() }
 

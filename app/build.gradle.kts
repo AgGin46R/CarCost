@@ -30,8 +30,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 74
-        versionName = "5.0.1"
+        versionCode = 76
+        versionName = "5.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -52,6 +52,12 @@ android {
         // всё работает, кроме самого входа через VK.
         val vkClientId = localProps.getProperty("vk.client_id")?.takeIf { it.isNotBlank() } ?: "0"
         val vkClientSecret = localProps.getProperty("vk.client_secret") ?: ""
+
+        // RuStore Push: без идентификатора проекта приложение собирается и
+        // работает, просто уведомления идут только через Firebase.
+        val rustoreProjectId = localProps.getProperty("rustore.push_project_id")
+            ?.takeIf { it.isNotBlank() } ?: ""
+        buildConfigField("String", "RUSTORE_PUSH_PROJECT_ID", "\"$rustoreProjectId\"")
 
         buildConfigField("String", "VK_CLIENT_ID", "\"$vkClientId\"")
         manifestPlaceholders["VKIDClientID"] = vkClientId
@@ -132,6 +138,17 @@ dependencies {
     // Firebase Cloud Messaging — мгновенные push даже когда приложение закрыто
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging-ktx")
+
+    // RuStore Push — не замена Firebase, а дополнение для устройств без сервисов
+    // Google. Работает только если на телефоне установлено приложение RuStore и
+    // ему разрешена работа в фоне; на остальных устройствах доставку по-прежнему
+    // обеспечивает Firebase. Оба транспорта живут одновременно, а какой из них
+    // использовать для конкретного устройства — решает сервер по колонке provider
+    // в user_push_tokens.
+    //
+    // 7.3.0 — последняя стабильная: у 7.4.0 и 8.0.0 в репозитории только
+    // релиз-кандидаты. Репозиторий тот же, что у VK ID, отдельно добавлять не надо.
+    implementation("ru.rustore.sdk:pushclient:7.3.0")
 
     // Compose
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))

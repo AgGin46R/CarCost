@@ -88,7 +88,11 @@ interface VkProfile {
  * Бросает исключение на любой отказ — детали остаются в логах, наружу уходит 401.
  */
 async function fetchVkProfile(accessToken: string, deviceId: string): Promise<VkProfile> {
-  const url = `${VK_USER_INFO_URL}?client_id=${encodeURIComponent(vkClientId)}&v=${VK_API_VERSION}`
+  // lang=ru — чтобы имя и фамилия приходили кириллицей, а не транслитерацией
+  // («Dmitri Samochow» вместо «Дмитрий Самохов»). Если у человека в профиле ВК
+  // имя записано латиницей, параметр не поможет — тогда спасает только
+  // переименование в самом приложении, оно теперь сохраняется как надо.
+  const url = `${VK_USER_INFO_URL}?client_id=${encodeURIComponent(vkClientId)}&v=${VK_API_VERSION}&lang=ru`
 
   const resp = await fetch(url, {
     method: 'POST',

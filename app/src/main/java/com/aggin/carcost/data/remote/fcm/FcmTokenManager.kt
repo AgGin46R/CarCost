@@ -18,6 +18,12 @@ private data class PushTokenDto(
     @SerialName("user_id") val userId: String,
     val token: String,
     val platform: String = "android",
+    /**
+     * Каким транспортом слать. Появилось вместе с поддержкой RuStore Push:
+     * сервер выбирает способ доставки по этому полю. В базе значение по
+     * умолчанию тоже fcm, поэтому записи, сделанные до этой правки, корректны.
+     */
+    val provider: String = "fcm",
 )
 
 /**

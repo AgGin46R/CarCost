@@ -71,6 +71,47 @@ async function getAccessToken(sa: Record<string, string>): Promise<string> {
   return data.access_token
 }
 
+/**
+ * Отправка через RuStore Push — второй транспорт, для устройств без сервисов
+ * Google. API объявлен как drop-in замена Firebase, поэтому тело почти то же.
+ *
+ * Секция notification не нужна: по правилам валидации RuStore сообщение с
+ * непустым message.data самодостаточно, а уведомление рисует само приложение.
+ * Приоритета там нет — из android поддерживается только ttl.
+ */
+async function sendRuStore(
+  projectId: string,
+  serviceToken: string,
+  token: string,
+  data: Record<string, string>,
+): Promise<void> {
+  const resp = await fetch(
+    `https://vkpns.rustore.ru/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceToken}`,
+      },
+      body: JSON.stringify({
+        message: {
+          token,
+          data,
+          android: { ttl: '86400s' },
+        },
+      }),
+    },
+  )
+  if (!resp.ok) {
+    const err = await resp.text()
+    // Протухший токен — обычное дело, о нём не шумим. Остальное важно видеть:
+    // 401 и 403 означают неверный сервисный токен, то есть доставка встала у всех.
+    if (!err.includes('UNREGISTERED') && !err.includes('NOT_FOUND')) {
+      console.warn(`RuStore error [${resp.status}] for token ${token.slice(0, 12)}…: ${err}`)
+    }
+  }
+}
+
 async function sendFcm(
   projectId: string,
   accessToken: string,
@@ -144,20 +185,20 @@ Deno.serve(async (req) => {
 
     const { data: tokenRows, error: tokenErr } = await supabase
       .from('user_push_tokens')
-      .select('token')
+      .select('token, provider')
 
     if (tokenErr) throw tokenErr
 
-    const tokens: string[] = (tokenRows ?? []).map((r: { token: string }) => r.token)
+    // Транспорт выбирается по колонке provider. Пустое значение — записи,
+    // сделанные до её появления: они firebase-овские, как и значение по умолчанию.
+    const rows = (tokenRows ?? []) as Array<{ token: string; provider: string | null }>
+    const tokens: string[] = rows.filter((r) => (r.provider ?? 'fcm') === 'fcm').map((r) => r.token)
+    const ruTokens: string[] = rows.filter((r) => r.provider === 'rustore').map((r) => r.token)
 
-    if (tokens.length === 0) {
-      console.log('No FCM tokens registered — nobody to notify')
+    if (tokens.length === 0 && ruTokens.length === 0) {
+      console.log('Ни одного пуш-токена не зарегистрировано — некого уведомлять')
       return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
     }
-
-    const sa          = JSON.parse(serviceAccountJson)
-    const accessToken = await getAccessToken(sa)
-    const projectId   = sa.project_id
 
     const fcmData: Record<string, string> = {
       type:          'new_version',
@@ -168,17 +209,46 @@ Deno.serve(async (req) => {
 
     const BATCH = 500
     let sent = 0
-    for (let i = 0; i < tokens.length; i += BATCH) {
-      const batch = tokens.slice(i, i + BATCH)
-      await Promise.allSettled(
-        batch.map((token) => sendFcm(projectId, accessToken, token, fcmData))
-      )
-      sent += batch.length
+
+    // ── Firebase ────────────────────────────────────────────────────────────
+    // Access token добываем только если есть кому слать: обращение к
+    // oauth2.googleapis.com стоит времени и смысла при пустом списке не имеет.
+    if (tokens.length > 0) {
+      const sa          = JSON.parse(serviceAccountJson)
+      const accessToken = await getAccessToken(sa)
+      const projectId   = sa.project_id
+
+      for (let i = 0; i < tokens.length; i += BATCH) {
+        const batch = tokens.slice(i, i + BATCH)
+        await Promise.allSettled(
+          batch.map((token) => sendFcm(projectId, accessToken, token, fcmData))
+        )
+        sent += batch.length
+      }
     }
 
-    console.log(`Version push sent to ${sent} devices`)
+    // ── RuStore ─────────────────────────────────────────────────────────────
+    // Не настроен — пропускаем. Отсутствие настройки не должно мешать доставке
+    // тем, у кого работает Firebase.
+    const ruProjectId    = Deno.env.get('RUSTORE_PUSH_PROJECT_ID')
+    const ruServiceToken = Deno.env.get('RUSTORE_SERVICE_TOKEN')
+    if (ruTokens.length > 0) {
+      if (ruProjectId && ruServiceToken) {
+        for (let i = 0; i < ruTokens.length; i += BATCH) {
+          const batch = ruTokens.slice(i, i + BATCH)
+          await Promise.allSettled(
+            batch.map((token) => sendRuStore(ruProjectId, ruServiceToken, token, fcmData))
+          )
+          sent += batch.length
+        }
+      } else {
+        console.warn(`RuStore не настроен, пропущено токенов: ${ruTokens.length}`)
+      }
+    }
+
+    console.log(`Уведомление о версии: firebase=${tokens.length}, rustore=${ruTokens.length}`)
     return new Response(
-      JSON.stringify({ sent, version: versionName }),
+      JSON.stringify({ sent, version: versionName, fcm: tokens.length, rustore: ruTokens.length }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     )
   } catch (err) {
