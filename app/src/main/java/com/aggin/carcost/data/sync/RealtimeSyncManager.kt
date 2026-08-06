@@ -24,6 +24,8 @@ import io.github.jan.supabase.realtime.RealtimeChannel
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -115,12 +117,31 @@ class RealtimeSyncManager(private val context: Context) {
             supabase.auth.sessionStatus.collect { status ->
                 when (status) {
                     is SessionStatus.Authenticated -> {
-                        val channelOk = activeChannel?.status?.value == RealtimeChannel.Status.SUBSCRIBED
-                        if (!channelOk) {
-                            Log.d(TAG, "Auth confirmed — (re)connecting Realtime (was: ${activeChannel?.status?.value})")
-                            disconnectChannel()
-                            safeConnect()
-                        }
+                        // Канал пересоздаётся при КАЖДОМ обновлении сессии, а не только
+                        // когда он отвалился.
+                        //
+                        // Realtime запоминает токен в момент подключения и проверяет по
+                        // нему права на каждую строку. Токен живёт час; когда он
+                        // истекает, сессия обновляется и сюда снова приходит
+                        // Authenticated — но канал всё ещё SUBSCRIBED, и прежняя
+                        // проверка `if (!channelOk)` пропускала переподключение. Сокет
+                        // оставался со старым токеном.
+                        //
+                        // Дальше Realtime просто переставал слать события: соединение
+                        // открыто, счётчики подключений растут, ошибок нет, а строки не
+                        // приходят. Поймано на чате: свои сообщения видны (они пишутся
+                        // локально), чужие появляются только после перезахода в чат,
+                        // потому что экран подтягивает их отдельным запросом.
+                        //
+                        // sessionStatus — StateFlow, и Authenticated приходит сюда при
+                        // входе и при обновлении токена, то есть примерно раз в час.
+                        // Переподключение раз в час дешевле, чем молча потерянные
+                        // сообщения; сверять токены вручную не стали, чтобы не зависеть
+                        // от деталей API библиотеки.
+                        Log.d(TAG, "Сессия обновлена — переподключаю Realtime (было: ${activeChannel?.status?.value})")
+                        // Отключение делает сам safeConnect под блокировкой —
+                        // здесь оно только открывало бы окно для гонки
+                        safeConnect()
                     }
                     is SessionStatus.NotAuthenticated -> {
                         Log.d(TAG, "User signed out — stopping Realtime channel")
@@ -143,7 +164,6 @@ class RealtimeSyncManager(private val context: Context) {
             val channelOk = activeChannel?.status?.value == RealtimeChannel.Status.SUBSCRIBED
             if (!channelOk) {
                 Log.d(TAG, "Foreground reconnect — channel was: ${activeChannel?.status?.value}")
-                disconnectChannel()
                 safeConnect()
             } else {
                 Log.d(TAG, "Foreground check — channel already SUBSCRIBED")
@@ -153,7 +173,58 @@ class RealtimeSyncManager(private val context: Context) {
 
     /** Обёртка над connectChannel — ловит SocketException и другие сетевые ошибки,
      *  которые иначе крашат приложение через DefaultDispatcher-worker */
-    private suspend fun safeConnect() {
+    /**
+     * Подключения выполняются строго по одному.
+     *
+     * Триггеров два, и они срабатывают почти одновременно: start() — от появления
+     * сессии, reconnectIfNeeded() — от выхода приложения на передний план. При
+     * запуске приложения оба случались в пределах пяти миллисекунд, и каждый
+     * создавал свой канал с одним и тем же именем carcost-sync. Оба
+     * присоединялись, второй затирал привязки первого — и на сервере не
+     * оставалось ни одной подписки на изменения таблиц.
+     *
+     * Снаружи это выглядело неотличимо от исправной работы: сокет жив,
+     * сердцебиения идут, ошибок нет. А события не приходили вообще — ни в чат,
+     * ни по расходам, ни по напоминаниям. Поймано по журналу устройства: две
+     * строки «Realtime channel subscribed» подряд с разницей в миллисекунду.
+     */
+    private val connectMutex = Mutex()
+
+    /** Когда в последний раз успешно начинали подключение — для защиты от дублей */
+    @Volatile
+    private var lastConnectAt = 0L
+
+    private suspend fun safeConnect() = connectMutex.withLock {
+        // Повторная проверка уже под блокировкой: пока мы ждали очереди,
+        // конкурент мог успешно подключиться, и второй канал только всё сломает.
+        // Проверка по статусу канала ненадёжна: subscribe() возвращает управление
+        // сразу, а SUBSCRIBED выставляется позже, когда сервер подтвердит join.
+        // Второй инициатор успевал заглянуть в промежуточный статус и подключиться
+        // повторно — в журнале это выглядело как две строки «channel subscribed»
+        // из одного потока в одну миллисекунду.
+        //
+        // Поэтому решает время: два запроса на подключение в пределах пары секунд
+        // — это один и тот же запуск приложения (start() от появления сессии и
+        // reconnectIfNeeded() от выхода на передний план срабатывают с разницей
+        // в миллисекунды), а не два разных события.
+        val sinceLast = System.currentTimeMillis() - lastConnectAt
+        if (activeChannel != null && sinceLast < CONNECT_DEBOUNCE_MS) {
+            Log.d(TAG, "Подключение уже выполнено ${sinceLast} мс назад — повторное не требуется")
+            return@withLock
+        }
+        if (activeChannel?.status?.value == RealtimeChannel.Status.SUBSCRIBED) {
+            Log.d(TAG, "Канал уже подписан — повторное подключение не требуется")
+            return@withLock
+        }
+        lastConnectAt = System.currentTimeMillis()
+        // Отключение — тоже под блокировкой, вместе с подключением.
+        //
+        // Раньше disconnectChannel() вызывался у обоих инициаторов ДО safeConnect,
+        // то есть снаружи мьютекса. Второй успевал обнулить activeChannel, пока
+        // первый ещё подключался, — проверка выше видела null и пропускала его
+        // дальше. Каналов снова создавалось два, и подписки на сервере опять
+        // затирались. Гонка не исчезала, а лишь смещалась на шаг.
+        disconnectChannel()
         try {
             connectChannel()
         } catch (e: java.net.SocketException) {
@@ -360,6 +431,20 @@ class RealtimeSyncManager(private val context: Context) {
                 }.catch { Log.w(TAG, "Invitation insert flow error: ${it.message}") }.launchIn(chScope)
             }
 
+            // Пауза перед subscribe() — не «на всякий случай», а из-за гонки.
+            //
+            // postgresChangeFlow регистрирует привязку к таблице не при создании
+            // потока, а когда поток НАЧИНАЕТ собираться. launchIn лишь запускает
+            // корутину и сразу возвращает управление, поэтому следующая строка
+            // отправляла join на сервер раньше, чем корутины успевали стартовать.
+            // Канал присоединялся пустым — без единой подписки на изменения.
+            //
+            // Проверено на сервере: таблица realtime.subscription была пуста при
+            // живых подключениях. Клиент подключался, но не подписывался ни на
+            // что, и сервер честно ничего не отдавал. Отсюда чат, который не
+            // обновляется в реальном времени вообще, а не только через час.
+            kotlinx.coroutines.delay(SUBSCRIBE_DELAY_MS)
+
             ch.subscribe()
             Log.d(TAG, "✅ Realtime channel subscribed")
 
@@ -461,6 +546,25 @@ class RealtimeSyncManager(private val context: Context) {
     }
 
     companion object {
+        /**
+         * Сколько ждать после launchIn, прежде чем присоединять канал.
+         *
+         * Нужно, чтобы корутины успели начать сбор потоков и зарегистрировать
+         * привязки к таблицам — иначе join уходит на сервер пустым. Значение с
+         * запасом: старт корутин занимает миллисекунды, а задержка происходит
+         * один раз при подключении и человеку незаметна.
+         */
+        private const val SUBSCRIBE_DELAY_MS    = 300L
+
+        /**
+         * Окно, в пределах которого повторный запрос на подключение считается
+         * дублем того же самого. Пять секунд с запасом перекрывают разброс между
+         * появлением сессии и выходом приложения на передний план; настоящее
+         * переподключение — после разрыва связи или обновления токена — случается
+         * заметно реже и в это окно не попадает.
+         */
+        private const val CONNECT_DEBOUNCE_MS   = 5_000L
+
         private const val EXPENSE_NOTIF_BASE    = 20_000
         private const val REMINDER_NOTIF_BASE  = 30_000
         private const val CHAT_NOTIF_BASE      = 40_000

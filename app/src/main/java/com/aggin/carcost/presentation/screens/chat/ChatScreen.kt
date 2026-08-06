@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -145,6 +146,16 @@ data class ChatUiState(
     val hasMoreMessages: Boolean = true,
     val pageOffset: Int = 0,
     val sendError: String? = null,
+    /**
+     * Идентификаторы сообщений, вложения которых сейчас загружаются.
+     *
+     * Сообщение попадает в ленту сразу, ещё до отправки файла на сервер — как в
+     * мессенджерах. Пока идентификатор здесь, в пузыре крутится индикатор;
+     * когда загрузка закончилась, он убирается и появляется само вложение.
+     */
+    val uploadingIds: Set<String> = emptySet(),
+    /** Сообщения, чьи вложения загрузить не удалось: показываем ошибку вместо индикатора */
+    val failedUploadIds: Set<String> = emptySet(),
     // messageId → list of reactions
     val reactions: Map<String, List<com.aggin.carcost.data.local.database.entities.ChatReaction>> = emptyMap(),
     // Car members available for @mention (email → userId)
@@ -441,6 +452,33 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Копирует содержимое URI во временный файл и отдаёт сам файл.
+     *
+     * В отличие от readBytesFromUri ничего не держит в памяти: файл потом
+     * уходит на сервер потоком. Для видео это принципиально — ролик на сотню
+     * мегабайт в куче приложения кончается OutOfMemoryError ещё до отправки.
+     *
+     * Вызывающий обязан удалить файл после использования: временная папка сама
+     * не чистится, а видео там копятся быстро.
+     */
+    private fun copyUriToTempFile(uri: Uri, extension: String): File? {
+        return try {
+            val app = getApplication<Application>()
+            val tmp = File(app.cacheDir, "upload_${System.currentTimeMillis()}.$extension")
+            app.contentResolver.openInputStream(uri)?.use { input ->
+                tmp.outputStream().use { out -> input.copyTo(out) }
+            } ?: run {
+                android.util.Log.e("ChatVM", "openInputStream вернул null для $uri")
+                return null
+            }
+            tmp
+        } catch (e: Exception) {
+            android.util.Log.e("ChatVM", "copyUriToTempFile failed: ${e.message}", e)
+            null
+        }
+    }
+
     fun clearSendError() = _uiState.update { it.copy(sendError = null) }
 
     /** Send a text message, optionally with an image. */
@@ -525,31 +563,46 @@ class ChatViewModel(
             _uiState.update { it.copy(isSending = true, sendError = null) }
             try {
                 val extension = fileName.substringAfterLast('.', "bin")
-                val bytes = readBytesFromUri(uri, extension)
-                if (bytes == null) {
+                // Тоже потоком: документ или архив может весить не меньше видео
+                val tmp = copyUriToTempFile(uri, extension)
+                if (tmp == null) {
                     _uiState.update { it.copy(isSending = false, sendError = "Не удалось прочитать файл") }
                     return@launch
                 }
-                val mimeType = mimeTypeForExtension(extension)
                 val messageId = UUID.randomUUID().toString()
 
-                val uploadResult = supabaseChat.uploadMedia(carId, messageId, bytes, extension, mimeType)
-                if (uploadResult.isFailure) {
-                    _uiState.update { it.copy(isSending = false, sendError = "Ошибка загрузки файла: ${uploadResult.exceptionOrNull()?.message}") }
-                    return@launch
-                }
-                val mediaUrl = uploadResult.getOrNull()
-
-                val message = ChatMessage(
+                // Как и с видео: пузырь в ленту сразу, вложение подставится после
+                val pending = ChatMessage(
                     id = messageId,
                     carId = carId,
                     userId = userId,
                     userEmail = email,
                     message = "",
-                    mediaUrl = mediaUrl,
+                    mediaUrl = null,
                     mediaType = "file",
                     fileName = fileName
                 )
+                db.chatMessageDao().insert(pending)
+                _uiState.update { it.copy(uploadingIds = it.uploadingIds + messageId) }
+
+                val uploadResult = try {
+                    supabaseChat.uploadMediaFile(carId, messageId, tmp, extension)
+                } finally {
+                    tmp.delete()
+                    _uiState.update { it.copy(uploadingIds = it.uploadingIds - messageId) }
+                }
+                if (uploadResult.isFailure) {
+                    _uiState.update {
+                        it.copy(
+                            isSending = false,
+                            failedUploadIds = it.failedUploadIds + messageId,
+                            sendError = "Ошибка загрузки файла: ${uploadResult.exceptionOrNull()?.message}"
+                        )
+                    }
+                    return@launch
+                }
+
+                val message = pending.copy(mediaUrl = uploadResult.getOrNull())
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
             } catch (e: Exception) {
@@ -580,29 +633,55 @@ class ChatViewModel(
                 val uploadMime = if (extension != "mp4") "video/mp4" else mimeType
                 val uploadExt = "mp4"
 
-                val bytes = readBytesFromUri(uri, uploadExt)
-                if (bytes == null) {
+                // Видео уходит потоком из временного файла, а не через ByteArray:
+                // ролик целиком в памяти — верный OutOfMemoryError на слабом телефоне
+                val tmp = copyUriToTempFile(uri, uploadExt)
+                if (tmp == null) {
                     _uiState.update { it.copy(isSending = false, sendError = "Не удалось прочитать видео") }
                     return@launch
                 }
                 val messageId = UUID.randomUUID().toString()
-                val uploadResult = supabaseChat.uploadMedia(carId, messageId, bytes, uploadExt, uploadMime)
-                if (uploadResult.isFailure) {
-                    _uiState.update { it.copy(isSending = false, sendError = "Ошибка загрузки видео: ${uploadResult.exceptionOrNull()?.message}") }
-                    return@launch
-                }
-                val mediaUrl = uploadResult.getOrNull()
 
-                val message = ChatMessage(
+                // Сообщение появляется в ленте СРАЗУ, ещё без адреса файла.
+                //
+                // Раньше пузырь возникал только после загрузки: человек жал
+                // отправить, видел крошечный кружок в кнопке и полминуты не
+                // понимал, идёт что-то или зависло. Теперь порядок как в
+                // мессенджерах — сначала сообщение с индикатором, потом
+                // вложение на его месте.
+                val pending = ChatMessage(
                     id = messageId,
                     carId = carId,
                     userId = userId,
                     userEmail = email,
                     message = "",
-                    mediaUrl = mediaUrl,
+                    mediaUrl = null,
                     mediaType = "video",
                     fileName = "video.mp4"
                 )
+                db.chatMessageDao().insert(pending)
+                _uiState.update { it.copy(uploadingIds = it.uploadingIds + messageId) }
+
+                val uploadResult = try {
+                    supabaseChat.uploadMediaFile(carId, messageId, tmp, uploadExt)
+                } finally {
+                    tmp.delete()
+                    _uiState.update { it.copy(uploadingIds = it.uploadingIds - messageId) }
+                }
+                if (uploadResult.isFailure) {
+                    // Пузырь остаётся в ленте, но помечается как несостоявшийся:
+                    // молча исчезнувшее сообщение хуже видимой ошибки
+                    _uiState.update {
+                        it.copy(
+                            isSending = false,
+                            failedUploadIds = it.failedUploadIds + messageId,
+                            sendError = "Ошибка загрузки видео: ${uploadResult.exceptionOrNull()?.message}"
+                        )
+                    }
+                    return@launch
+                }
+
+                val message = pending.copy(mediaUrl = uploadResult.getOrNull())
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
             } catch (e: Exception) {
@@ -893,10 +972,36 @@ fun ChatScreen(carId: String, navController: NavController) {
         pendingMediaUri = uri
     }
 
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    // GetContent, а не OpenDocument.
+    //
+    // С OpenDocument окно выбора открывалось, файл выбирался, окно закрывалось —
+    // и результат до приложения не доходил: колбэк не вызывался вообще, что
+    // подтверждено журналом устройства (запись стояла первой строкой, до всякой
+    // проверки, и не появлялась ни разу — даже при отмене).
+    //
+    // При этом фотографии и видео в этом же экране выбираются нормально, и они
+    // используют GetContent. Чинить разницу между двумя контрактами смысла нет,
+    // когда один из них уже доказал работоспособность на этом же устройстве.
+    //
+    // Постоянные права на адрес файла нам не нужны: содержимое сразу копируется
+    // во временный файл в кэше, и дальше работаем с ним.
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        // Всё тело под защитой: getFileName лезет в ContentResolver, а тот у
+        // некоторых поставщиков файлов бросает SecurityException. Раньше
+        // исключение убивало колбэк молча — файл выбран, а в приложении не
+        // происходит ничего, будто выбора и не было.
+        android.util.Log.d("ChatVM", "Выбор файла: uri=${uri ?: "отменено"}")
         if (uri != null) {
+            val name = try {
+                getFileName(context, uri)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatVM", "Не удалось получить имя файла: ${e.message}", e)
+                // Имя не критично: без него отправим как «file», лишь бы не потерять выбор
+                uri.lastPathSegment?.substringAfterLast('/') ?: "file"
+            }
             pendingFileUri = uri
-            pendingFileName = getFileName(context, uri)
+            pendingFileName = name
+            android.util.Log.d("ChatVM", "Файл выбран: $name")
         }
     }
 
@@ -1143,6 +1248,8 @@ fun ChatScreen(carId: String, navController: NavController) {
                                 selectedMemberProfile = message.userId to message.userEmail
                             }) else ({}),
                             senderName = uiState.senderNames[message.userId],
+                            isUploading = message.id in uiState.uploadingIds,
+                            uploadFailed = message.id in uiState.failedUploadIds,
                             onJumpToMessage = { targetId ->
                                 screenScope.launch {
                                     val grouped = uiState.messages.groupByDate()
@@ -1200,14 +1307,14 @@ fun ChatScreen(carId: String, navController: NavController) {
                 headlineContent = { Text("Документ") },
                 supportingContent = { Text("PDF, Word, TXT, JSON, PPTX") },
                 modifier = Modifier.clickable {
-                    filePicker.launch(arrayOf(
-                        "application/pdf",
-                        "text/plain",
-                        "application/msword",
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        "application/json"
-                    ))
+                    // Любой тип файла.
+                    //
+                    // Раньше здесь стоял список из шести типов, и всё остальное —
+                    // таблицу, архив, картинку — выбрать было нельзя. Ограничение
+                    // снято и в корзине chat_media: держать список разрешённых
+                    // типов в двух местах — верный способ однажды получить
+                    // молчаливый отказ уже при отправке.
+                    filePicker.launch("*/*")
                     showAttachSheet = false
                 }
             )
@@ -1512,7 +1619,11 @@ private fun ChatBubble(
     onToggleReaction: (String) -> Unit = {},
     isOnline: Boolean = false,
     onAvatarClick: () -> Unit = {},
-    senderName: String? = null
+    senderName: String? = null,
+    /** Вложение ещё загружается — вместо него показываем индикатор */
+    isUploading: Boolean = false,
+    /** Загрузка вложения не удалась — показываем это, а не пустой пузырь */
+    uploadFailed: Boolean = false
 ) {
     // Имя из профиля, если оно известно. Email — запасной вариант: у пользователей,
     // вошедших через VK без почты, адрес синтетический (vk123456789@…)
@@ -1721,8 +1832,65 @@ private fun ChatBubble(
                     val bubbleBg = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                     val onBubble = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
 
-                    when (message.mediaType) {
-                        "audio" -> {
+                    when {
+                        // Вложение ещё едет на сервер или не доехало.
+                        //
+                        // Перехватываем до разбора по типу: у такого сообщения
+                        // mediaUrl пустой, и обычные ветки нарисовали бы пустой
+                        // пузырь или сломанный проигрыватель. Человек должен
+                        // видеть, что файл отправляется, а не гадать.
+                        isUploading || uploadFailed -> {
+                            Card(
+                                shape = bubbleShape,
+                                colors = CardDefaults.cardColors(containerColor = bubbleBg)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                                        .widthIn(min = 170.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (uploadFailed) {
+                                        Icon(
+                                            Icons.Default.ErrorOutline,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    } else {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(22.dp),
+                                            strokeWidth = 2.dp,
+                                            color = onBubble
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = message.fileName?.takeIf { it.isNotBlank() }
+                                                ?: when (message.mediaType) {
+                                                    "video" -> "Видео"
+                                                    "file"  -> "Файл"
+                                                    else    -> "Вложение"
+                                                },
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = onBubble,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (uploadFailed) "Не удалось отправить" else "Отправляется…",
+                                            fontSize = 11.sp,
+                                            color = if (uploadFailed) MaterialTheme.colorScheme.error
+                                                    else onBubble.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        message.mediaType == "audio" -> {
                             Box(
                                 modifier = Modifier.clip(bubbleShape).background(bubbleBg).padding(horizontal = 12.dp, vertical = 8.dp).widthIn(min = 180.dp)
                             ) {
@@ -1773,7 +1941,7 @@ private fun ChatBubble(
                             }
                         }
 
-                        "file" -> {
+                        message.mediaType == "file" -> {
                             Card(
                                 shape = bubbleShape,
                                 colors = CardDefaults.cardColors(containerColor = bubbleBg),
@@ -1795,7 +1963,7 @@ private fun ChatBubble(
                             }
                         }
 
-                        "video" -> {
+                        message.mediaType == "video" -> {
                             VideoPlayerBubble(
                                 url = message.mediaUrl ?: "",
                                 bubbleShape = bubbleShape
@@ -2130,8 +2298,23 @@ private fun fileColor(fileName: String): Color {
     }
 }
 
+/**
+ * MIME-тип файла по расширению.
+ *
+ * Корзина chat_media принимает только перечисленный в её настройках список типов
+ * и отвергает всё остальное. Раньше неизвестное расширение превращалось в
+ * application/octet-stream — типа, которого в списке нет, — и загрузка падала.
+ * Ломалось это на видео: mp4 в when отсутствовал, хотя video/mp4 корзина
+ * разрешает. Размер файла был ни при чём, не проходило и односекундное видео.
+ *
+ * Неизвестные расширения теперь разбирает системный справочник Android: он
+ * знает про mov, webm, heic и сотни других. Явный список оставлен там, где
+ * системный ответ не совпадает с тем, что ждёт корзина, — например для m4a,
+ * который система относит к audio/mp4.
+ */
 private fun mimeTypeForExtension(ext: String): String {
-    return when (ext.lowercase()) {
+    val lower = ext.lowercase()
+    return when (lower) {
         "pdf" -> "application/pdf"
         "doc" -> "application/msword"
         "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2139,7 +2322,10 @@ private fun mimeTypeForExtension(ext: String): String {
         "json" -> "application/json"
         "txt" -> "text/plain"
         "m4a" -> "audio/m4a"
-        else -> "application/octet-stream"
+        "mp4" -> "video/mp4"
+        else -> android.webkit.MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(lower)
+            ?: "application/octet-stream"
     }
 }
 

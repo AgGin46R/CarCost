@@ -6,6 +6,8 @@ import com.aggin.carcost.supabase
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
+import io.github.jan.supabase.storage.upload
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -153,6 +155,37 @@ class SupabaseChatRepository {
             Result.success(url)
         } catch (e: Exception) {
             Log.e("ChatRepo", "uploadMedia FAILED: ${e::class.simpleName}: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Загрузка файла потоком, без чтения в память.
+     *
+     * Вариант с ByteArray выше годится для фотографий: они сжимаются до
+     * нескольких сотен килобайт. Для видео он опасен — файл целиком оказывается
+     * в куче приложения, и на слабом телефоне сотня мегабайт кончается
+     * OutOfMemoryError ещё до отправки.
+     *
+     * Здесь библиотека читает файл каналом и отдаёт его по мере чтения:
+     * в памяти держится только буфер, а не весь ролик.
+     *
+     * Тип содержимого выводится из расширения в пути — отдельным параметром его
+     * передавать некуда, версия библиотеки такого не принимает.
+     */
+    suspend fun uploadMediaFile(
+        carId: String,
+        messageId: String,
+        file: File,
+        extension: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val path = "$carId/$messageId.$extension"
+            val bucket = supabase.storage.from("chat_media")
+            bucket.upload(path = path, file = file, upsert = true)
+            Result.success(bucket.publicUrl(path))
+        } catch (e: Exception) {
+            Log.e("ChatRepo", "uploadMediaFile FAILED: ${e::class.simpleName}: ${e.message}", e)
             Result.failure(e)
         }
     }
