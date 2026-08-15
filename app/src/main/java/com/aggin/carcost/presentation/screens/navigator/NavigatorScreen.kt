@@ -40,6 +40,7 @@ import com.yandex.mapkit.map.CameraListener
 import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.map.CameraUpdateReason
 import com.yandex.mapkit.map.InputListener
+import com.yandex.mapkit.map.MapObject
 import com.yandex.mapkit.map.MapObjectCollection
 import com.yandex.mapkit.mapview.MapView
 import kotlin.math.roundToInt
@@ -47,6 +48,32 @@ import com.aggin.carcost.presentation.navigation.navigateOnce
 import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Убрать объект с карты, не рискуя вылетом.
+ *
+ * Объекты карты живут в нативной части MapKit, а в Kotlin лежит лишь слабая
+ * ссылка. Она умирает вместе с самим объектом: после удаления, при пересоздании
+ * карты, при повороте экрана. Обращение к такой ссылке — не исключение, которое
+ * можно поймать по месту, а падение всего приложения с текстом
+ * «Native object's weak_ptr has expired».
+ *
+ * Ровно это и происходило в навигации: полилинии пройденного и оставшегося пути
+ * пересчитываются на каждой точке GPS, но переприсваиваются лишь по условию, и
+ * в начале маршрута в переменной оставался уже удалённый объект.
+ *
+ * Проверка [MapObject.isValid] — то, о чём просит сам MapKit в тексте ошибки.
+ * try/catch рядом — на случай, если объект умрёт между проверкой и удалением.
+ */
+private fun MapObjectCollection?.removeSafely(obj: MapObject?) {
+    val collection = this ?: return
+    if (obj == null || !obj.isValid || !collection.isValid) return
+    try {
+        collection.remove(obj)
+    } catch (e: RuntimeException) {
+        android.util.Log.w("Navigator", "Объект карты уже уничтожен: ${e.message}")
+    }
+}
+
 @Composable
 fun NavigatorScreen(
     navController: NavController,
@@ -72,7 +99,11 @@ fun NavigatorScreen(
 
     // Init TTS speaker
     val context = LocalContext.current
-    LaunchedEffect(Unit) { viewModel.initSpeaker(context) }
+    LaunchedEffect(Unit) {
+        viewModel.initSpeaker(context)
+        // Unit как ключ: считаем открытие экрана, а не каждую перерисовку
+        com.aggin.carcost.data.analytics.Analytics.navigatorOpened()
+    }
 
     // Map refs — must be declared before LaunchedEffects that reference them
     var mapView by remember { mutableStateOf<MapView?>(null) }
@@ -111,9 +142,9 @@ fun NavigatorScreen(
         val objects = mapObjects ?: map.mapObjects.also { mapObjects = it }
 
         // Remove old polylines
-        routePolyline?.let { objects.remove(it) }
+        objects.removeSafely(routePolyline)
         routePolyline = null
-        altRoutePolylines.forEach { objects.remove(it) }
+        altRoutePolylines.forEach { objects.removeSafely(it) }
         altRoutePolylines.clear()
 
         // Draw alternative routes first (behind primary)
@@ -163,18 +194,18 @@ fun NavigatorScreen(
     // Destination pin
     LaunchedEffect(uiState.destinationPoint) {
         val point = uiState.destinationPoint ?: run {
-            destMarker?.let { mapObjects?.remove(it) }
+            mapObjects.removeSafely(destMarker)
             destMarker = null
             // Also clear route polylines
-            routePolyline?.let { mapObjects?.remove(it) }
+            mapObjects.removeSafely(routePolyline)
             routePolyline = null
-            altRoutePolylines.forEach { mapObjects?.remove(it) }
+            altRoutePolylines.forEach { mapObjects.removeSafely(it) }
             altRoutePolylines.clear()
             return@LaunchedEffect
         }
         val map = mapView?.mapWindow?.map ?: return@LaunchedEffect
         val objects = mapObjects ?: map.mapObjects.also { mapObjects = it }
-        destMarker?.let { objects.remove(it) }
+        objects.removeSafely(destMarker)
         destMarker = objects.addPlacemark(point)
     }
 
@@ -182,7 +213,7 @@ fun NavigatorScreen(
     LaunchedEffect(uiState.poiItems) {
         val map = mapView?.mapWindow?.map ?: return@LaunchedEffect
         val objects = mapObjects ?: map.mapObjects.also { mapObjects = it }
-        poiMarkers.forEach { objects.remove(it) }
+        poiMarkers.forEach { objects.removeSafely(it) }
         poiMarkers.clear()
         uiState.poiItems.forEach { poi ->
             poiMarkers.add(objects.addPlacemark(poi.point))
@@ -384,9 +415,14 @@ fun NavigatorScreen(
                 dLat * dLat + dLon * dLon
             } ?: 0
 
-            traveledPolyline?.let { objects.remove(it) }
-            remainingPolyline?.let { objects.remove(it) }
-            routePolyline?.let { objects.remove(it) }
+            // Обнуляем сразу же: ниже они присваиваются только по условию, и без
+            // этого в начале и в конце маршрута в переменной остался бы объект,
+            // которого на карте уже нет
+            objects.removeSafely(traveledPolyline)
+            traveledPolyline = null
+            objects.removeSafely(remainingPolyline)
+            remainingPolyline = null
+            objects.removeSafely(routePolyline)
             routePolyline = null
 
             if (closestIdx > 0) {

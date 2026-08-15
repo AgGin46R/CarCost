@@ -47,7 +47,7 @@ object RuStorePushTokenManager {
         if (!isConfigured) return@withContext
 
         try {
-            val userId = supabase.auth.currentUserOrNull()?.id ?: run {
+            val userId = awaitUserId() ?: run {
                 Log.d(TAG, "Пользователь не авторизован, токен не регистрируем")
                 return@withContext
             }
@@ -85,6 +85,29 @@ object RuStorePushTokenManager {
         } catch (e: Exception) {
             Log.w(TAG, "Не удалось удалить токен RuStore: ${e.message}")
         }
+    }
+
+    /**
+     * Дождаться готовности сессии.
+     *
+     * Регистрация вызывается при запуске и при каждом возврате из фона, и в оба
+     * момента сессия ещё поднимается из хранилища: в журнале это видно как
+     * «Пользователь не авторизован». Разовый вопрос в такую секунду возвращает
+     * пусто, и токен не регистрируется никогда — в базе за всё время не появилось
+     * ни одного токена RuStore при двух десятках токенов Firebase.
+     *
+     * У Firebase есть второй заход по смене состояния входа, здесь его нет,
+     * поэтому ждём явно. Пять секунд: запуск приложения бывает медленным, а
+     * лишнее ожидание в фоновой корутине никому не мешает.
+     */
+    private suspend fun awaitUserId(): String? {
+        var waited = 0L
+        while (waited < 5_000L) {
+            supabase.auth.currentUserOrNull()?.id?.let { return it }
+            kotlinx.coroutines.delay(250L)
+            waited += 250L
+        }
+        return supabase.auth.currentUserOrNull()?.id
     }
 
     /**

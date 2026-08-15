@@ -774,6 +774,10 @@ class AddExpenseViewModel(
             // 8. Сбрасываем состояние
             _uiState.value = state.copy(isSaving = false)
 
+            // Считаем только состоявшиеся сохранения: событие стоит после
+            // записи, а не после нажатия кнопки
+            com.aggin.carcost.data.analytics.Analytics.expenseAdded(state.category.name)
+
             // 9. Вызываем onSuccess
             onSuccess()
 

@@ -258,6 +258,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
                 // 3. Успех - сбрасываем состояние
                 _uiState.value = state.copy(isSaving = false)
+                com.aggin.carcost.data.analytics.Analytics.carAdded()
                 onSuccess()
 
             } catch (e: Exception) {

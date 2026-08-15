@@ -89,6 +89,9 @@ fun EnhancedAnalyticsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val pullRefreshState = rememberPullToRefreshState()
 
+    // Ключ carId, а не Unit: переход между машинами — это новое открытие раздела
+    LaunchedEffect(carId) { com.aggin.carcost.data.analytics.Analytics.analyticsOpened() }
+
     Scaffold(
         topBar = {
             TopAppBar(

@@ -255,6 +255,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteCar(car: Car) {
         viewModelScope.launch {
+            com.aggin.carcost.data.analytics.Analytics.carDeleted()
+
             // 1. Удаляем локально
             carRepository.deleteCar(car)
             Log.d("HomeViewModel", "Car deleted locally: ${car.id}")

@@ -8,6 +8,10 @@ plugins {
     id("kotlin-parcelize")
     id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21"
     id("com.google.gms.google-services")
+    // Tracer — сбор вылетов, зависаний и утечек памяти. Бесплатный, живёт в
+    // кабинете RuStore. Плагин нужен ради выгрузки файлов сопоставления: без
+    // них стек вылета в релизной сборке остаётся набором вида «y5.y.invokeSuspend».
+    id("ru.ok.tracer") version "1.4.0"
 }
 
 val localProps = Properties()
@@ -30,8 +34,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 96
-        versionName = "5.1.3"
+        versionCode = 99
+        versionName = "5.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -58,6 +62,12 @@ android {
         val rustoreProjectId = localProps.getProperty("rustore.push_project_id")
             ?.takeIf { it.isNotBlank() } ?: ""
         buildConfigField("String", "RUSTORE_PUSH_PROJECT_ID", "\"$rustoreProjectId\"")
+
+        // MyTracker: ключ выдаётся в кабинете при добавлении приложения.
+        // Пусто — аналитика просто не включается, сборка не ломается.
+        val myTrackerKey = localProps.getProperty("mytracker.sdk_key")
+            ?.takeIf { it.isNotBlank() } ?: ""
+        buildConfigField("String", "MYTRACKER_SDK_KEY", "\"$myTrackerKey\"")
 
         buildConfigField("String", "VK_CLIENT_ID", "\"$vkClientId\"")
         manifestPlaceholders["VKIDClientID"] = vkClientId
@@ -101,6 +111,9 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        // Требование Tracer: через ресурсы-значения он передаёт в приложение
+        // ключ приложения, проставленный на этапе сборки
+        resValues = true
     }
 
     packaging {
@@ -110,7 +123,43 @@ android {
     }
 }
 
+/**
+ * Ключи Tracer.
+ *
+ * Оба берутся из кабинета Tracer и, как и остальные ключи проекта, лежат в
+ * local.properties — файле, которого нет в git. Захардкоженные ключи однажды
+ * уже утекли в историю репозитория, повторять это не будем.
+ *
+ * Пустые значения допустимы: без ключей приложение собирается и работает,
+ * просто отчёты никуда не уходят. Это важно, чтобы проект собирался у любого,
+ * кто не заводил себе Tracer.
+ */
+tracer {
+    create("defaultConfig") {
+        pluginToken = localProps.getProperty("tracer.plugin_token").orEmpty()
+        appToken = localProps.getProperty("tracer.app_token").orEmpty()
+    }
+}
+
 dependencies {
+    // Tracer: вылеты в Kotlin и в нативных библиотеках. Второе здесь не
+    // формальность — сегодняшний вылет навигатора пришёл именно из нативной
+    // части Яндекс-карт, и без этого модуля он бы не попал в отчёт.
+    implementation(platform("ru.ok.tracer:tracer-platform:1.4.0"))
+    implementation("ru.ok.tracer:tracer-crash-report")
+    implementation("ru.ok.tracer:tracer-crash-report-native")
+    // Модуль утечек памяти (tracer-heap-dumps) подключать НЕ надо — решение
+    // осознанное, а не забытое. Снимок кучи выгружает наружу всё, что было в
+    // памяти приложения: переписку, содержимое файлов из чата, данные машин.
+    // Ради поиска вылетов такая цена неоправданна. Отчёт о сбое несёт только
+    // модель устройства, версии и место в коде — этого достаточно.
+
+    // MyTracker — продуктовая аналитика: запуски, экраны, удержание.
+    // Версия задана диапазоном 3.3.+ — так в документации; внутри одной минорной
+    // ветки обновления совместимы. Если понадобится воспроизводимая сборка,
+    // зафиксируйте точную версию из отчёта ./gradlew :app:dependencies.
+    implementation("com.my.tracker:mytracker-sdk:3.3.+")
+
     // Core Android
     implementation("androidx.core:core-ktx:1.13.1")
     // Системный splash: без него на холодном старте видно пустое белое окно,

@@ -8,7 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -242,10 +244,40 @@ fun AppNavigation(
     // момента (AppStartup). Экран остаётся на случай, когда чтение затянулось
     // дольше предела ожидания заставки.
     val done = onboardingDone
-    if (done == null || sessionStatus is SessionStatus.LoadingFromStorage) {
+    val isLoadingSession = done == null || sessionStatus is SessionStatus.LoadingFromStorage
+
+    /**
+     * Заставка показывается ТОЛЬКО до первой готовности, и больше никогда.
+     *
+     * Раньше условие проверялось каждый раз. При возврате из фона supabase
+     * обновляет сессию, её состояние на мгновение снова становится «читаю из
+     * хранилища» — и весь NavHost заменялся заставкой. Композиция уничтожалась
+     * целиком: экран умирал, а вместе с ним умирала регистрация обработчиков
+     * системных окон.
+     *
+     * Отсюда росла та самая беда с вложениями. Выбор файла всегда открывается
+     * сторонним приложением, поэтому не работал никогда. Фото и видео на
+     * Android 13+ выбираются системным окном, которое не выталкивает приложение
+     * в фон, — там всё работало; а на версиях ниже открывается обычное
+     * приложение, и они ломались ровно так же.
+     *
+     * Возврат из фона — не повод показывать заставку: человек уже в приложении.
+     */
+    var wasReady by remember { mutableStateOf(false) }
+    LaunchedEffect(isLoadingSession) { if (!isLoadingSession) wasReady = true }
+    if (isLoadingSession && !wasReady) {
         com.aggin.carcost.presentation.components.StartupScreen()
         return
     }
+
+    // Раньше выход по `done == null` стоял прямо здесь и компилятор сам понимал,
+    // что дальше значение уже не пустое. Теперь проверка живёт в isLoadingSession,
+    // и вывод типов до сюда не дотягивается — говорим явно.
+    //
+    // Пустое значение возможно: экран мог остаться нарисованным с прошлого раза,
+    // пока настройки перечитываются. Считаем, что знакомство не пройдено, — это
+    // безопаснее, чем пустить дальше с неизвестным состоянием.
+    val onboardingCompleted = done == true
 
     // Only treat NotAuthenticated as definitively logged-out.
     // NetworkError / RefreshFailure / any other state = keep the user on their current screen.
@@ -265,9 +297,9 @@ fun AppNavigation(
     //
     // Переходы между входом и главным экраном делаются явным navigate() — здесь
     // нужно только решить, с чего начать.
-    val startDestination = remember(done, pendingInviteToken) {
+    val startDestination = remember(onboardingCompleted, pendingInviteToken) {
         when {
-            !done -> Screen.Onboarding.route
+            !onboardingCompleted -> Screen.Onboarding.route
             isLoggedIn && pendingInviteToken != null -> Screen.AcceptInvite.createRoute(pendingInviteToken)
             isLoggedIn -> Screen.Home.route
             else -> Screen.Login.route

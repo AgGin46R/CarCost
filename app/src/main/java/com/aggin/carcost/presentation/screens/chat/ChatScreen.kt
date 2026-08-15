@@ -28,8 +28,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -106,6 +108,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -169,6 +172,14 @@ data class ChatUiState(
     // userId → отображаемое имя отправителя (email — только запасной вариант)
     val senderNames: Map<String, String> = emptyMap()
 )
+
+/**
+ * Сколько ждать восстановления сессии перед тем, как признать отправку
+ * невозможной. Две секунды с запасом: сессия читается из локального хранилища,
+ * сети для этого не требуется.
+ */
+private const val SESSION_WAIT_MS = 2_000L
+private const val SESSION_STEP_MS = 100L
 
 class ChatViewModel(
     application: Application,
@@ -236,6 +247,17 @@ class ChatViewModel(
             // Fetch all reactions for this car's messages
             supabaseReactions.getReactionsForCar(carId).onSuccess { remoteReactions ->
                 remoteReactions.forEach { r -> try { db.chatReactionDao().insert(r) } catch (_: Exception) {} }
+                // Сервер — истина: всё, чего в его ответе нет, снято кем-то другим
+                // и должно исчезнуть и у нас. Без этого снятые реакции оставались
+                // на экране навсегда.
+                try {
+                    val messageIds = _uiState.value.messages.map { it.id }
+                    if (messageIds.isNotEmpty()) {
+                        db.chatReactionDao().deleteMissing(messageIds, remoteReactions.map { it.id })
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("ChatVM", "Не удалось убрать снятые реакции: ${e.message}")
+                }
             }
         }
         // Polling удалён: Realtime WebSocket в RealtimeSyncManager обновляет chat_messages
@@ -379,6 +401,17 @@ class ChatViewModel(
             // Always refresh reactions after syncing messages
             supabaseReactions.getReactionsForCar(carId).onSuccess { remoteReactions ->
                 remoteReactions.forEach { r -> try { db.chatReactionDao().insert(r) } catch (_: Exception) {} }
+                // Сервер — истина: всё, чего в его ответе нет, снято кем-то другим
+                // и должно исчезнуть и у нас. Без этого снятые реакции оставались
+                // на экране навсегда.
+                try {
+                    val messageIds = _uiState.value.messages.map { it.id }
+                    if (messageIds.isNotEmpty()) {
+                        db.chatReactionDao().deleteMissing(messageIds, remoteReactions.map { it.id })
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("ChatVM", "Не удалось убрать снятые реакции: ${e.message}")
+                }
             }
         }
     }
@@ -479,18 +512,78 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Идентификатор пользователя, с ожиданием восстановления сессии.
+     *
+     * Сессия поднимается из локального хранилища и в первые мгновения после
+     * возврата в приложение ещё не готова — в журнале это видно как
+     * «User not authenticated». Спрашивать её разово в такой момент значит
+     * получить null и тихо отменить отправку.
+     *
+     * Ждём ограниченное время: если человек действительно не авторизован,
+     * корутина не повиснет, а вызывающий покажет ошибку вместо молчания.
+     */
+    /**
+     * Повторить операцию, пока она не удастся.
+     *
+     * Реакция ставится мгновенно на экране и лишь потом уходит на сервер. Если
+     * отказ откатить сразу, при любом дрожании связи реакция появляется и тут же
+     * пропадает — а человек ничего плохого не сделал, просто попал в неудачную
+     * секунду. Три попытки с нарастающей паузой покрывают обычные обрывы; всё,
+     * что не прошло и после них, — уже настоящий отказ, и вот его показать честно.
+     */
+    private suspend fun <T> retrying(attempts: Int = 3, block: suspend () -> Result<T>): Result<T> {
+        var result = block()
+        var pause = 400L
+        repeat(attempts - 1) {
+            if (result.isSuccess) return result
+            delay(pause)
+            pause *= 2
+            result = block()
+        }
+        return result
+    }
+
+    private suspend fun awaitUserId(): String? {
+        var id = auth.getUserId()
+        var waited = 0L
+        while (id == null && waited < SESSION_WAIT_MS) {
+            delay(SESSION_STEP_MS)
+            waited += SESSION_STEP_MS
+            id = auth.getUserId()
+        }
+        if (id == null) android.util.Log.w("ChatVM", "Сессия не восстановилась за $waited мс")
+        return id
+    }
+
     fun clearSendError() = _uiState.update { it.copy(sendError = null) }
 
     /** Send a text message, optionally with an image. */
     fun sendMessage(text: String, mediaUri: Uri? = null) {
         val trimmed = text.trim()
         if (trimmed.isBlank() && mediaUri == null) return
-        val userId = auth.getUserId() ?: return
-        val email = auth.getCurrentUserEmail() ?: ""
         val replyTo = _uiState.value.replyingTo
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSending = true, replyingTo = null, sendError = null) }
+            // Ждём восстановления сессии, а не выходим молча.
+            //
+            // Раньше здесь стояло `auth.getUserId() ?: return` ДО запуска
+            // корутины: если сессия ещё поднималась из хранилища, метод выходил
+            // сразу и бесследно — ни отправки, ни ошибки, ни записи в журнал.
+            // Снаружи это выглядело как «выбрал файл, и ничего не произошло».
+            //
+            // В журнале устройства при возврате в приложение видно ровно это
+            // состояние: «User not authenticated». Та же болезнь чинилась
+            // сегодня в ProfileViewModel, где из-за неё статистика показывала нули.
+            val userId = awaitUserId()
+            if (userId == null) {
+                _uiState.update {
+                    it.copy(isSending = false, sendError = "Не удалось определить пользователя — попробуйте ещё раз")
+                }
+                return@launch
+            }
+            val email = auth.getCurrentUserEmail() ?: ""
             try {
                 val messageId = UUID.randomUUID().toString()
                 var mediaUrl: String? = null
@@ -545,6 +638,9 @@ class ChatViewModel(
                 )
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
+                com.aggin.carcost.data.analytics.Analytics.chatMessageSent(
+                    if (mediaUrl != null) "photo" else "text"
+                )
             } catch (e: Exception) {
                 android.util.Log.e("ChatVM", "sendMessage failed", e)
                 _uiState.update { it.copy(sendError = "Ошибка отправки: ${e.message}") }
@@ -556,11 +652,26 @@ class ChatViewModel(
 
     /** Send a file (pdf, doc, etc.) */
     fun sendFile(uri: Uri, fileName: String) {
-        val userId = auth.getUserId() ?: return
-        val email = auth.getCurrentUserEmail() ?: ""
-
         viewModelScope.launch {
             _uiState.update { it.copy(isSending = true, sendError = null) }
+            // Ждём восстановления сессии, а не выходим молча.
+            //
+            // Раньше здесь стояло `auth.getUserId() ?: return` ДО запуска
+            // корутины: если сессия ещё поднималась из хранилища, метод выходил
+            // сразу и бесследно — ни отправки, ни ошибки, ни записи в журнал.
+            // Снаружи это выглядело как «выбрал файл, и ничего не произошло».
+            //
+            // В журнале устройства при возврате в приложение видно ровно это
+            // состояние: «User not authenticated». Та же болезнь чинилась
+            // сегодня в ProfileViewModel, где из-за неё статистика показывала нули.
+            val userId = awaitUserId()
+            if (userId == null) {
+                _uiState.update {
+                    it.copy(isSending = false, sendError = "Не удалось определить пользователя — попробуйте ещё раз")
+                }
+                return@launch
+            }
+            val email = auth.getCurrentUserEmail() ?: ""
             try {
                 val extension = fileName.substringAfterLast('.', "bin")
                 // Тоже потоком: документ или архив может весить не меньше видео
@@ -605,6 +716,8 @@ class ChatViewModel(
                 val message = pending.copy(mediaUrl = uploadResult.getOrNull())
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
+                // Только вид вложения — ни имени файла, ни его содержимого
+                com.aggin.carcost.data.analytics.Analytics.chatMessageSent("file")
             } catch (e: Exception) {
                 android.util.Log.e("ChatVM", "sendFile failed", e)
                 _uiState.update { it.copy(sendError = "Ошибка отправки файла: ${e.message}") }
@@ -616,11 +729,26 @@ class ChatViewModel(
 
     /** Send a video file from gallery. */
     fun sendVideo(uri: Uri, context: Context) {
-        val userId = auth.getUserId() ?: return
-        val email = auth.getCurrentUserEmail() ?: ""
-
         viewModelScope.launch {
             _uiState.update { it.copy(isSending = true, sendError = null) }
+            // Ждём восстановления сессии, а не выходим молча.
+            //
+            // Раньше здесь стояло `auth.getUserId() ?: return` ДО запуска
+            // корутины: если сессия ещё поднималась из хранилища, метод выходил
+            // сразу и бесследно — ни отправки, ни ошибки, ни записи в журнал.
+            // Снаружи это выглядело как «выбрал файл, и ничего не произошло».
+            //
+            // В журнале устройства при возврате в приложение видно ровно это
+            // состояние: «User not authenticated». Та же болезнь чинилась
+            // сегодня в ProfileViewModel, где из-за неё статистика показывала нули.
+            val userId = awaitUserId()
+            if (userId == null) {
+                _uiState.update {
+                    it.copy(isSending = false, sendError = "Не удалось определить пользователя — попробуйте ещё раз")
+                }
+                return@launch
+            }
+            val email = auth.getCurrentUserEmail() ?: ""
             try {
                 // Determine MIME type first, before copying
                 val mimeType = context.contentResolver.getType(uri) ?: "video/mp4"
@@ -684,6 +812,7 @@ class ChatViewModel(
                 val message = pending.copy(mediaUrl = uploadResult.getOrNull())
                 db.chatMessageDao().insert(message)
                 supabaseChat.sendMessage(message)
+                com.aggin.carcost.data.analytics.Analytics.chatMessageSent("video")
             } catch (e: Exception) {
                 android.util.Log.e("ChatVM", "sendVideo failed", e)
                 _uiState.update { it.copy(sendError = "Ошибка отправки видео: ${e.message}") }
@@ -892,15 +1021,26 @@ class ChatViewModel(
      */
     fun toggleReaction(messageId: String, emoji: String) {
         viewModelScope.launch {
-            val userId = _uiState.value.currentUserId.ifEmpty { auth.getUserId() ?: return@launch }
-            val userEmail = auth.getCurrentUserEmail() ?: return@launch
+            // Та же болезнь, что в отправке сообщений: без готовой сессии
+            // выходили молча. Здесь она особенно заметна — правило доступа к
+            // chat_reactions сверяет user_id с auth.uid(), и без сессии сервер
+            // отвергает запись. Реакция появлялась и через мгновение пропадала.
+            val userId = _uiState.value.currentUserId.ifEmpty { awaitUserId().orEmpty() }
+            if (userId.isEmpty()) {
+                _uiState.update { it.copy(sendError = "Не удалось определить пользователя — попробуйте ещё раз") }
+                return@launch
+            }
+            val userEmail = auth.getCurrentUserEmail() ?: ""
             val existing = db.chatReactionDao().findByUserAndEmoji(messageId, userId, emoji)
             if (existing != null) {
                 // Remove
                 db.chatReactionDao().deleteById(existing.id)
-                supabaseReactions.removeReaction(existing.id).onFailure {
-                    // revert
+                retrying { supabaseReactions.removeReaction(existing.id) }.onFailure { e ->
+                    // Возвращаем на место и говорим об этом: молчаливый откат
+                    // выглядел как «реакция сама исчезла»
+                    android.util.Log.e("ChatVM", "Не удалось снять реакцию", e)
                     try { db.chatReactionDao().insert(existing) } catch (_: Exception) {}
+                    _uiState.update { it.copy(sendError = "Не удалось снять реакцию: ${e.message}") }
                 }
             } else {
                 val reaction = com.aggin.carcost.data.local.database.entities.ChatReaction(
@@ -910,8 +1050,10 @@ class ChatViewModel(
                     emoji = emoji
                 )
                 try { db.chatReactionDao().insert(reaction) } catch (_: Exception) {}
-                supabaseReactions.addReaction(reaction).onFailure {
+                retrying { supabaseReactions.addReaction(reaction) }.onFailure { e ->
+                    android.util.Log.e("ChatVM", "Не удалось поставить реакцию", e)
                     try { db.chatReactionDao().deleteById(reaction.id) } catch (_: Exception) {}
+                    _uiState.update { it.copy(sendError = "Не удалось поставить реакцию: ${e.message}") }
                 }
             }
         }
@@ -951,6 +1093,8 @@ fun ChatScreen(carId: String, navController: NavController) {
     val snackbarHostState = remember { SnackbarHostState() }
     var inputText by rememberSaveable { mutableStateOf("") }
     var pendingMediaUri by remember { mutableStateOf<Uri?>(null) }
+    /** Открытый просмотр PDF: адрес файла и его имя. null — окно закрыто */
+    var pdfPreview by remember { mutableStateOf<Pair<String, String>?>(null) }
     var pendingFileUri by remember { mutableStateOf<Uri?>(null) }
     var pendingFileName by remember { mutableStateOf<String?>(null) }
     var fullscreenImageUrl by remember { mutableStateOf<String?>(null) }
@@ -999,9 +1143,46 @@ fun ChatScreen(carId: String, navController: NavController) {
                 // Имя не критично: без него отправим как «file», лишь бы не потерять выбор
                 uri.lastPathSegment?.substringAfterLast('/') ?: "file"
             }
-            pendingFileUri = uri
-            pendingFileName = name
-            android.util.Log.d("ChatVM", "Файл выбран: $name")
+            android.util.Log.d("ChatVM", "Файл выбран: $name — отправляю")
+            // Отправляем сразу, как видео.
+            //
+            // Раньше файл только запоминался и ждал нажатия на кнопку отправки.
+            // Снаружи это выглядело как «выбрал файл — ничего не произошло»:
+            // никакого действия не последовало, а о том, что нужно нажать ещё
+            // раз, ничто не сообщало. Видео при этом уходило сразу, и разница в
+            // поведении между соседними пунктами одного меню только путала.
+            viewModel.sendFile(uri, name)
+        }
+    }
+
+    // Проверка одной гипотезы: обработчик выбора файла не вызывается потому,
+    // что экран покидает композицию, пока открыто системное окно. Если в журнале
+    // между «Запускаю выбор файла» и возвратом появится «экран закрыт» —
+    // регистрация обработчика умирает вместе с ним, и результату некуда прийти.
+    DisposableEffect(Unit) {
+        android.util.Log.d("ChatVM", "экран открыт")
+        onDispose { android.util.Log.d("ChatVM", "экран закрыт") }
+    }
+
+    /**
+     * Запасной способ выбора файла — через ACTION_OPEN_DOCUMENT.
+     *
+     * Основной (GetContent) опирается на ACTION_GET_CONTENT, и на части сборок
+     * Android его обработчик отсутствует или отключён. Тогда launch бросает
+     * исключение, а не возвращает пустой результат. Здесь тот же выбор, но
+     * другим системным механизмом.
+     */
+    val documentPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        android.util.Log.d("ChatVM", "Запасной выбор файла: uri=${uri ?: "отменено"}")
+        if (uri != null) {
+            val name = try {
+                getFileName(context, uri)
+            } catch (e: Exception) {
+                uri.lastPathSegment?.substringAfterLast('/') ?: "file"
+            }
+            viewModel.sendFile(uri, name)
         }
     }
 
@@ -1270,7 +1451,16 @@ fun ChatScreen(carId: String, navController: NavController) {
                             onPlayPause = { viewModel.togglePlayback(message) },
                             onCycleSpeed = { viewModel.cycleAudioSpeed() },
                             audioSpeed = uiState.audioSpeed,
-                            onOpenFile = { url, name -> openFile(context, url, name) },
+                            onOpenFile = { url, name ->
+                                // PDF показываем сами, остальное отдаём системе.
+                                // Внутренний просмотр избавляет от «нажал и ничего
+                                // не произошло», когда подходящего приложения нет.
+                                if (name.substringAfterLast('.', "").equals("pdf", ignoreCase = true)) {
+                                    pdfPreview = url to name
+                                } else {
+                                    openFile(context, url, name)
+                                }
+                            },
                             reactions = uiState.reactions[message.id].orEmpty(),
                             currentUserId = uiState.currentUserId,
                             onToggleReaction = { emoji -> viewModel.toggleReaction(message.id, emoji) },
@@ -1314,12 +1504,46 @@ fun ChatScreen(carId: String, navController: NavController) {
                     // снято и в корзине chat_media: держать список разрешённых
                     // типов в двух местах — верный способ однажды получить
                     // молчаливый отказ уже при отправке.
-                    filePicker.launch("*/*")
+                    // Запись до запуска и запись в колбэке вместе отвечают на
+                    // вопрос, который иначе не разрешить: окно вообще открылось
+                    // по нашей команде — или колбэк не вернулся
+                    android.util.Log.d("ChatVM", "Запускаю выбор файла")
+                    // Запуск под защитой. Если системе нечем открыть выбор
+                    // файлов, launch бросает ActivityNotFoundException — и оно
+                    // улетало молча, выглядя как «нажал, и ничего не произошло».
+                    // Теперь пробуем второй способ, а если и он не идёт — говорим.
+                    try {
+                        filePicker.launch("*/*")
+                    } catch (e: Exception) {
+                        android.util.Log.e("ChatVM", "Выбор файла не открылся: ${e.message}", e)
+                        try {
+                            documentPicker.launch(arrayOf("*/*"))
+                        } catch (e2: Exception) {
+                            android.util.Log.e("ChatVM", "Запасной выбор тоже не открылся", e2)
+                            android.widget.Toast.makeText(
+                                context,
+                                "На устройстве нет приложения для выбора файлов",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                     showAttachSheet = false
                 }
             )
             Spacer(Modifier.height(16.dp))
         }
+    }
+
+    pdfPreview?.let { (url, name) ->
+        PdfPreviewDialog(
+            url = url,
+            fileName = name,
+            onDismiss = { pdfPreview = null },
+            onOpenExternally = {
+                pdfPreview = null
+                openFile(context, url, name)
+            }
+        )
     }
 
     // Member profile card dialog
@@ -1598,7 +1822,7 @@ private fun RecordingBar(
 
 private val REACTION_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "🔥")
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ChatBubble(
     message: ChatMessage,
@@ -1945,9 +2169,21 @@ private fun ChatBubble(
                             Card(
                                 shape = bubbleShape,
                                 colors = CardDefaults.cardColors(containerColor = bubbleBg),
-                                modifier = Modifier.clickable {
-                                    message.mediaUrl?.let { url -> onOpenFile(url, message.fileName ?: "file") }
-                                }
+                                // combinedClickable, а не clickable: обычный
+                                // clickable перехватывает касание и до родителя,
+                                // который открывает меню с реакциями по долгому
+                                // нажатию, оно уже не доходит. Поэтому на файлы,
+                                // фото и видео реакцию поставить было нельзя, а на
+                                // текст — можно.
+                                modifier = Modifier.combinedClickable(
+                                    onClick = {
+                                        message.mediaUrl?.let { url -> onOpenFile(url, message.fileName ?: "file") }
+                                    },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        showContextMenu = true
+                                    }
+                                )
                             ) {
                                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).widthIn(min = 160.dp)) {
                                     if (message.replyToId != null) ReplyQuote(message.replyToText, onBubble, onClick = { onJumpToMessage(message.replyToId) })
@@ -1966,7 +2202,11 @@ private fun ChatBubble(
                         message.mediaType == "video" -> {
                             VideoPlayerBubble(
                                 url = message.mediaUrl ?: "",
-                                bubbleShape = bubbleShape
+                                bubbleShape = bubbleShape,
+                                onLongPress = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showContextMenu = true
+                                }
                             )
                         }
 
@@ -1976,7 +2216,16 @@ private fun ChatBubble(
                                     AsyncImage(
                                         model = url,
                                         contentDescription = "Фото",
-                                        modifier = Modifier.widthIn(max = 240.dp).clip(bubbleShape).clickable { onImageClick(url) },
+                                        modifier = Modifier
+                                            .widthIn(max = 240.dp)
+                                            .clip(bubbleShape)
+                                            .combinedClickable(
+                                                onClick = { onImageClick(url) },
+                                                onLongClick = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    showContextMenu = true
+                                                }
+                                            ),
                                         contentScale = ContentScale.FillWidth
                                     )
                                     if (message.message.isNotBlank()) Spacer(Modifier.height(4.dp))
@@ -2358,14 +2607,40 @@ private fun openFile(context: Context, url: String, fileName: String) {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-        } catch (_: Exception) { }
+        } catch (e: android.content.ActivityNotFoundException) {
+            // Подходящего приложения на телефоне нет. Раньше здесь была пустая
+            // ветка catch, и нажатие на файл просто ничего не делало — человек
+            // не мог понять, сломалось приложение или так задумано.
+            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Нет приложения, которое откроет этот файл",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ChatVM", "Не удалось открыть файл $fileName: ${e.message}", e)
+            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Не удалось открыть файл",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 }
 
 // ── Video Player Bubble (regular video attachment) ────────────────────────────
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun VideoPlayerBubble(url: String, bubbleShape: androidx.compose.ui.graphics.Shape) {
+fun VideoPlayerBubble(
+    url: String,
+    bubbleShape: androidx.compose.ui.graphics.Shape,
+    /** Долгое нажатие по видео — открыть то же меню, что и по остальным сообщениям */
+    onLongPress: () -> Unit = {}
+) {
     if (url.isBlank()) return
 
     val context = LocalContext.current
@@ -2427,13 +2702,16 @@ fun VideoPlayerBubble(url: String, bubbleShape: androidx.compose.ui.graphics.Sha
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .clickable {
-                    if (exoPlayer.isPlaying) exoPlayer.pause()
-                    else {
-                        if (exoPlayer.playbackState == Player.STATE_ENDED) exoPlayer.seekTo(0)
-                        exoPlayer.play()
-                    }
-                }
+                .combinedClickable(
+                    onClick = {
+                        if (exoPlayer.isPlaying) exoPlayer.pause()
+                        else {
+                            if (exoPlayer.playbackState == Player.STATE_ENDED) exoPlayer.seekTo(0)
+                            exoPlayer.play()
+                        }
+                    },
+                    onLongClick = onLongPress
+                )
         )
 
         if (!firstFrameReady) {

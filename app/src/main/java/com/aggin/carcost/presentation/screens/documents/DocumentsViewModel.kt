@@ -56,6 +56,7 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
                 notes = notes
             )
             repository.addDocument(doc)
+            com.aggin.carcost.data.analytics.Analytics.documentAdded()
             // Check FIRST_DOCUMENT achievement
             try {
                 val userId = supabaseAuth.getUserId()

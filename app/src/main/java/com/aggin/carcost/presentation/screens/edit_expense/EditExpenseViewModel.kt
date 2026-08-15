@@ -427,6 +427,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                 }
 
                 _uiState.value = _uiState.value.copy(isSaving = false)
+                com.aggin.carcost.data.analytics.Analytics.expenseEdited()
                 onSuccess()
 
             } catch (e: Exception) {

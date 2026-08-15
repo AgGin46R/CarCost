@@ -819,6 +819,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             _uiState.update { it.copy(isCreatingBackup = true) }
             try {
                 val file = backupService.createBackupFile()
+                com.aggin.carcost.data.analytics.Analytics.backupExported()
                 withContext(Dispatchers.Main) { shareBackup(context, file) }
             } catch (e: Exception) {
                 android.util.Log.e("ProfileViewModel", "backup failed", e)

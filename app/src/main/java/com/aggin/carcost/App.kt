@@ -38,8 +38,26 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import com.my.tracker.MyTracker
+import ru.ok.tracer.CoreTracerConfiguration
+import ru.ok.tracer.HasTracerConfiguration
+import ru.ok.tracer.TracerConfiguration
 
-class App : Application() {
+/**
+ * Tracer подключается через интерфейс, а не вызовом в onCreate: библиотека
+ * поднимается собственным ContentProvider ещё до создания приложения. Это
+ * сделано намеренно — вылет на старте случится раньше любого нашего кода,
+ * и перехватить его иначе нельзя.
+ *
+ * Поэтому же здесь нет ветки «включать только в релизе»: смысл в том, чтобы
+ * видеть падения у людей, а не у себя.
+ */
+class App : Application(), HasTracerConfiguration {
+
+    override val tracerConfiguration: List<TracerConfiguration>
+        get() = listOf(
+            CoreTracerConfiguration.build { }
+        )
 
     companion object {
         lateinit var supabase: SupabaseClient
@@ -80,8 +98,39 @@ class App : Application() {
     /** Область для инициализации, не нужной первому кадру */
     private val backgroundInit = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /**
+     * Продуктовая аналитика MyTracker.
+     *
+     * Без ключа в local.properties молча не включается — это нормальное
+     * состояние для сборки у того, кто кабинет MyTracker не заводил.
+     *
+     * Что уходит наружу: факт запуска, версия приложения, модель устройства и
+     * события, которые мы отправим явно. Содержимое чатов, файлы, данные машин
+     * и расходы к аналитике отношения не имеют и в неё не попадают — SDK сам по
+     * себе ничего из приложения не читает, он получает только то, что ему дали.
+     */
+    private fun initMyTracker() {
+        if (BuildConfig.MYTRACKER_SDK_KEY.isBlank()) {
+            Log.d(TAG, "MyTracker не настроен — ключ не задан")
+            return
+        }
+        try {
+            MyTracker.setDebugMode(BuildConfig.DEBUG)
+            MyTracker.initTracker(BuildConfig.MYTRACKER_SDK_KEY, this)
+            Log.d(TAG, "MyTracker инициализирован")
+        } catch (e: Exception) {
+            // Аналитика не тот повод, чтобы не запустить приложение
+            Log.e(TAG, "Не удалось инициализировать MyTracker", e)
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
+
+        // MyTracker обязан подняться именно здесь, а не в фоне: он засчитывает
+        // сам факт запуска, и запоздалая инициализация теряет часть сеансов.
+        // Вызов дешёвый — SDK лишь ставит счётчики, сеть трогает позже и сам.
+        initMyTracker()
 
         // ── Только то, без чего не нарисовать первый экран ────────────────────
         // Supabase нужен сразу: восстановление сессии решает, какой экран открыть

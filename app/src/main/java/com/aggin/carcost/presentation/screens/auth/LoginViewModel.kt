@@ -123,6 +123,8 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                             Log.d("Login", "✅ User saved locally with displayName: ${user.displayName}, photoUrl: ${user.photoUrl}")
                         }
 
+                        com.aggin.carcost.data.analytics.Analytics.login("email")
+
                         // Переходим на главный экран — профиль к этому моменту уже в базе
                         _uiState.value = state.copy(
                             isLoading = false,
@@ -223,6 +225,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                                     ?: userInfo.userMetadata?.get("avatar_url")?.toString()?.trim('"')
                             )
                         }
+                        com.aggin.carcost.data.analytics.Analytics.login("vk")
                         _uiState.update { it.copy(isLoading = false, isSuccess = true) }
                         backgroundScope.launch {
                             try { syncRepo.fullSync() } catch (_: Exception) { }

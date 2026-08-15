@@ -30,4 +30,17 @@ interface ChatReactionDao {
 
     @Query("SELECT * FROM chat_reactions WHERE messageId = :messageId AND userId = :userId AND emoji = :emoji LIMIT 1")
     suspend fun findByUserAndEmoji(messageId: String, userId: String, emoji: String): ChatReaction?
+
+    /**
+     * Убрать реакции, которых больше нет на сервере.
+     *
+     * Обновление с сервера раньше только добавляло строки. Реакция, снятая
+     * кем-то другим, пока приложение было закрыто, оставалась на экране навсегда:
+     * событие о её удалении пришло в момент, когда слушать было некому, а
+     * повторная загрузка её не убирала — только досыпала недостающие.
+     *
+     * Список идентификаторов приходит с сервера и считается истиной.
+     */
+    @Query("DELETE FROM chat_reactions WHERE messageId IN (:messageIds) AND id NOT IN (:keepIds)")
+    suspend fun deleteMissing(messageIds: List<String>, keepIds: List<String>)
 }

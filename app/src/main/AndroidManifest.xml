@@ -21,6 +21,18 @@
 
     <!-- Разрешения для карты и геолокации -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+        Нужно MyTracker: события копятся, когда сети нет, и отправляются, когда
+        она появляется. Разрешение обычное, у пользователя ничего не спрашивается
+        и в списке чувствительных у RuStore не значится.
+
+        Разрешение com.google.android.gms.permission.AD_ID из инструкции MyTracker
+        намеренно НЕ добавлено: оно открывает рекламный идентификатор устройства и
+        нужно для привязки установок к рекламным кампаниям. Рекламы в приложении
+        нет, а RuStore относит его к чувствительным и требует обоснования при
+        проверке. Аналитика — экраны, события, удержание — работает без него.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!--

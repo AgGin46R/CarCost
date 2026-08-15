@@ -497,6 +497,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
             putExtra(NavigationService.EXTRA_DEST_NAME, destName)
         }
         getApplication<Application>().startForegroundService(intent)
+        com.aggin.carcost.data.analytics.Analytics.navigationStarted()
         _uiState.update { it.copy(mode = NavigatorMode.NAVIGATING, isCameraLocked = true) }
     }
 

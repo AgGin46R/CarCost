@@ -127,6 +127,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                             database.userDao().insertUser(user)
                             Log.d("RegisterViewModel", "✅ User saved locally")
 
+                            com.aggin.carcost.data.analytics.Analytics.registration("email")
+
                             // 5. Показываем успех (не ждем синхронизацию!)
                             _uiState.value = state.copy(
                                 isLoading = false,
@@ -237,6 +239,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             database.userDao().insertUser(user)
                         }
+                        com.aggin.carcost.data.analytics.Analytics.registration("vk")
                         _uiState.update { it.copy(isLoading = false, isSuccess = true) }
                         backgroundScope.launch {
                             try { syncRepo.safeInitialSync() } catch (_: Exception) { }
