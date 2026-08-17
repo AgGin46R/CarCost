@@ -158,7 +158,15 @@ fun EditMaintenanceReminderScreen(
                     expanded = typeExpanded,
                     onDismissRequest = { typeExpanded = false }
                 ) {
-                    MaintenanceType.entries.forEach { type ->
+                    // Список зависит от выбранной машины: электромобилю не
+                    // предлагаем масло, свечи и ремень ГРМ, зато предлагаем
+                    // редуктор и охлаждение батареи
+                    val carFuelType = uiState.cars
+                        .firstOrNull { it.id == uiState.selectedCarId }
+                        ?.fuelType
+                        ?: com.aggin.carcost.data.local.database.entities.FuelType.GASOLINE
+                    com.aggin.carcost.data.local.database.entities
+                        .maintenanceTypesFor(carFuelType).forEach { type ->
                         DropdownMenuItem(
                             text = {
                                 Column {

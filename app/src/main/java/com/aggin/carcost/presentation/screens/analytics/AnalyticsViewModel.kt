@@ -16,6 +16,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
 import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.domain.fuel.DualSourceCalculator
+import com.aggin.carcost.domain.fuel.EnergyConsumptionCalculator
 import com.aggin.carcost.domain.fuel.FuelConsumptionCalculator
 import com.aggin.carcost.domain.contribution.ContributionCalculator
 import io.github.jan.supabase.postgrest.from
@@ -44,7 +46,24 @@ data class FuelStatistics(
     val totalCost: Double,
     val averagePricePerLiter: Double,
     val kmDriven: Int,
-    val consumptionHistory: List<Pair<String, Double>> = emptyList() // дата → л/100км
+    val consumptionHistory: List<Pair<String, Double>> = emptyList(), // дата → л/100км
+
+    // ── Электротяга ──────────────────────────────────────────────────────────
+    /** кВт·ч/100 км. null — зарядок нет или их мало для честного расчёта */
+    val averageEnergyConsumption: Double? = null,
+    val totalKwh: Double = 0.0,
+    val energyCost: Double = 0.0,
+    /**
+     * Стоимость километра с учётом обоих источников.
+     *
+     * Заполняется только у машин, которые и заправляются, и заряжаются. У них
+     * раздельные расходы почти бессмысленны: обе величины зависят от доли
+     * поездок на электричестве, а не от прожорливости машины. Сравнивать можно
+     * только эту цифру.
+     */
+    val costPerKm: Double? = null,
+    /** Какая доля денег на движение ушла на электричество, 0..1 */
+    val electricCostShare: Double? = null
 )
 
 // Прогноз расходов
@@ -364,7 +383,41 @@ class EnhancedAnalyticsViewModel(
         val fuelExpenses = expenses.filter {
             it.category == ExpenseCategory.FUEL && (it.fuelLiters ?: 0.0) > 0
         }
-        if (fuelExpenses.isEmpty()) return null
+        val chargeExpenses = expenses.filter {
+            it.category == ExpenseCategory.CHARGING && (it.energyKwh ?: 0.0) > 0
+        }
+
+        // Раздел показывается, если есть хоть один источник энергии. Раньше
+        // условие смотрело только на заправки, и у электромобиля весь блок
+        // расхода пропадал целиком.
+        if (fuelExpenses.isEmpty() && chargeExpenses.isEmpty()) return null
+
+        val totalKwh = chargeExpenses.sumOf { it.energyKwh ?: 0.0 }
+        val energyCost = chargeExpenses.sumOf { it.amount }
+        val averageEnergyConsumption = EnergyConsumptionCalculator.average(chargeExpenses)
+
+        // Стоимость километра — только там, где есть оба источника. У обычной
+        // машины она ничего не добавляет к «литрам на сотню», а у электромобиля
+        // достаточно киловатт-часов.
+        val dual = if (fuelExpenses.isNotEmpty() && chargeExpenses.isNotEmpty()) {
+            DualSourceCalculator.costPerKm(expenses)
+        } else null
+
+        // Электромобиль: заправок нет, и всё, что ниже про литры, посчитать не из
+        // чего. Возвращаем то, что есть, не выдумывая нулей.
+        if (fuelExpenses.isEmpty()) {
+            return FuelStatistics(
+                averageConsumption = null,
+                totalLiters = 0.0,
+                totalCost = energyCost,
+                averagePricePerLiter = 0.0,
+                kmDriven = EnergyConsumptionCalculator.coveredKm(chargeExpenses)
+                    .takeIf { it > 0 } ?: kmDriven,
+                averageEnergyConsumption = averageEnergyConsumption,
+                totalKwh = totalKwh,
+                energyCost = energyCost
+            )
+        }
 
         val totalLiters = fuelExpenses.sumOf { it.fuelLiters ?: 0.0 }
         val totalCost = fuelExpenses.sumOf { it.amount }
@@ -386,7 +439,12 @@ class EnhancedAnalyticsViewModel(
             totalCost = totalCost,
             averagePricePerLiter = totalCost / totalLiters,
             kmDriven = FuelConsumptionCalculator.coveredKm(fuelExpenses).takeIf { it > 0 } ?: kmDriven,
-            consumptionHistory = consumptionHistory
+            consumptionHistory = consumptionHistory,
+            averageEnergyConsumption = averageEnergyConsumption,
+            totalKwh = totalKwh,
+            energyCost = energyCost,
+            costPerKm = dual?.costPerKm,
+            electricCostShare = dual?.electricCostShare
         )
     }
 

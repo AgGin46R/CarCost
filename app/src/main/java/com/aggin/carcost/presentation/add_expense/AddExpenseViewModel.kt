@@ -52,6 +52,15 @@ data class AddExpenseUiState(
 
     // Для топлива
     val fuelLiters: String = "",
+    /** Киловатт-часы у зарядки — то же поле формы, что литры у заправки */
+    val energyKwh: String = "",
+    /**
+     * Чем движется машина. Определяет, какие категории показывать и просить ли
+     * литры или киловатт-часы. Значение по умолчанию действует лишь до загрузки
+     * автомобиля из базы — это доли секунды при открытии формы.
+     */
+    val fuelType: com.aggin.carcost.data.local.database.entities.FuelType =
+        com.aggin.carcost.data.local.database.entities.FuelType.GASOLINE,
     val isFullTank: Boolean = false,
 
     // Для обслуживания
@@ -144,7 +153,11 @@ class AddExpenseViewModel(
             // Загружаем текущий пробег автомобиля
             val car = carRepository.getCarById(carId)
             car?.let {
-                _uiState.value = _uiState.value.copy(odometer = it.currentOdometer.toString())
+                _uiState.value = _uiState.value.copy(
+                    odometer = it.currentOdometer.toString(),
+                    // От типа машины зависит набор категорий и вид полей заправки
+                    fuelType = it.fuelType
+                )
 
                 // Подсказка одометра: базовый одометр + км из GPS-поездок с последней заправки
                 try {
@@ -312,6 +325,12 @@ class AddExpenseViewModel(
     fun updateFuelLiters(value: String) {
         if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
             _uiState.value = _uiState.value.copy(fuelLiters = value)
+        }
+    }
+
+    fun updateEnergyKwh(value: String) {
+        if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
+            _uiState.value = _uiState.value.copy(energyKwh = value)
         }
     }
 
@@ -503,6 +522,14 @@ class AddExpenseViewModel(
         onSuccess: () -> Unit
     ) {
         try {
+            // Валюта берётся у автомобиля, а не подставляется рублями.
+            //
+            // Раньше здесь стояло "RUB" наглухо: человек, ведущий машину в евро,
+            // получал рубли на каждой записи, а итоги молча складывали одно с
+            // другим как одинаковые числа. Валюта — свойство автомобиля, и
+            // спрашивать её у каждой записи незачем.
+            val carCurrency = carRepository.getCarById(carId)?.currency ?: "RUB"
+
             val expense = Expense(
                 id = state.expenseId,
                 carId = carId,
@@ -510,7 +537,7 @@ class AddExpenseViewModel(
                 userId = supabaseAuth.getUserId(),
                 category = state.category,
                 amount = state.amount.toDouble(),
-                currency = "RUB",
+                currency = carCurrency,
                 date = state.date,
                 odometer = state.odometer.toInt(),
                 description = state.description.ifBlank { null },
@@ -520,7 +547,14 @@ class AddExpenseViewModel(
                 fuelLiters = if (state.category == ExpenseCategory.FUEL) {
                     state.fuelLiters.toDoubleOrNull()
                 } else null,
-                isFullTank = state.category == ExpenseCategory.FUEL && state.isFullTank,
+                // Киловатт-часы живут в зарядке ровно так же, как литры в заправке
+                energyKwh = if (state.category == ExpenseCategory.CHARGING) {
+                    state.energyKwh.toDoubleOrNull()
+                } else null,
+                // Признак «до полного» одинаково нужен обоим: расход считается по
+                // отрезкам между полными заправками, и у зарядки это заряд до 100%
+                isFullTank = (state.category == ExpenseCategory.FUEL ||
+                    state.category == ExpenseCategory.CHARGING) && state.isFullTank,
                 serviceType = if (state.category == ExpenseCategory.MAINTENANCE) {
                     state.serviceType
                 } else null,

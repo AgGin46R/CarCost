@@ -179,6 +179,11 @@ sealed class Screen(val route: String) {
         fun createRoute(carId: String) = "chat/$carId"
     }
 
+    /** Вложения чата: фото, видео и файлы отдельными разделами */
+    object ChatMedia : Screen("chat_media/{carId}") {
+        fun createRoute(carId: String) = "chat_media/$carId"
+    }
+
     object ChatsList : Screen("chats_list")
 
     object ParkingTimer : Screen("parking_timer")
@@ -638,6 +643,18 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             ChatScreen(carId = carId, navController = navController)
+        }
+
+        // Вложения чата — открываются нажатием на шапку самого чата
+        composable(
+            route = Screen.ChatMedia.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            com.aggin.carcost.presentation.screens.chat.ChatMediaScreen(
+                navController = navController,
+                carId = carId
+            )
         }
 
         // Список всех чатов (из профиля)

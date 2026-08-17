@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CarRepair
+import androidx.compose.material.icons.filled.EvStation
 import androidx.compose.material.icons.filled.LocalCarWash
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.LocalParking
@@ -35,6 +36,7 @@ private val RU = Locale("ru")
 
 fun ExpenseCategory.displayName(): String = when (this) {
     ExpenseCategory.FUEL -> "Топливо"
+    ExpenseCategory.CHARGING -> "Зарядка"
     ExpenseCategory.MAINTENANCE -> "Обслуживание"
     ExpenseCategory.REPAIR -> "Ремонт"
     ExpenseCategory.INSURANCE -> "Страховка"
@@ -57,6 +59,7 @@ fun categoryDisplayName(rawCategory: String): String =
 
 fun ExpenseCategory.emoji(): String = when (this) {
     ExpenseCategory.FUEL -> "⛽"
+    ExpenseCategory.CHARGING -> "🔌"
     ExpenseCategory.MAINTENANCE -> "🔧"
     ExpenseCategory.REPAIR -> "🛠️"
     ExpenseCategory.INSURANCE -> "🛡️"
@@ -71,6 +74,7 @@ fun ExpenseCategory.emoji(): String = when (this) {
 
 fun ExpenseCategory.icon(): ImageVector = when (this) {
     ExpenseCategory.FUEL -> Icons.Default.LocalGasStation
+    ExpenseCategory.CHARGING -> Icons.Default.EvStation
     ExpenseCategory.MAINTENANCE -> Icons.Default.Build
     ExpenseCategory.REPAIR -> Icons.Default.CarRepair
     ExpenseCategory.INSURANCE -> Icons.Default.Security
@@ -85,6 +89,7 @@ fun ExpenseCategory.icon(): ImageVector = when (this) {
 
 fun ExpenseCategory.color(): Color = when (this) {
     ExpenseCategory.FUEL -> Color(0xFFE57373)
+    ExpenseCategory.CHARGING -> Color(0xFF4FC3F7)
     ExpenseCategory.MAINTENANCE -> Color(0xFF81C784)
     ExpenseCategory.REPAIR -> Color(0xFF64B5F6)
     ExpenseCategory.INSURANCE -> Color(0xFFFFD54F)
@@ -117,6 +122,10 @@ fun ServiceType.displayName(): String = when (this) {
     ServiceType.BALANCING -> "Балансировка"
     ServiceType.INSPECTION -> "Техосмотр"
     ServiceType.FULL_SERVICE -> "Полное ТО"
+    ServiceType.REDUCER_OIL -> "Масло редуктора"
+    ServiceType.BATTERY_COOLANT -> "Охлаждающая жидкость батареи"
+    ServiceType.BATTERY_HEALTH -> "Проверка состояния батареи"
+    ServiceType.BRAKE_CALIPERS -> "Чистка и смазка суппортов"
     ServiceType.OTHER -> "Другое"
 }
 

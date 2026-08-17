@@ -42,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
@@ -170,7 +171,11 @@ data class ChatUiState(
     // userId → cached profile for member card
     val memberProfileCache: Map<String, MemberProfile> = emptyMap(),
     // userId → отображаемое имя отправителя (email — только запасной вариант)
-    val senderNames: Map<String, String> = emptyMap()
+    val senderNames: Map<String, String> = emptyMap(),
+    /** userId → адрес фотографии профиля. Нет записи — рисуем букву на цветном круге */
+    val senderPhotos: Map<String, String> = emptyMap(),
+    /** Чьи профили уже пытались загрузить — чтобы не спрашивать одно и то же по кругу */
+    val senderProfilesLoaded: Set<String> = emptySet()
 )
 
 /**
@@ -194,6 +199,22 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    /**
+     * Присутствие складывается из двух источников активности.
+     *
+     * Держим их порознь, а не одним множеством: потоки сообщений и реакций
+     * приходят независимо, и если каждый будет писать в состояние целиком,
+     * последний затрёт результат предыдущего — человек начнёт то появляться в
+     * сети, то пропадать при каждом обновлении.
+     */
+    private var onlineFromMessages: Set<String> = emptySet()
+    private var onlineFromReactions: Set<String> = emptySet()
+
+    private fun refreshOnline() {
+        val online = onlineFromMessages + onlineFromReactions
+        _uiState.update { it.copy(onlineUserIds = online) }
+    }
+
     private var mediaRecorder: MediaRecorder? = null
     private var recordingFilePath: String? = null
     private val mediaPlayers = mutableMapOf<String, MediaPlayer>()
@@ -205,10 +226,10 @@ class ChatViewModel(
         viewModelScope.launch {
             db.chatMessageDao().getMessagesByCarId(carId).collect { messages ->
                 _uiState.update { it.copy(messages = messages, isLoading = false) }
-                // Recompute online status whenever messages change
                 val threshold = System.currentTimeMillis() - ONLINE_THRESHOLD_MS
-                val online = messages.filter { it.createdAt >= threshold }.map { it.userId }.toSet()
-                _uiState.update { it.copy(onlineUserIds = online) }
+                onlineFromMessages = messages.filter { it.createdAt >= threshold }
+                    .map { it.userId }.toSet()
+                refreshOnline()
             }
         }
 
@@ -225,6 +246,13 @@ class ChatViewModel(
                 .collect { list ->
                     val grouped = list.groupBy { it.messageId }
                     _uiState.update { it.copy(reactions = grouped) }
+                    // Реакция — такая же активность, как сообщение. Раньше человек
+                    // мог ставить реакции хоть каждую минуту и всё равно числиться
+                    // «не в сети»: присутствие считалось только по сообщениям.
+                    val threshold = System.currentTimeMillis() - ONLINE_THRESHOLD_MS
+                    onlineFromReactions = list.filter { it.createdAt >= threshold }
+                        .map { it.userId }.toSet()
+                    refreshOnline()
                 }
         }
 
@@ -288,34 +316,47 @@ class ChatViewModel(
      * появляется нормальное имя.
      */
     private suspend fun loadSenderNames(userIds: List<String>) {
-        val known = _uiState.value.senderNames
-        val missing = userIds.filter { it.isNotBlank() && !known.containsKey(it) }
+        // Считаем обработанными по отдельному списку, а не по наличию имени.
+        // Иначе человек без имени, но с фотографией, запрашивался бы заново при
+        // каждом обновлении ленты — и фотография всё равно бы не появилась.
+        val loaded = _uiState.value.senderProfilesLoaded
+        val missing = userIds.filter { it.isNotBlank() && it !in loaded }
         if (missing.isEmpty()) return
 
-        val resolved = mutableMapOf<String, String>()
+        val names = mutableMapOf<String, String>()
+        val photos = mutableMapOf<String, String>()
 
         missing.forEach { id ->
-            db.userDao().getUserById(id).firstOrNull()
-                ?.displayName?.takeIf { it.isNotBlank() }
-                ?.let { resolved[id] = it }
+            db.userDao().getUserById(id).firstOrNull()?.let { user ->
+                user.displayName?.takeIf { it.isNotBlank() }?.let { names[id] = it }
+                user.photoUrl?.takeIf { it.isNotBlank() }?.let { photos[id] = it }
+            }
         }
 
-        val stillMissing = missing.filterNot { resolved.containsKey(it) }
+        // В базу идём за теми, кого локально нет вовсе. Человек, у которого
+        // локально известно имя, но нет фотографии, сюда не попадёт — так было
+        // и раньше, и лишних запросов на каждое сообщение мы не делаем.
+        val stillMissing = missing.filterNot { names.containsKey(it) || photos.containsKey(it) }
         if (stillMissing.isNotEmpty()) {
             try {
                 com.aggin.carcost.supabase.from("users")
                     .select { filter { isIn("id", stillMissing) } }
                     .decodeList<com.aggin.carcost.data.remote.repository.SupabaseUserDto>()
                     .forEach { dto ->
-                        dto.displayName?.takeIf { it.isNotBlank() }?.let { resolved[dto.id] = it }
+                        dto.displayName?.takeIf { it.isNotBlank() }?.let { names[dto.id] = it }
+                        dto.photoUrl?.takeIf { it.isNotBlank() }?.let { photos[dto.id] = it }
                     }
             } catch (_: Exception) {
-                // Офлайн — покажем email, ничего страшного
+                // Офлайн — покажем email и букву вместо фотографии, ничего страшного
             }
         }
 
-        if (resolved.isNotEmpty()) {
-            _uiState.update { it.copy(senderNames = it.senderNames + resolved) }
+        _uiState.update {
+            it.copy(
+                senderNames = it.senderNames + names,
+                senderPhotos = it.senderPhotos + photos,
+                senderProfilesLoaded = it.senderProfilesLoaded + missing
+            )
         }
     }
 
@@ -1271,7 +1312,16 @@ fun ChatScreen(carId: String, navController: NavController) {
                                 }
                             )
                         } else {
-                            Column {
+                            // Нажатие на шапку открывает вложения — привычный жест
+                            // из мессенджеров. Область нажатия — весь заголовок
+                            // вместе с названием машины, а не одно слово «Чат».
+                            Column(
+                                modifier = Modifier.clickable {
+                                    navController.navigate(
+                                        com.aggin.carcost.presentation.navigation.Screen.ChatMedia.createRoute(carId)
+                                    )
+                                }
+                            ) {
                                 Text("Чат", fontWeight = FontWeight.Bold)
                                 if (uiState.carName.isNotBlank()) {
                                     Row(
@@ -1429,6 +1479,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                                 selectedMemberProfile = message.userId to message.userEmail
                             }) else ({}),
                             senderName = uiState.senderNames[message.userId],
+                            senderPhotoUrl = uiState.senderPhotos[message.userId],
                             isUploading = message.id in uiState.uploadingIds,
                             uploadFailed = message.id in uiState.failedUploadIds,
                             onJumpToMessage = { targetId ->
@@ -1580,6 +1631,14 @@ fun ChatScreen(carId: String, navController: NavController) {
                     modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                 ) {
                     Icon(Icons.Default.Close, null, tint = Color.White)
+                }
+                // Сохранение прямо из просмотра: смотришь снимок — и сразу можешь
+                // забрать его себе, не возвращаясь в ленту за длинным нажатием
+                IconButton(
+                    onClick = { downloadAttachment(context, url, null, "image") },
+                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                ) {
+                    Icon(Icons.Default.Download, "Сохранить фото", tint = Color.White)
                 }
             }
         }
@@ -1844,6 +1903,8 @@ private fun ChatBubble(
     isOnline: Boolean = false,
     onAvatarClick: () -> Unit = {},
     senderName: String? = null,
+    /** Фотография профиля отправителя. Пусто — рисуем букву на цветном круге */
+    senderPhotoUrl: String? = null,
     /** Вложение ещё загружается — вместо него показываем индикатор */
     isUploading: Boolean = false,
     /** Загрузка вложения не удалась — показываем это, а не пустой пузырь */
@@ -1858,6 +1919,7 @@ private fun ChatBubble(
     var showContextMenu by rememberSaveable { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     val clipboard = LocalClipboardManager.current
+    val ctx = LocalContext.current
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -1922,6 +1984,32 @@ private fun ChatBubble(
                         modifier = Modifier.clickable {
                             showContextMenu = false
                             clipboard.setText(AnnotatedString(message.message))
+                        }
+                    )
+                }
+                // Сохранение вложения. Показываем только когда вложение есть и
+                // уже загрузилось: у сообщения в процессе отправки адреса ещё нет,
+                // и пункт вёл бы в пустоту.
+                if (!message.mediaUrl.isNullOrBlank()) {
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                when (message.mediaType) {
+                                    "video" -> "Сохранить видео"
+                                    "file" -> "Сохранить файл"
+                                    else -> "Сохранить фото"
+                                }
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Default.Download, null) },
+                        modifier = Modifier.clickable {
+                            showContextMenu = false
+                            downloadAttachment(
+                                context = ctx,
+                                url = message.mediaUrl,
+                                fileName = message.fileName,
+                                mediaType = message.mediaType
+                            )
                         }
                     )
                 }
@@ -2010,8 +2098,20 @@ private fun ChatBubble(
                                 .clickable { onAvatarClick() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(senderLabel.take(1).uppercase(), color = Color.White,
-                                fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            // Фотография профиля, если она известна. Буква на
+                            // цветном круге остаётся запасным вариантом: у части
+                            // людей фотографии нет, а офлайн её ещё и не загрузить.
+                            if (senderPhotoUrl != null) {
+                                AsyncImage(
+                                    model = senderPhotoUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Text(senderLabel.take(1).uppercase(), color = Color.White,
+                                    fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
                         }
                         // Online indicator dot (bottom-right)
                         if (isOnline) {
@@ -2525,7 +2625,7 @@ private fun parseDurationFromFileName(fileName: String?): String {
     return formatDuration(sec)
 }
 
-private fun fileIcon(fileName: String): ImageVector {
+internal fun fileIcon(fileName: String): ImageVector {
     return when (fileName.substringAfterLast('.').lowercase()) {
         "pdf" -> Icons.Default.PictureAsPdf
         "doc", "docx" -> Icons.Default.Description
@@ -2536,7 +2636,7 @@ private fun fileIcon(fileName: String): ImageVector {
     }
 }
 
-private fun fileColor(fileName: String): Color {
+internal fun fileColor(fileName: String): Color {
     return when (fileName.substringAfterLast('.').lowercase()) {
         "pdf" -> Color(0xFFE53935)
         "doc", "docx" -> Color(0xFF1565C0)
@@ -2590,7 +2690,7 @@ private fun getFileName(context: Context, uri: Uri): String {
     return name
 }
 
-private fun openFile(context: Context, url: String, fileName: String) {
+internal fun openFile(context: Context, url: String, fileName: String) {
     kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val downloadsDir = File(context.cacheDir, "downloads").also { it.mkdirs() }

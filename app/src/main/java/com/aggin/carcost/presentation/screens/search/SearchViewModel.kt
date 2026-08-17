@@ -111,6 +111,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     fun clearFilter() = applyFilter(SearchFilter())
 
     private suspend fun performSearch(query: String, filter: SearchFilter) {
+        com.aggin.carcost.data.analytics.Analytics.searchUsed()
         _uiState.update { it.copy(isSearching = true) }
         val lowerQuery = query.lowercase()
 
@@ -175,6 +176,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         // топливо. Поэтому это НЕ то же самое, что displayName() в Labels.kt
         fun categoryRuName(category: ExpenseCategory): String = when (category) {
             ExpenseCategory.FUEL        -> "топливо заправка бензин дизель"
+            ExpenseCategory.CHARGING    -> "зарядка электричество квт зарядная станция"
             ExpenseCategory.MAINTENANCE -> "то техническое обслуживание"
             ExpenseCategory.REPAIR      -> "ремонт"
             ExpenseCategory.INSURANCE   -> "страховка осаго каско"

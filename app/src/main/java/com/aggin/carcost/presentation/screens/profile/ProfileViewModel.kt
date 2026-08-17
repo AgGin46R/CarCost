@@ -741,6 +741,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
      *              в диалоге: «выйти, потеряв несохранённое»)
      */
     fun signOut(navController: NavController, force: Boolean = false) {
+        com.aggin.carcost.data.analytics.Analytics.logout()
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 if (!force) {
@@ -954,6 +955,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
      * резервной копией на предыдущем шаге.
      */
     fun deleteAccount(navController: NavController) {
+        com.aggin.carcost.data.analytics.Analytics.accountDeleted()
         val current = _uiState.value.deletion
         if (current !is AccountDeletionState.Confirm || !current.canDelete) return
 

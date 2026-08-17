@@ -320,6 +320,7 @@ class CarDetailViewModel(
      * `enqueue` встречался только в примере в комментарии.
      */
     fun deleteExpense(expense: Expense) {
+        com.aggin.carcost.data.analytics.Analytics.expenseDeleted()
         viewModelScope.launch {
             try {
                 expenseRepository.deleteExpense(expense)

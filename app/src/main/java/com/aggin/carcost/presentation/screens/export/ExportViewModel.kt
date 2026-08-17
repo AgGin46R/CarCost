@@ -82,6 +82,7 @@ class ExportViewModel(
     }
 
     fun exportToPdf() {
+        com.aggin.carcost.data.analytics.Analytics.reportExported()
         export(ExportType.PDF)
     }
 

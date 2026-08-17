@@ -36,6 +36,8 @@ data class ExpenseDto(
     val fuelType: String? = null,
     @SerialName("is_full_tank")
     val isFullTank: Boolean = false,
+    @SerialName("energy_kwh")
+    val energyKwh: Double? = null,
     @SerialName("service_type")
     val serviceType: String? = null,
     @SerialName("next_service_odometer")
@@ -143,6 +145,7 @@ private fun Expense.toDto(currentUserId: String) = ExpenseDto(
     fuelLiters = fuelLiters,
     fuelType = fuelType,
     isFullTank = isFullTank,
+    energyKwh = energyKwh,
     serviceType = serviceType?.name,
     nextServiceOdometer = nextServiceOdometer,
     nextServiceDate = nextServiceDate,
@@ -170,6 +173,7 @@ internal fun ExpenseDto.toExpense() = Expense(
     fuelLiters = fuelLiters,
     fuelType = fuelType,
     isFullTank = isFullTank,
+    energyKwh = energyKwh,
     serviceType = serviceType?.let { try { ServiceType.valueOf(it) } catch (e: Exception) { null } },
     nextServiceOdometer = nextServiceOdometer,
     nextServiceDate = nextServiceDate,

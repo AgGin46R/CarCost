@@ -413,6 +413,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                         val timeSec = route.metadata.weight.timeWithTraffic.value
                         val timeMin = (timeSec / 60).toInt()
                         val eta = computeEta(timeMin)
+                        com.aggin.carcost.data.analytics.Analytics.routeBuilt()
                         _uiState.update {
                             it.copy(
                                 currentRoute = route,

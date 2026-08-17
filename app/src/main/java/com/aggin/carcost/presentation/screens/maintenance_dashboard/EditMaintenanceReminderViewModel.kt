@@ -115,6 +115,7 @@ class EditMaintenanceReminderViewModel(application: Application) : AndroidViewMo
     fun updateNotes(value: String) = _uiState.update { it.copy(notes = value) }
 
     fun save() {
+        com.aggin.carcost.data.analytics.Analytics.reminderCreated()
         val state = _uiState.value
         if (!state.canSave) return
         viewModelScope.launch {

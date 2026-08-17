@@ -58,6 +58,7 @@ class AcceptInviteViewModel(
             try {
                 // Step 1: Accept invitation in Supabase
                 val inviteResult = supabaseMembers.acceptInvitation(token)
+                if (inviteResult.isSuccess) com.aggin.carcost.data.analytics.Analytics.inviteAccepted()
                 if (inviteResult.isFailure) {
                     _state.value = AcceptInviteState.Error(
                         inviteResult.exceptionOrNull()?.message ?: "Не удалось принять приглашение"

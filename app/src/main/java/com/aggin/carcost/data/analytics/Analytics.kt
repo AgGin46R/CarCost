@@ -82,7 +82,9 @@ object Analytics {
 
     fun reminderCreated() = event("reminder_created")
 
-    fun maintenanceLogged() = event("maintenance_logged")
+    // Отдельного события о записи ТО здесь намеренно нет: это обычный расход с
+    // категорией MAINTENANCE, и expense_added его уже считает. Два события про
+    // одно и то же — верный способ получить в отчётах два несходящихся числа.
 
     fun documentAdded() = event("document_added")
 

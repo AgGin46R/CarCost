@@ -491,6 +491,20 @@ val MIGRATION_34_35 = object : Migration(34, 35) {
  * общей машине. Синхронизация подтянет настоящего автора с сервера — там это
  * поле было всегда.
  */
+/**
+ * Киловатт-часы у зарядки.
+ *
+ * Только добавление колонки: новая категория расхода CHARGING и новый тип
+ * топлива PLUGIN_HYBRID хранятся строками и никаких изменений схемы не требуют.
+ * Существующие записи остаются пустыми — у заправок киловатт-часов и не должно
+ * быть.
+ */
+val MIGRATION_39_40 = object : Migration(39, 40) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE expenses ADD COLUMN energyKwh REAL")
+    }
+}
+
 val MIGRATION_38_39 = object : Migration(38, 39) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE expenses ADD COLUMN userId TEXT")
@@ -686,7 +700,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         PendingWrite::class,
         FluidLevel::class
     ],
-    version = 39,
+    version = 40,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -753,7 +767,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_35_36,
                         MIGRATION_36_37,
                         MIGRATION_37_38,
-                        MIGRATION_38_39
+                        MIGRATION_38_39,
+                        MIGRATION_39_40
                     )
                     .build()
                 INSTANCE = instance

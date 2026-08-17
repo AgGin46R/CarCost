@@ -157,6 +157,7 @@ class CarMembersViewModel(
      *              на главном экране.
      */
     fun inviteMember(email: String, role: MemberRole) {
+        com.aggin.carcost.data.analytics.Analytics.inviteCreated()
         viewModelScope.launch {
             supabaseMembers.createInvitation(carId, email.trim(), role)
                 .onSuccess { token ->

@@ -32,7 +32,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.data.local.database.entities.ServiceType
+import com.aggin.carcost.data.local.database.entities.expenseCategoriesFor
+import com.aggin.carcost.data.local.database.entities.serviceTypesFor
 import java.text.SimpleDateFormat
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -213,7 +216,8 @@ fun AddExpenseScreen(
                 CategorySelector(
                     selectedCategory = uiState.category,
                     onCategorySelected = { viewModel.updateCategory(it) },
-                    enabled = !uiState.isSaving
+                    enabled = !uiState.isSaving,
+                    fuelType = uiState.fuelType
                 )
                 // Подсказка автоопределения категории
                 val detectedCat = uiState.autoDetectedCategory
@@ -407,6 +411,41 @@ fun AddExpenseScreen(
                     }
                 }
 
+                ExpenseCategory.CHARGING -> {
+                    HorizontalDivider()
+                    Text(
+                        text = "Детали зарядки",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    OutlinedTextField(
+                        value = uiState.energyKwh,
+                        onValueChange = { viewModel.updateEnergyKwh(it) },
+                        label = { Text("Киловатт-часов") },
+                        placeholder = { Text("42.0") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        enabled = !uiState.isSaving,
+                        suffix = { Text("кВт·ч") }
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        // Тот же смысл, что «полный бак» у заправки: расход
+                        // считается по отрезкам между полными зарядками
+                        Text("Заряд до 100%")
+                        Switch(
+                            checked = uiState.isFullTank,
+                            onCheckedChange = { viewModel.updateIsFullTank(it) },
+                            enabled = !uiState.isSaving
+                        )
+                    }
+                }
+
                 ExpenseCategory.MAINTENANCE -> {
                     HorizontalDivider()
                     Text(
@@ -415,6 +454,7 @@ fun AddExpenseScreen(
                     )
 
                     ServiceTypeDropdown(
+                        fuelType = uiState.fuelType,
                         selectedServiceType = uiState.serviceType,
                         onServiceTypeSelected = { viewModel.updateServiceType(it) },
                         enabled = !uiState.isSaving
@@ -540,120 +580,64 @@ fun AddExpenseScreen(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun CategorySelector(
     selectedCategory: ExpenseCategory,
     onCategorySelected: (ExpenseCategory) -> Unit,
-    enabled: Boolean
+    enabled: Boolean,
+    /**
+     * Чем машина движется. От этого зависит набор категорий: у электромобиля нет
+     * заправок, у гибрида без розетки — зарядок.
+     */
+    fuelType: FuelType = FuelType.GASOLINE
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Ряд 1
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+    // Раньше здесь лежали четыре прибитых гвоздями ряда по три фишки. Добавить
+    // категорию по условию было некуда, а любое изменение состава ломало
+    // разметку. Теперь список считается, а раскладка расставляет сама.
+    val categories = remember(fuelType) { expenseCategoriesFor(fuelType) }
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        maxItemsInEachRow = 3
+    ) {
+        categories.forEach { category ->
             CategoryChip(
-                label = "⛽ Топливо",
-                selected = selectedCategory == ExpenseCategory.FUEL,
-                onClick = { onCategorySelected(ExpenseCategory.FUEL) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            CategoryChip(
-                label = "🔧 ТО",
-                selected = selectedCategory == ExpenseCategory.MAINTENANCE,
-                onClick = { onCategorySelected(ExpenseCategory.MAINTENANCE) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            CategoryChip(
-                label = "🛠️ Ремонт",
-                selected = selectedCategory == ExpenseCategory.REPAIR,
-                onClick = { onCategorySelected(ExpenseCategory.REPAIR) },
+                label = category.chipLabel(),
+                selected = selectedCategory == category,
+                onClick = { onCategorySelected(category) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
         }
-
-        // Ряд 2
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CategoryChip(
-                label = "🛡️ Страховка",
-                selected = selectedCategory == ExpenseCategory.INSURANCE,
-                onClick = { onCategorySelected(ExpenseCategory.INSURANCE) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            CategoryChip(
-                label = "🧾 Налог",
-                selected = selectedCategory == ExpenseCategory.TAX,
-                onClick = { onCategorySelected(ExpenseCategory.TAX) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            CategoryChip(
-                label = "🅿️ Парковка",
-                selected = selectedCategory == ExpenseCategory.PARKING,
-                onClick = { onCategorySelected(ExpenseCategory.PARKING) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Ряд 3
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CategoryChip(
-                label = "🛣️ Дорога",
-                selected = selectedCategory == ExpenseCategory.TOLL,
-                onClick = { onCategorySelected(ExpenseCategory.TOLL) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            CategoryChip(
-                label = "💧 Мойка",
-                selected = selectedCategory == ExpenseCategory.WASH,
-                onClick = { onCategorySelected(ExpenseCategory.WASH) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            CategoryChip(
-                label = "⚠️ Штраф",
-                selected = selectedCategory == ExpenseCategory.FINE,
-                onClick = { onCategorySelected(ExpenseCategory.FINE) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Ряд 4
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CategoryChip(
-                label = "🛒 Аксессуары",
-                selected = selectedCategory == ExpenseCategory.ACCESSORIES,
-                onClick = { onCategorySelected(ExpenseCategory.ACCESSORIES) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            CategoryChip(
-                label = "➕ Другое",
-                selected = selectedCategory == ExpenseCategory.OTHER,
-                onClick = { onCategorySelected(ExpenseCategory.OTHER) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            // Пустой слот для симметрии
+        // Добивка до кратности трёх, чтобы последний ряд не растягивался на всю
+        // ширину: без неё одинокая фишка «Другое» выглядит кнопкой во весь экран
+        repeat((3 - categories.size % 3) % 3) {
             Spacer(modifier = Modifier.weight(1f))
         }
     }
+}
+
+/**
+ * Короткая подпись для фишки.
+ *
+ * В [com.aggin.carcost.presentation.common.Labels] лежат полные названия — они
+ * нужны в отчётах и списках, но в фишку шириной в треть экрана не помещаются.
+ */
+private fun ExpenseCategory.chipLabel(): String = when (this) {
+    ExpenseCategory.FUEL -> "⛽ Топливо"
+    ExpenseCategory.CHARGING -> "🔌 Зарядка"
+    ExpenseCategory.MAINTENANCE -> "🔧 ТО"
+    ExpenseCategory.REPAIR -> "🛠️ Ремонт"
+    ExpenseCategory.INSURANCE -> "🛡️ Страховка"
+    ExpenseCategory.TAX -> "🧾 Налог"
+    ExpenseCategory.PARKING -> "🅿️ Парковка"
+    ExpenseCategory.TOLL -> "🛣️ Дорога"
+    ExpenseCategory.WASH -> "💧 Мойка"
+    ExpenseCategory.FINE -> "⚠️ Штраф"
+    ExpenseCategory.ACCESSORIES -> "🛒 Аксессуары"
+    ExpenseCategory.OTHER -> "➕ Другое"
 }
 
 @Composable
@@ -678,7 +662,9 @@ fun CategoryChip(
 fun ServiceTypeDropdown(
     selectedServiceType: ServiceType?,
     onServiceTypeSelected: (ServiceType?) -> Unit,
-    enabled: Boolean
+    enabled: Boolean,
+    /** Виды работ зависят от машины: у электромобиля нет ни масла, ни свечей */
+    fuelType: FuelType = FuelType.GASOLINE
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
 
@@ -702,7 +688,7 @@ fun ServiceTypeDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            ServiceType.values().forEach { serviceType ->
+            serviceTypesFor(fuelType).forEach { serviceType ->
                 DropdownMenuItem(
                     text = { Text(getServiceTypeName(serviceType)) },
                     onClick = {

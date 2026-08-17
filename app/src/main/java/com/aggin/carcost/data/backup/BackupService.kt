@@ -156,6 +156,7 @@ class BackupService(private val context: Context) {
      */
     suspend fun restore(backup: CarCostBackup): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            com.aggin.carcost.data.analytics.Analytics.backupRestored()
             backup.cars.forEach { db.carDao().insertCar(it) }
 
             val knownCars = db.carDao().getAllCars().first().map { it.id }.toSet()

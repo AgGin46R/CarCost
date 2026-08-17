@@ -86,6 +86,7 @@ class ReceiptScanViewModel : ViewModel() {
     }
 
     fun scanReceipt(uri: Uri, context: Context) {
+        com.aggin.carcost.data.analytics.Analytics.receiptScanned()
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isScanning = true, error = null)
 

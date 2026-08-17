@@ -39,24 +39,16 @@ import com.patrykandpatrick.vico.compose.chart.column.columnChart
 import com.patrykandpatrick.vico.compose.chart.line.lineChart
 import com.patrykandpatrick.vico.core.entry.entryModelOf
 import kotlin.math.abs
+import com.aggin.carcost.presentation.common.LocalCarCurrency
 import com.aggin.carcost.presentation.common.color
+import com.aggin.carcost.presentation.common.currencyFormat
 import com.aggin.carcost.presentation.common.displayName
+import com.aggin.carcost.presentation.common.hasMixedCurrencies
 import com.aggin.carcost.presentation.navigation.navigateOnce
 
-/**
- * Валюта текущего автомобиля.
- *
- * Раньше символ ₽ был захардкожен в 16 местах этого файла, и при валюте машины,
- * отличной от рубля, весь экран показывал неверные подписи. Такую же правку
- * проект уже пережил в планируемых расходах.
- */
-private val LocalCarCurrency = androidx.compose.runtime.compositionLocalOf { "RUB" }
-
-@Composable
-private fun currencyFormat(amount: Double, decimals: Int = 0): String {
-    val symbol = com.aggin.carcost.util.CurrencyUtils.symbol(LocalCarCurrency.current)
-    return "%.${decimals}f $symbol".format(amount)
-}
+// Валюта и её форматирование переехали в presentation/common/CarCurrency.kt:
+// тот же приём понадобился другим экранам, и держать его копию в каждом — верный
+// способ однажды поправить один и забыть остальные.
 
 
 // --- ФАБРИКА ДЛЯ СОЗДАНИЯ VIEWMODEL С ПАРАМЕТРАМИ ---
@@ -121,6 +113,37 @@ fun EnhancedAnalyticsScreen(
         }
     ) { paddingValues ->
       CompositionLocalProvider(LocalCarCurrency provides (uiState.car?.currency ?: "RUB")) {
+        // Предупреждение о смешанных валютах.
+        //
+        // Такое бывает только у старых данных: до того как валюта стала браться
+        // у автомобиля, каждой записи проставлялся рубль независимо от машины.
+        // Пересчитать по курсу нельзя — неизвестно ни курс какого дня брать, ни
+        // какая валюта в записи настоящая. Поэтому не досочиняем, а говорим.
+        if (hasMixedCurrencies(uiState.expenses)) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        "В расходах смешаны разные валюты",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Text(
+                        "Итоги ниже складывают их как одинаковые числа, поэтому " +
+                            "им доверять нельзя. Валюту записи можно поправить при " +
+                            "её изменении.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
             onRefresh = { viewModel.refresh() },
@@ -736,21 +759,64 @@ fun FuelStatisticsCard(fuelStats: FuelStatistics) {
                 Text("Статистика по топливу", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(16.dp))
+
+            // Стоимость километра идёт первой у машин с двумя источниками.
+            //
+            // У подключаемого гибрида раздельные «л/100 км» и «кВт·ч/100 км»
+            // почти бессмысленны: обе величины зависят от того, какую долю пути
+            // проехали на розетке, а не от прожорливости машины. Месяц езды на
+            // электричестве покажет расход бензина 1,5 л/100 км — и это не
+            // достижение двигателя. Сравнивать можно только стоимость километра.
+            fuelStats.costPerKm?.let { perKm ->
+                FuelStatRow("Стоимость километра", currencyFormat(perKm, decimals = 2))
+                fuelStats.electricCostShare?.let { share ->
+                    FuelStatRow(
+                        "Из них на электричество",
+                        "%.0f %%".format(share * 100)
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Text(
+                    "Расходы ниже показаны по отдельности. У машины с двумя " +
+                        "источниками они зависят от доли поездок на электричестве, " +
+                        "поэтому сравнивать их с обычной машиной нельзя.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
             // Расход считается только по заправкам «до полного»: пока их меньше двух,
             // честного числа нет, и показывать выдуманное хуже, чем объяснить почему
-            FuelStatRow(
-                "Средний расход",
-                fuelStats.averageConsumption
-                    ?.let { "%.2f л/100км".format(it) }
-                    ?: "нужны 2 заправки до полного"
-            )
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Всего заправлено", "%.1f л".format(fuelStats.totalLiters))
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Потрачено на топливо", currencyFormat(fuelStats.totalCost))
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Средняя цена за литр", currencyFormat(fuelStats.averagePricePerLiter))
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            if (fuelStats.totalLiters > 0) {
+                FuelStatRow(
+                    "Средний расход",
+                    fuelStats.averageConsumption
+                        ?.let { "%.2f л/100км".format(it) }
+                        ?: "нужны 2 заправки до полного"
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                FuelStatRow("Всего заправлено", "%.1f л".format(fuelStats.totalLiters))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                FuelStatRow("Потрачено на топливо", currencyFormat(fuelStats.totalCost))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                FuelStatRow("Средняя цена за литр", currencyFormat(fuelStats.averagePricePerLiter))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+
+            if (fuelStats.totalKwh > 0) {
+                FuelStatRow(
+                    "Расход электричества",
+                    fuelStats.averageEnergyConsumption
+                        ?.let { "%.1f кВт·ч/100км".format(it) }
+                        ?: "нужны 2 зарядки до 100%"
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                FuelStatRow("Всего заряжено", "%.1f кВт·ч".format(fuelStats.totalKwh))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                FuelStatRow("Потрачено на зарядку", currencyFormat(fuelStats.energyCost))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
             if (fuelStats.averageConsumption != null) {
                 FuelStatRow("Пробег в расчёте", "${fuelStats.kmDriven} км")
             }

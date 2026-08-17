@@ -88,11 +88,25 @@ class MainActivity : ComponentActivity() {
         pendingNavRoute = extractNavRoute(intent)
     }
 
+    companion object {
+        /** Пометка, что приложение открыто с виджета, а не из уведомления */
+        const val EXTRA_FROM_WIDGET = "from_widget"
+    }
+
     private fun extractNavRoute(intent: android.content.Intent?): String? {
         val navType = intent?.getStringExtra(NotificationHelper.EXTRA_NAV_TYPE)
             ?: return null
         val carId = intent.getStringExtra(NotificationHelper.EXTRA_NAV_CAR_ID)
             ?: return null
+
+        // Виджет и уведомления открывают приложение одними и теми же ключами,
+        // поэтому отличить их можно только по отдельной пометке. Считаем именно
+        // запуск с виджета: сохранится запись или нет — вопрос отдельный, а
+        // ценность виджета в том, что им пользуются.
+        if (intent.getBooleanExtra(EXTRA_FROM_WIDGET, false)) {
+            com.aggin.carcost.data.analytics.Analytics.expenseFromWidget()
+        }
+
         return when (navType) {
             NotificationHelper.NAV_TYPE_CHAT        -> "chat/$carId"
             NotificationHelper.NAV_TYPE_ADD_EXPENSE -> "add_expense/$carId"

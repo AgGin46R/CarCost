@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.FluidLevel
 import com.aggin.carcost.data.local.database.entities.FluidType
+import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.data.local.database.entities.fluidTypesFor
 import com.aggin.carcost.data.local.repository.FluidLevelRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseFluidLevelRepository
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -43,12 +46,20 @@ class FluidLevelsViewModel(
 
     private val _dialogState = MutableStateFlow<FluidType?>(null)
 
+    /**
+     * Чем движется машина. Нужен, чтобы не предлагать электромобилю моторное
+     * масло и жидкость ГУР — их у него нет, а контур охлаждения батареи есть.
+     */
+    private val carFuelTypeFlow = db.carDao().getCarByIdFlow(carId)
+        .map { it?.fuelType ?: FuelType.GASOLINE }
+
     val uiState: StateFlow<FluidLevelsUiState> = combine(
         repository.getFluidLevelsByCarId(carId),
-        _dialogState
-    ) { levels, dialogType ->
+        _dialogState,
+        carFuelTypeFlow
+    ) { levels, dialogType, carFuelType ->
         val now = System.currentTimeMillis()
-        val items = FluidType.values().map { type ->
+        val items = fluidTypesFor(carFuelType).map { type ->
             val existing = levels.firstOrNull { it.type == type }
             val isOverdue = existing == null ||
                 (now - existing.checkedAt) > (type.checkIntervalDays * 86_400_000L)

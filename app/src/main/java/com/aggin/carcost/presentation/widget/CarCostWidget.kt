@@ -131,6 +131,7 @@ fun CarCostWidgetContent(
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(NotificationHelper.EXTRA_NAV_TYPE, NotificationHelper.NAV_TYPE_ADD_EXPENSE)
             putExtra(NotificationHelper.EXTRA_NAV_CAR_ID, it)
+            putExtra(MainActivity.EXTRA_FROM_WIDGET, true)
         }
     } ?: openAppIntent
 
@@ -141,6 +142,7 @@ fun CarCostWidgetContent(
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(NotificationHelper.EXTRA_NAV_TYPE, NotificationHelper.NAV_TYPE_ADD_FUEL)
             putExtra(NotificationHelper.EXTRA_NAV_CAR_ID, it)
+            putExtra(MainActivity.EXTRA_FROM_WIDGET, true)
         }
     } ?: openAppIntent
 

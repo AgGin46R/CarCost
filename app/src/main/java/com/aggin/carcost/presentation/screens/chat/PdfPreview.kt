@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -135,6 +136,11 @@ fun PdfPreviewDialog(
                         IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Закрыть") }
                     },
                     actions = {
+                        IconButton(
+                            onClick = { downloadAttachment(context, url, fileName, "file") }
+                        ) {
+                            Icon(Icons.Default.Download, "Сохранить документ")
+                        }
                         IconButton(onClick = onOpenExternally) {
                             Icon(Icons.Default.OpenInNew, "Открыть в другом приложении")
                         }
