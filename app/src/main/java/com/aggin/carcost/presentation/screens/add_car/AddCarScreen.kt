@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.data.local.database.entities.VehicleType
 import com.aggin.carcost.util.CurrencyUtils
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -230,6 +231,17 @@ fun AddCarScreen(
                 enabled = !uiState.isSaving
             )
 
+            Text(
+                text = "Вид техники",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            VehicleTypeSelector(
+                selected = uiState.vehicleType,
+                onSelected = { viewModel.updateVehicleType(it) },
+                enabled = !uiState.isSaving
+            )
+
             // Тип топлива
             Text(
                 text = "Тип топлива",
@@ -372,63 +384,65 @@ fun AddCarScreen(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun FuelTypeSelector(
     selectedFuelType: FuelType,
     onFuelTypeSelected: (FuelType) -> Unit,
     enabled: Boolean = true
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+    // Раньше здесь были прибитые гвоздями ряды, и «Подключаемый гибрид» в них
+    // просто не попал: значение в перечислении появилось, а выбрать его было
+    // нельзя. Список из самого перечисления такого больше не допустит.
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        maxItemsInEachRow = 2
+    ) {
+        FuelType.entries.forEach { type ->
             FuelTypeChip(
-                label = "Бензин",
-                selected = selectedFuelType == FuelType.GASOLINE,
-                onClick = { onFuelTypeSelected(FuelType.GASOLINE) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            FuelTypeChip(
-                label = "Дизель",
-                selected = selectedFuelType == FuelType.DIESEL,
-                onClick = { onFuelTypeSelected(FuelType.DIESEL) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FuelTypeChip(
-                label = "Электро",
-                selected = selectedFuelType == FuelType.ELECTRIC,
-                onClick = { onFuelTypeSelected(FuelType.ELECTRIC) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            FuelTypeChip(
-                label = "Гибрид",
-                selected = selectedFuelType == FuelType.HYBRID,
-                onClick = { onFuelTypeSelected(FuelType.HYBRID) },
+                label = type.labelRu(),
+                selected = selectedFuelType == type,
+                onClick = { onFuelTypeSelected(type) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FuelTypeChip(
-                label = "Газ",
-                selected = selectedFuelType == FuelType.GAS,
-                onClick = { onFuelTypeSelected(FuelType.GAS) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
+        if (FuelType.entries.size % 2 != 0) {
             Spacer(modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+private fun FuelType.labelRu(): String = when (this) {
+    FuelType.GASOLINE -> "Бензин"
+    FuelType.DIESEL -> "Дизель"
+    FuelType.ELECTRIC -> "Электро"
+    FuelType.HYBRID -> "Гибрид"
+    FuelType.PLUGIN_HYBRID -> "Гибрид с розеткой"
+    FuelType.GAS -> "Газ"
+    FuelType.OTHER -> "Другое"
+}
+
+/** Автомобиль или мотоцикл — от этого зависят списки ТО и подписи */
+@Composable
+fun VehicleTypeSelector(
+    selected: VehicleType,
+    onSelected: (VehicleType) -> Unit,
+    enabled: Boolean = true
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        VehicleType.entries.forEach { type ->
+            FuelTypeChip(
+                label = type.labelRu,
+                selected = selected == type,
+                onClick = { onSelected(type) },
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }

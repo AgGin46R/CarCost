@@ -107,7 +107,9 @@ data class NavigatorUiState(
     val activePoiCategory: PoiCategory? = null,
     val isLoadingRoute: Boolean = false,
     val errorMessage: String? = null,
-    val tripStats: TripStats? = null
+    val tripStats: TripStats? = null,
+    /** Ближайший манёвр — то, ради чего навигатором пользуются за рулём */
+    val nextManeuver: Maneuver? = null
 )
 
 class NavigatorViewModel(application: Application) : AndroidViewModel(application) {
@@ -161,6 +163,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                 // Check route deviation while navigating
                 if (_uiState.value.mode == NavigatorMode.NAVIGATING) {
                     checkRouteDeviation(loc.latitude, loc.longitude)
+                    updateManeuver(loc.latitude, loc.longitude)
                 }
             }
         }
@@ -488,6 +491,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         val carId = _uiState.value.selectedCarId
         val destName = _uiState.value.destinationName
 
+        announcedManeuver = null
         speaker?.speak("Начинаем маршрут. $destName")
 
         val intent = Intent(getApplication(), NavigationService::class.java).apply {
@@ -555,6 +559,34 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // ── Route deviation ──────────────────────────────────────────────────────
+
+    /**
+     * Порог, с которого манёвр объявляется голосом. Двести метров — примерно
+     * десять секунд на городской скорости: успеть перестроиться, но не забыть
+     * к моменту поворота.
+     */
+    private val ANNOUNCE_DISTANCE_M = 200
+
+    /** О каком манёвре уже сказали — чтобы не повторять на каждой точке GPS */
+    private var announcedManeuver: String? = null
+
+    private fun updateManeuver(lat: Double, lon: Double) {
+        val state = _uiState.value
+        val route = state.allRoutes.getOrNull(state.selectedRouteIndex) ?: return
+        val maneuver = nextManeuver(route, lat, lon)
+        _uiState.update { it.copy(nextManeuver = maneuver) }
+
+        if (maneuver == null || maneuver.action == ManeuverAction.STRAIGHT) return
+        if (maneuver.distanceM > ANNOUNCE_DISTANCE_M) return
+
+        // Ключ включает вид манёвра и улицу: два поворота подряд не сольются в один
+        val key = "${maneuver.action}|${maneuver.street}"
+        if (key == announcedManeuver) return
+        announcedManeuver = key
+
+        val street = maneuver.street?.let { " на $it" } ?: ""
+        speaker?.speak("Через ${maneuver.distanceLabel} ${maneuver.action.label.lowercase()}$street")
+    }
 
     private fun checkRouteDeviation(lat: Double, lon: Double) {
         val now = System.currentTimeMillis()

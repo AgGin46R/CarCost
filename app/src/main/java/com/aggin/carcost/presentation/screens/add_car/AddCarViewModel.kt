@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.data.local.database.entities.VehicleType
 import com.aggin.carcost.data.local.database.entities.OdometerUnit
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
@@ -31,6 +32,7 @@ data class AddCarUiState(
     val year: String = "",
     val licensePlate: String = "",
     val currentOdometer: String = "",
+    val vehicleType: VehicleType = VehicleType.CAR,
     val fuelType: FuelType = FuelType.GASOLINE,
     val purchasePrice: String = "",
     val purchaseDate: Long? = null,
@@ -85,6 +87,10 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
         if (value.isEmpty() || value.all { it.isDigit() }) {
             _uiState.value = _uiState.value.copy(currentOdometer = value, showError = false)
         }
+    }
+
+    fun updateVehicleType(value: VehicleType) {
+        _uiState.value = _uiState.value.copy(vehicleType = value)
     }
 
     fun updateFuelType(value: FuelType) {
@@ -211,6 +217,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                     year = state.year.toInt(),
                     licensePlate = state.licensePlate.trim(),
                     currentOdometer = state.currentOdometer.toInt(),
+                    vehicleType = state.vehicleType,
                     fuelType = state.fuelType,
                     purchaseDate = state.purchaseDate ?: System.currentTimeMillis(),
                     purchasePrice = state.purchasePrice.toDoubleOrNull(),

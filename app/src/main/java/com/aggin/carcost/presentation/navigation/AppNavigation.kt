@@ -70,6 +70,9 @@ sealed class Screen(val route: String) {
     object Register : Screen("register")
     object ForgotPassword : Screen("forgot_password")
     object PrivacyPolicy : Screen("privacy_policy")
+
+    /** Пользовательское соглашение — открывается из профиля рядом с политикой */
+    object TermsOfUse : Screen("terms_of_use")
     object Home : Screen("home")
     object Profile : Screen("profile")
     object AddCar : Screen("add_car")
@@ -367,6 +370,10 @@ fun AppNavigation(
         }
 
         // Доступен и до входа: согласие при регистрации ссылается именно сюда
+        composable(Screen.TermsOfUse.route) {
+            com.aggin.carcost.presentation.screens.legal.TermsOfUseScreen(navController = navController)
+        }
+
         composable(Screen.PrivacyPolicy.route) {
             com.aggin.carcost.presentation.screens.legal.PrivacyPolicyScreen(navController = navController)
         }

@@ -25,7 +25,14 @@ class AchievementChecker(
      * Check all expense-related achievements for a given user + car.
      */
     suspend fun checkAfterExpenseAdded(userId: String, carId: String) {
-        val expenses = expenseDao.getExpensesByCar(carId).first()
+        // Считаем по ВСЕМ машинам человека, а не по одной.
+        //
+        // Раньше здесь брались расходы только текущего автомобиля, и владелец
+        // трёх машин с пятью записями в каждой не получал «10 расходов» никогда,
+        // хотя описание обещает именно общее число. Экран достижений при этом
+        // считал правильно — по всем машинам, — и показывал «10 из 10» под
+        // закрытым значком.
+        val expenses = allExpensesOf(carId)
         val totalCount = expenses.size
 
         // FIRST_EXPENSE
@@ -201,6 +208,16 @@ class AchievementChecker(
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
+    /**
+     * Все расходы человека. Если список машин недоступен (carDao не передан),
+     * честно откатываемся к одной машине — это хуже, но предсказуемо.
+     */
+    private suspend fun allExpensesOf(fallbackCarId: String): List<com.aggin.carcost.data.local.database.entities.Expense> {
+        val cars = carDao?.getAllActiveCarsSync()
+        if (cars.isNullOrEmpty()) return expenseDao.getExpensesByCar(fallbackCarId).first()
+        return cars.flatMap { expenseDao.getExpensesByCarIdSync(it.id) }
+    }
+
     private suspend fun tryUnlock(userId: String, type: AchievementType) {
         if (!achievementDao.hasAchievement(userId, type)) {
             achievementDao.insert(Achievement(userId = userId, type = type))
@@ -212,46 +229,13 @@ class AchievementChecker(
      * (L/100km, computed between consecutive full-tank fill-ups) averaged below 8.0.
      */
     private suspend fun checkEcoDriver(userId: String, carId: String) {
-        val fuelExpenses = expenseDao.getExpensesByCarIdSync(carId)
-            .filter { it.category == ExpenseCategory.FUEL && it.fuelLiters != null && it.fuelLiters > 0 }
-            .sortedBy { it.date }
-
-        if (fuelExpenses.size < 2) return
-
-        // Compute L/100km for each consecutive pair, bucket by month of LATER fill-up
-        data class MonthKey(val year: Int, val month: Int)
-
-        val consumptionsByMonth = mutableMapOf<MonthKey, MutableList<Double>>()
-        for (i in 1 until fuelExpenses.size) {
-            val prev = fuelExpenses[i - 1]
-            val curr = fuelExpenses[i]
-            val distKm = curr.odometer - prev.odometer
-            if (distKm > 50 && curr.fuelLiters != null) {
-                val consumption = (curr.fuelLiters / distKm) * 100.0
-                val cal = Calendar.getInstance().apply { timeInMillis = curr.date }
-                val key = MonthKey(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
-                consumptionsByMonth.getOrPut(key) { mutableListOf() }.add(consumption)
-            }
+        // Расчёт переехал в AchievementProgressCalculator: та же формула нужна
+        // экрану достижений, а две копии уже успели разойтись — здесь и там
+        // расход считался без проверки «до полного бака», то есть неверно.
+        val expenses = allExpensesOf(carId)
+        val months = AchievementProgressCalculator.ecoMonths(expenses)
+        if (months >= AchievementProgressCalculator.ECO_MONTHS_REQUIRED) {
+            tryUnlock(userId, AchievementType.ECO_DRIVER)
         }
-
-        if (consumptionsByMonth.size < 3) return
-
-        // Sort months descending, skip current incomplete month, take last 3
-        val currentCal = Calendar.getInstance()
-        val currentMonthKey = MonthKey(currentCal.get(Calendar.YEAR), currentCal.get(Calendar.MONTH))
-
-        val sortedMonths = consumptionsByMonth.keys
-            .filter { it != currentMonthKey }
-            .sortedWith(compareByDescending<MonthKey> { it.year }.thenByDescending { it.month })
-
-        if (sortedMonths.size < 3) return
-
-        val last3 = sortedMonths.take(3)
-        val allBelow8 = last3.all { key ->
-            val avg = consumptionsByMonth[key]!!.average()
-            avg < 8.0
-        }
-
-        if (allBelow8) tryUnlock(userId, AchievementType.ECO_DRIVER)
     }
 }

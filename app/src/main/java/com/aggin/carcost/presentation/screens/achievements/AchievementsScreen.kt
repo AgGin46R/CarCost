@@ -27,6 +27,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.AppDatabase
+import com.aggin.carcost.domain.gamification.AchievementProgressCalculator
 import com.aggin.carcost.data.local.database.entities.Achievement
 import com.aggin.carcost.data.local.database.entities.AchievementType
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
@@ -72,17 +73,31 @@ class AchievementsViewModel(application: Application) : AndroidViewModel(applica
         val maintenanceCount = allExpenses.count {
             it.category == ExpenseCategory.MAINTENANCE && it.serviceType != null
         }
-        val ecoMonths = computeEcoMonths(allExpenses)
+        val ecoMonths = AchievementProgressCalculator.ecoMonths(allExpenses)
+
+        // Прогресс показываем у всего, что вообще можно измерить. Раньше он был
+        // только у четырёх достижений из семнадцати, и остальные выглядели
+        // недостижимыми: человек не понимал, сколько ему осталось.
+        val fuelCount = AchievementProgressCalculator.fuelCount(allExpenses)
+        val photoCount = AchievementProgressCalculator.receiptPhotoCount(allExpenses)
+        val maxOdometer = allExpenses.maxOfOrNull { it.odometer } ?: 0
 
         val progress = mutableMapOf<AchievementType, AchievementProgress>()
-        if (AchievementType.EXPENSES_10 !in unlockedTypes)
-            progress[AchievementType.EXPENSES_10] = AchievementProgress(minOf(totalCount, 10), 10)
-        if (AchievementType.EXPENSES_100 !in unlockedTypes)
-            progress[AchievementType.EXPENSES_100] = AchievementProgress(minOf(totalCount, 100), 100)
-        if (AchievementType.REGULAR_MAINTENANCE !in unlockedTypes)
-            progress[AchievementType.REGULAR_MAINTENANCE] = AchievementProgress(minOf(maintenanceCount, 5), 5)
-        if (AchievementType.ECO_DRIVER !in unlockedTypes)
-            progress[AchievementType.ECO_DRIVER] = AchievementProgress(minOf(ecoMonths, 3), 3)
+        fun track(type: AchievementType, current: Int, max: Int) {
+            if (type !in unlockedTypes) {
+                progress[type] = AchievementProgress(minOf(current, max), max)
+            }
+        }
+
+        track(AchievementType.EXPENSES_10, totalCount, 10)
+        track(AchievementType.EXPENSES_50, totalCount, 50)
+        track(AchievementType.EXPENSES_100, totalCount, 100)
+        track(AchievementType.REGULAR_MAINTENANCE, maintenanceCount, 5)
+        track(AchievementType.ECO_DRIVER, ecoMonths, AchievementProgressCalculator.ECO_MONTHS_REQUIRED)
+        track(AchievementType.FUEL_VETERAN, fuelCount, 20)
+        track(AchievementType.PHOTO_COLLECTOR, photoCount, 10)
+        track(AchievementType.MULTI_CAR, cars.size, 2)
+        track(AchievementType.HIGH_MILEAGE, maxOdometer, 100_000)
 
         AchievementsUiState(
             unlocked = unlocked,
@@ -96,42 +111,6 @@ class AchievementsViewModel(application: Application) : AndroidViewModel(applica
         initialValue = AchievementsUiState()
     )
 
-    /**
-     * Count how many of the last complete months had avg fuel consumption < 8.0 L/100km.
-     * Returns a number 0-3.
-     */
-    private fun computeEcoMonths(expenses: List<com.aggin.carcost.data.local.database.entities.Expense>): Int {
-        val fuelExpenses = expenses
-            .filter { it.category == ExpenseCategory.FUEL && it.fuelLiters != null && it.fuelLiters > 0 }
-            .sortedBy { it.date }
-        if (fuelExpenses.size < 2) return 0
-
-        data class MonthKey(val year: Int, val month: Int)
-        val consumptionsByMonth = mutableMapOf<MonthKey, MutableList<Double>>()
-        for (i in 1 until fuelExpenses.size) {
-            val prev = fuelExpenses[i - 1]
-            val curr = fuelExpenses[i]
-            val distKm = curr.odometer - prev.odometer
-            if (distKm > 50 && curr.fuelLiters != null) {
-                val consumption = (curr.fuelLiters / distKm) * 100.0
-                val cal = Calendar.getInstance().apply { timeInMillis = curr.date }
-                val key = MonthKey(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
-                consumptionsByMonth.getOrPut(key) { mutableListOf() }.add(consumption)
-            }
-        }
-        if (consumptionsByMonth.isEmpty()) return 0
-
-        val currentCal = Calendar.getInstance()
-        val currentKey = MonthKey(currentCal.get(Calendar.YEAR), currentCal.get(Calendar.MONTH))
-        val sortedMonths = consumptionsByMonth.keys
-            .filter { it != currentKey }
-            .sortedWith(compareByDescending<MonthKey> { it.year }.thenByDescending { it.month })
-            .take(3)
-
-        return sortedMonths.count { key ->
-            (consumptionsByMonth[key]?.average() ?: Double.MAX_VALUE) < 8.0
-        }
-    }
 }
 
 class AchievementsViewModelFactory(private val app: Application) : ViewModelProvider.Factory {

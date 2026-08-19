@@ -72,7 +72,13 @@ enum class MaintenanceType(val displayName: String, val defaultInterval: Int) {
     REDUCER_OIL("Масло редуктора", 60000),
     BATTERY_COOLANT("Охлаждающая жидкость батареи", 100000),
     BATTERY_HEALTH("Проверка состояния батареи", 20000),
-    BRAKE_CALIPERS("Чистка и смазка суппортов", 20000)
+    BRAKE_CALIPERS("Чистка и смазка суппортов", 20000),
+
+    // ── Мотоцикл ─────────────────────────────────────────────────────────────
+    CHAIN_LUBE("Смазка цепи", 500),
+    CHAIN_REPLACE("Замена цепи и звёзд", 25000),
+    FORK_OIL("Масло в вилке", 20000),
+    VALVE_CLEARANCE("Регулировка клапанов", 24000)
 }
 
 /**
@@ -86,7 +92,10 @@ enum class MaintenanceType(val displayName: String, val defaultInterval: Int) {
  * изнашиваются годами — и именно поэтому суппорты закисают. Владельцу это
  * неочевидно, и напоминание здесь полезнее, чем про сами колодки.
  */
-fun maintenanceTypesFor(fuelType: FuelType): List<MaintenanceType> {
+fun maintenanceTypesFor(
+    fuelType: FuelType,
+    vehicleType: VehicleType = VehicleType.CAR
+): List<MaintenanceType> {
     val engineOnly = setOf(
         MaintenanceType.OIL_CHANGE,
         MaintenanceType.OIL_FILTER,
@@ -102,10 +111,24 @@ fun maintenanceTypesFor(fuelType: FuelType): List<MaintenanceType> {
         MaintenanceType.BRAKE_CALIPERS
     )
 
+    // У мотоцикла нет ни салонного фильтра, ни развала-схождения: одно некуда
+    // ставить, второе нечему делать на двух колёсах
+    val carOnly = setOf(
+        MaintenanceType.CABIN_FILTER
+    )
+    val motorcycleOnly = setOf(
+        MaintenanceType.CHAIN_LUBE,
+        MaintenanceType.CHAIN_REPLACE,
+        MaintenanceType.FORK_OIL,
+        MaintenanceType.VALVE_CLEARANCE
+    )
+
     return MaintenanceType.entries.filter { type ->
         when {
             type in engineOnly -> fuelType.canRefuel
             type in electricOnly -> fuelType.canCharge
+            type in carOnly -> vehicleType == VehicleType.CAR
+            type in motorcycleOnly -> vehicleType == VehicleType.MOTORCYCLE
             else -> true
         }
     }

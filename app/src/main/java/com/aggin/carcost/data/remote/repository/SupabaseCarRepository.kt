@@ -3,6 +3,7 @@ package com.aggin.carcost.data.remote.repository
 import android.util.Log
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.data.local.database.entities.VehicleType
 import com.aggin.carcost.data.local.database.entities.OdometerUnit
 import com.aggin.carcost.supabase
 import io.github.jan.supabase.postgrest.query.Order
@@ -37,6 +38,8 @@ data class CarDto(
     val purchasePrice: Double? = null,
     @SerialName("purchase_odometer")
     val purchaseOdometer: Int? = null,
+    @SerialName("vehicle_type")
+    val vehicleType: String = "CAR",
     @SerialName("fuel_type")
     val fuelType: String = "GASOLINE",
     @SerialName("tank_capacity")
@@ -240,6 +243,7 @@ private fun Car.toDto(userId: String) = CarDto(
     purchaseDate = purchaseDate,
     purchasePrice = purchasePrice,
     purchaseOdometer = purchaseOdometer,
+    vehicleType = vehicleType.name,
     fuelType = fuelType.name,
     tankCapacity = tankCapacity,
     currency = currency,
@@ -262,6 +266,7 @@ internal fun CarDto.toCar() = Car(
     purchaseDate = purchaseDate,
     purchasePrice = purchasePrice,
     purchaseOdometer = purchaseOdometer,
+    vehicleType = try { VehicleType.valueOf(vehicleType) } catch (e: Exception) { VehicleType.CAR },
     fuelType = try { FuelType.valueOf(fuelType) } catch (e: Exception) { FuelType.GASOLINE },
     tankCapacity = tankCapacity,
     currency = currency,

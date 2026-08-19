@@ -938,6 +938,12 @@ fun ActionsSection(
                 subtitle = "Какие данные собираются и зачем",
                 onClick = { navController.navigateOnce(Screen.PrivacyPolicy.route) }
             )
+            SettingsRow(
+                Icons.Default.Description,
+                "Пользовательское соглашение",
+                subtitle = "Условия использования приложения",
+                onClick = { navController.navigateOnce(Screen.TermsOfUse.route) }
+            )
         }
 
         SettingsGroup("Мои данные") {
@@ -1421,7 +1427,7 @@ fun AppInfoSection() {
     ) {
         Text("CarCost", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
-            "Версия 1.0.8",
+            "Версия ${com.aggin.carcost.BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )

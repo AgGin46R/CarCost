@@ -333,10 +333,14 @@ class ChatViewModel(
             }
         }
 
-        // В базу идём за теми, кого локально нет вовсе. Человек, у которого
-        // локально известно имя, но нет фотографии, сюда не попадёт — так было
-        // и раньше, и лишних запросов на каждое сообщение мы не делаем.
-        val stillMissing = missing.filterNot { names.containsKey(it) || photos.containsKey(it) }
+        // На сервер идём за всеми, у кого локально нет фотографии — а не только
+        // за теми, кого нет вовсе.
+        //
+        // Прежнее условие пропускало человека, чьё имя уже лежало локально, и
+        // фотография у него не появлялась никогда. Повторных запросов это не
+        // плодит: senderProfilesLoaded помнит, кого уже спрашивали, а участников
+        // в чате единицы.
+        val stillMissing = missing.filterNot { photos.containsKey(it) }
         if (stillMissing.isNotEmpty()) {
             try {
                 com.aggin.carcost.supabase.from("users")

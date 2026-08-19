@@ -492,6 +492,18 @@ val MIGRATION_34_35 = object : Migration(34, 35) {
  * поле было всегда.
  */
 /**
+ * Вид техники: автомобиль или мотоцикл.
+ *
+ * Существующие записи получают CAR — для них это верно, и переносить данные
+ * не требуется. Хранится строкой, как и остальные перечисления.
+ */
+val MIGRATION_40_41 = object : Migration(40, 41) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE cars ADD COLUMN vehicleType TEXT NOT NULL DEFAULT 'CAR'")
+    }
+}
+
+/**
  * Киловатт-часы у зарядки.
  *
  * Только добавление колонки: новая категория расхода CHARGING и новый тип
@@ -700,7 +712,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         PendingWrite::class,
         FluidLevel::class
     ],
-    version = 40,
+    version = 41,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -768,7 +780,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_36_37,
                         MIGRATION_37_38,
                         MIGRATION_38_39,
-                        MIGRATION_39_40
+                        MIGRATION_39_40,
+                        MIGRATION_40_41
                     )
                     .build()
                 INSTANCE = instance

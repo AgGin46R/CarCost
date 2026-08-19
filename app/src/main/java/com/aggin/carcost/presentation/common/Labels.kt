@@ -126,6 +126,10 @@ fun ServiceType.displayName(): String = when (this) {
     ServiceType.BATTERY_COOLANT -> "Охлаждающая жидкость батареи"
     ServiceType.BATTERY_HEALTH -> "Проверка состояния батареи"
     ServiceType.BRAKE_CALIPERS -> "Чистка и смазка суппортов"
+    ServiceType.CHAIN_LUBE -> "Смазка цепи"
+    ServiceType.CHAIN_REPLACE -> "Замена цепи и звёзд"
+    ServiceType.FORK_OIL -> "Масло в вилке"
+    ServiceType.VALVE_CLEARANCE -> "Регулировка клапанов"
     ServiceType.OTHER -> "Другое"
 }
 

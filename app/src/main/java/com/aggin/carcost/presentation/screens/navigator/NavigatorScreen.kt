@@ -588,29 +588,40 @@ fun NavigatorScreen(
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp
             ) {
+                // Панель манёвра.
+                //
+                // Раньше здесь висела неизменная надпись «Следуйте по маршруту» с
+                // одной и той же стрелкой — то есть навигатор не сообщал главного:
+                // куда поворачивать. Теперь показывается ближайший манёвр,
+                // расстояние до него и улица, на которую он выводит.
                 Row(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Direction icon (simplified — straight ahead)
+                    val maneuver = uiState.nextManeuver
                     Icon(
-                        Icons.Default.Navigation, contentDescription = null,
+                        maneuverIcon(maneuver?.action),
+                        contentDescription = maneuver?.action?.label,
                         tint = Color.White,
-                        modifier = Modifier.size(36.dp)
+                        // Крупнее прежнего: за рулём значок считывается боковым
+                        // зрением, и мелкий здесь бесполезен
+                        modifier = Modifier.size(48.dp)
                     )
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            "Следуйте по маршруту",
+                            text = maneuver?.distanceLabel ?: "—",
                             color = Color.White,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            uiState.destinationName.take(40),
-                            color = Color.White.copy(alpha = 0.8f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1
+                            text = maneuver?.let { m ->
+                                m.street?.let { "${m.action.label} на $it" } ?: m.action.label
+                            } ?: uiState.destinationName.take(40),
+                            color = Color.White.copy(alpha = 0.9f),
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 2
                         )
                     }
                 }
@@ -1225,4 +1236,21 @@ private fun TripStatChip(label: String, km: Double, count: Int?) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+
+/**
+ * Стрелка манёвра.
+ *
+ * Берём готовые системные значки поворотов: рисовать свои ради четырёх стрелок
+ * незачем, а системные уже узнаваемы и одинаково читаются на любой плотности.
+ */
+private fun maneuverIcon(action: ManeuverAction?): androidx.compose.ui.graphics.vector.ImageVector = when (action) {
+    ManeuverAction.LEFT, ManeuverAction.HARD_LEFT -> Icons.Default.TurnLeft
+    ManeuverAction.SLIGHT_LEFT -> Icons.Default.TurnSlightLeft
+    ManeuverAction.RIGHT, ManeuverAction.HARD_RIGHT -> Icons.Default.TurnRight
+    ManeuverAction.SLIGHT_RIGHT -> Icons.Default.TurnSlightRight
+    ManeuverAction.U_TURN -> Icons.Default.UTurnLeft
+    ManeuverAction.FINISH -> Icons.Default.Flag
+    else -> Icons.Default.Straight
 }

@@ -34,6 +34,7 @@ import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.FuelType
 import com.aggin.carcost.data.local.database.entities.ServiceType
+import com.aggin.carcost.data.local.database.entities.VehicleType
 import com.aggin.carcost.data.local.database.entities.expenseCategoriesFor
 import com.aggin.carcost.data.local.database.entities.serviceTypesFor
 import java.text.SimpleDateFormat
@@ -455,6 +456,7 @@ fun AddExpenseScreen(
 
                     ServiceTypeDropdown(
                         fuelType = uiState.fuelType,
+                        vehicleType = uiState.vehicleType,
                         selectedServiceType = uiState.serviceType,
                         onServiceTypeSelected = { viewModel.updateServiceType(it) },
                         enabled = !uiState.isSaving
@@ -664,7 +666,9 @@ fun ServiceTypeDropdown(
     onServiceTypeSelected: (ServiceType?) -> Unit,
     enabled: Boolean,
     /** Виды работ зависят от машины: у электромобиля нет ни масла, ни свечей */
-    fuelType: FuelType = FuelType.GASOLINE
+    fuelType: FuelType = FuelType.GASOLINE,
+    /** У мотоцикла нет салонного фильтра и развала, зато есть цепь и вилка */
+    vehicleType: VehicleType = VehicleType.CAR
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
 
@@ -688,7 +692,7 @@ fun ServiceTypeDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            serviceTypesFor(fuelType).forEach { serviceType ->
+            serviceTypesFor(fuelType, vehicleType).forEach { serviceType ->
                 DropdownMenuItem(
                     text = { Text(getServiceTypeName(serviceType)) },
                     onClick = {

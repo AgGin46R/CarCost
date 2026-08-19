@@ -161,12 +161,13 @@ fun EditMaintenanceReminderScreen(
                     // Список зависит от выбранной машины: электромобилю не
                     // предлагаем масло, свечи и ремень ГРМ, зато предлагаем
                     // редуктор и охлаждение батареи
-                    val carFuelType = uiState.cars
-                        .firstOrNull { it.id == uiState.selectedCarId }
-                        ?.fuelType
+                    val selectedCar = uiState.cars.firstOrNull { it.id == uiState.selectedCarId }
+                    val carFuelType = selectedCar?.fuelType
                         ?: com.aggin.carcost.data.local.database.entities.FuelType.GASOLINE
+                    val carVehicleType = selectedCar?.vehicleType
+                        ?: com.aggin.carcost.data.local.database.entities.VehicleType.CAR
                     com.aggin.carcost.data.local.database.entities
-                        .maintenanceTypesFor(carFuelType).forEach { type ->
+                        .maintenanceTypesFor(carFuelType, carVehicleType).forEach { type ->
                         DropdownMenuItem(
                             text = {
                                 Column {

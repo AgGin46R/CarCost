@@ -135,6 +135,12 @@ enum class ServiceType {
     BATTERY_HEALTH,      // Проверка состояния батареи
     BRAKE_CALIPERS,      // Чистка и смазка суппортов
 
+    // ── Мотоцикл ─────────────────────────────────────────────────────────────
+    CHAIN_LUBE,          // Смазка цепи
+    CHAIN_REPLACE,       // Замена цепи и звёзд
+    FORK_OIL,            // Масло в вилке
+    VALVE_CLEARANCE,     // Регулировка клапанов
+
     OTHER
 }
 
@@ -161,7 +167,10 @@ fun expenseCategoriesFor(fuelType: FuelType): List<ExpenseCategory> =
  * перечисления разные: здесь то, что человек выбирает при записи выполненной
  * работы, там — то, о чём приложение напоминает заранее.
  */
-fun serviceTypesFor(fuelType: FuelType): List<ServiceType> {
+fun serviceTypesFor(
+    fuelType: FuelType,
+    vehicleType: VehicleType = VehicleType.CAR
+): List<ServiceType> {
     val engineOnly = setOf(
         ServiceType.OIL_CHANGE,
         ServiceType.OIL_FILTER,
@@ -177,10 +186,20 @@ fun serviceTypesFor(fuelType: FuelType): List<ServiceType> {
         ServiceType.BRAKE_CALIPERS
     )
 
+    val carOnly = setOf(ServiceType.CABIN_FILTER, ServiceType.ALIGNMENT)
+    val motorcycleOnly = setOf(
+        ServiceType.CHAIN_LUBE,
+        ServiceType.CHAIN_REPLACE,
+        ServiceType.FORK_OIL,
+        ServiceType.VALVE_CLEARANCE
+    )
+
     return ServiceType.entries.filter { type ->
         when {
             type in engineOnly -> fuelType.canRefuel
             type in electricOnly -> fuelType.canCharge
+            type in carOnly -> vehicleType == VehicleType.CAR
+            type in motorcycleOnly -> vehicleType == VehicleType.MOTORCYCLE
             else -> true
         }
     }

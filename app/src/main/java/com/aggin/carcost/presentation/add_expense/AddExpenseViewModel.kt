@@ -61,6 +61,9 @@ data class AddExpenseUiState(
      */
     val fuelType: com.aggin.carcost.data.local.database.entities.FuelType =
         com.aggin.carcost.data.local.database.entities.FuelType.GASOLINE,
+    /** Автомобиль или мотоцикл — от этого зависит список видов работ */
+    val vehicleType: com.aggin.carcost.data.local.database.entities.VehicleType =
+        com.aggin.carcost.data.local.database.entities.VehicleType.CAR,
     val isFullTank: Boolean = false,
 
     // Для обслуживания
@@ -156,7 +159,8 @@ class AddExpenseViewModel(
                 _uiState.value = _uiState.value.copy(
                     odometer = it.currentOdometer.toString(),
                     // От типа машины зависит набор категорий и вид полей заправки
-                    fuelType = it.fuelType
+                    fuelType = it.fuelType,
+                    vehicleType = it.vehicleType
                 )
 
                 // Подсказка одометра: базовый одометр + км из GPS-поездок с последней заправки
