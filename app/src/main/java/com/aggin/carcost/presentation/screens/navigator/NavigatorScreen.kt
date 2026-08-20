@@ -74,6 +74,7 @@ private fun MapObjectCollection?.removeSafely(obj: MapObject?) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NavigatorScreen(
     navController: NavController,
@@ -115,6 +116,40 @@ fun NavigatorScreen(
     var destMarker by remember { mutableStateOf<com.yandex.mapkit.map.PlacemarkMapObject?>(null) }
     val poiMarkers = remember { mutableListOf<com.yandex.mapkit.map.PlacemarkMapObject>() }
 
+    /**
+     * Убрать с карты всё, что относится к маршруту.
+     *
+     * Раньше очистка была расписана по месту в двух эффектах, и оба забывали про
+     * линии пройденного и оставшегося пути: их рисует отдельный эффект во время
+     * движения, а убирать было некому. После отмены маршрут исчезал наполовину —
+     * основная линия пропадала, а подсветка пути оставалась на карте навсегда.
+     *
+     * Одна функция вместо двух списков: забыть здесь новый объект можно только
+     * вместе с его созданием.
+     */
+    fun clearRouteOverlays() {
+        mapObjects.removeSafely(routePolyline)
+        routePolyline = null
+        mapObjects.removeSafely(traveledPolyline)
+        traveledPolyline = null
+        mapObjects.removeSafely(remainingPolyline)
+        remainingPolyline = null
+        altRoutePolylines.forEach { mapObjects.removeSafely(it) }
+        altRoutePolylines.clear()
+    }
+
+    /** Место, по которому нажали: показываем карточку снизу */
+    var selectedPoi by remember { mutableStateOf<PoiItem?>(null) }
+
+    /**
+     * Слушатели нажатий по меткам приходится держать самим.
+     *
+     * MapKit хранит на них только слабые ссылки: созданный на месте объект
+     * собирается сборщиком мусора, и метки молча перестают откликаться. Список
+     * живёт столько же, сколько экран, и этого достаточно.
+     */
+    val poiTapListeners = remember { mutableListOf<com.yandex.mapkit.map.MapObjectTapListener>() }
+
     // Save-favorites dialog
     var showSaveDialog by rememberSaveable { mutableStateOf(false) }
     var saveName by rememberSaveable { mutableStateOf("") }
@@ -137,15 +172,14 @@ fun NavigatorScreen(
     // Draw all route polylines (alternatives + primary)
     LaunchedEffect(uiState.allRoutes, uiState.selectedRouteIndex) {
         val routes = uiState.allRoutes
-        if (routes.isEmpty()) return@LaunchedEffect
         val map = mapView?.mapWindow?.map ?: return@LaunchedEffect
         val objects = mapObjects ?: map.mapObjects.also { mapObjects = it }
 
-        // Remove old polylines
-        objects.removeSafely(routePolyline)
-        routePolyline = null
-        altRoutePolylines.forEach { objects.removeSafely(it) }
-        altRoutePolylines.clear()
+        // Сначала убираем прежнее — и когда рисуем заново, и когда рисовать
+        // больше нечего. Раньше при опустевшем списке эффект выходил сразу,
+        // и старые линии оставались на карте.
+        clearRouteOverlays()
+        if (routes.isEmpty()) return@LaunchedEffect
 
         // Draw alternative routes first (behind primary)
         routes.forEachIndexed { idx, altRoute ->
@@ -196,17 +230,18 @@ fun NavigatorScreen(
         val point = uiState.destinationPoint ?: run {
             mapObjects.removeSafely(destMarker)
             destMarker = null
-            // Also clear route polylines
-            mapObjects.removeSafely(routePolyline)
-            routePolyline = null
-            altRoutePolylines.forEach { mapObjects.removeSafely(it) }
-            altRoutePolylines.clear()
+            clearRouteOverlays()
             return@LaunchedEffect
         }
         val map = mapView?.mapWindow?.map ?: return@LaunchedEffect
         val objects = mapObjects ?: map.mapObjects.also { mapObjects = it }
         objects.removeSafely(destMarker)
-        destMarker = objects.addPlacemark(point)
+        destMarker = objects.addPlacemark(point).apply {
+            setIcon(
+                com.yandex.runtime.image.ImageProvider.fromBitmap(MapMarkers.destinationBitmap()),
+                com.yandex.mapkit.map.IconStyle().setZIndex(20f)
+            )
+        }
     }
 
     // POI markers
@@ -215,8 +250,23 @@ fun NavigatorScreen(
         val objects = mapObjects ?: map.mapObjects.also { mapObjects = it }
         poiMarkers.forEach { objects.removeSafely(it) }
         poiMarkers.clear()
+        poiTapListeners.clear()
         uiState.poiItems.forEach { poi ->
-            poiMarkers.add(objects.addPlacemark(poi.point))
+            val placemark = objects.addPlacemark(poi.point).apply {
+                setIcon(
+                    com.yandex.runtime.image.ImageProvider.fromBitmap(
+                        MapMarkers.poiBitmap(poi.category)
+                    ),
+                    com.yandex.mapkit.map.IconStyle().setZIndex(10f)
+                )
+            }
+            val listener = com.yandex.mapkit.map.MapObjectTapListener { _, _ ->
+                selectedPoi = poi
+                true   // событие обработано, карта не должна двигаться дальше
+            }
+            poiTapListeners.add(listener)
+            placemark.addTapListener(listener)
+            poiMarkers.add(placemark)
         }
     }
 
@@ -244,6 +294,75 @@ fun NavigatorScreen(
     }
 
     // Save-to-favorites dialog
+    // Карточка места.
+    //
+    // Раньше нажатие по метке не делало ничего: увидеть название, адрес или
+    // проложить туда маршрут было нельзя — только разглядывать точку. Показываем
+    // снизу, чтобы карта оставалась видна и человек понимал, о каком месте речь.
+    selectedPoi?.let { poi ->
+        ModalBottomSheet(onDismissRequest = { selectedPoi = null }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = poi.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                if (poi.address.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = poi.address,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                AssistChip(
+                    onClick = {},
+                    label = { Text(poi.category.label) },
+                    enabled = false
+                )
+
+                Spacer(Modifier.height(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = {
+                            viewModel.setDestination(poi.point, poi.name)
+                            selectedPoi = null
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Navigation, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Маршрут")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            // Место сохраняется в избранное тем же путём, что и
+                            // выбранная на карте точка — отдельного хранилища для
+                            // мест из поиска заводить незачем
+                            viewModel.setDestination(poi.point, poi.name)
+                            selectedPoi = null
+                            saveName = poi.name
+                            showSaveDialog = true
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.StarBorder, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("В избранное")
+                    }
+                }
+            }
+        }
+    }
+
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },

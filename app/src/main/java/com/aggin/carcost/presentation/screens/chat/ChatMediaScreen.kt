@@ -261,20 +261,10 @@ fun ChatMediaScreen(navController: NavController, carId: String) {
             onDismissRequest = { fullscreenImageUrl = null },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .clickable { fullscreenImageUrl = null },
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = url,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxWidth(),
-                    contentScale = ContentScale.Fit
-                )
-            }
+            ZoomableImage(
+                url = url,
+                onDismiss = { fullscreenImageUrl = null }
+            )
         }
     }
 

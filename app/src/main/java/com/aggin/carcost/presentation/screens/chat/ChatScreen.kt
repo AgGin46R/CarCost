@@ -1624,11 +1624,9 @@ fun ChatScreen(carId: String, navController: NavController) {
                 modifier = Modifier.fillMaxSize().background(Color.Black).clickable { fullscreenImageUrl = null },
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = url,
-                    contentDescription = "Фото",
-                    modifier = Modifier.fillMaxWidth(),
-                    contentScale = ContentScale.Fit
+                ZoomableImage(
+                    url = url,
+                    onDismiss = { fullscreenImageUrl = null }
                 )
                 IconButton(
                     onClick = { fullscreenImageUrl = null },
