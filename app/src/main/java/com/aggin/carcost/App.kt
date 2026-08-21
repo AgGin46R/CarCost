@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import com.aggin.carcost.data.notifications.BackgroundSyncWorker
 import com.aggin.carcost.data.notifications.BudgetAlertWorker
 import com.aggin.carcost.data.notifications.MaintenanceNotificationWorker
+import com.aggin.carcost.data.notifications.FirstRecordNudgeWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
 import com.aggin.carcost.data.notifications.DocumentExpiryWorker
 import com.aggin.carcost.data.notifications.InsuranceExpiryWorker
@@ -164,6 +165,7 @@ class App : Application(), HasTracerConfiguration {
 
             scheduleMaintenanceCheck()
             scheduleFuelReminder()
+            scheduleFirstRecordNudge()
             scheduleInsuranceCheck()
             scheduleDocumentExpiryCheck()
             scheduleWeeklySummary()
@@ -282,6 +284,28 @@ class App : Application(), HasTracerConfiguration {
                 Log.e(TAG, "Foreground sync crashed", e)
             }
         }
+    }
+
+    /**
+     * Приглашение внести первую запись — через трое суток после установки.
+     *
+     * Разовая задача, а не периодическая: приглашение отправляется один раз, и
+     * повторять его незачем. Три дня — время, за которое человек либо начал
+     * пользоваться приложением, либо забыл о нём; раньше подталкивать рано,
+     * позже — уже поздно.
+     *
+     * KEEP: при каждом запуске приложения задача не перезаводится заново, иначе
+     * отсчёт сбрасывался бы и приглашение не приходило никогда.
+     */
+    private fun scheduleFirstRecordNudge() {
+        val workRequest = androidx.work.OneTimeWorkRequestBuilder<FirstRecordNudgeWorker>()
+            .setInitialDelay(3, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            FirstRecordNudgeWorker.WORK_NAME,
+            androidx.work.ExistingWorkPolicy.KEEP,
+            workRequest
+        )
     }
 
     private fun scheduleFuelReminder() {

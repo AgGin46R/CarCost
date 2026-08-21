@@ -262,6 +262,32 @@ fun AddCarScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
+            // Объём бака. У электромобиля это ёмкость батареи — величина по сути
+            // та же, меняется только подпись и единица
+            OutlinedTextField(
+                value = uiState.tankCapacity,
+                onValueChange = { viewModel.updateTankCapacity(it) },
+                label = {
+                    Text(
+                        if (uiState.fuelType == FuelType.ELECTRIC) "Ёмкость батареи"
+                        else "Объём бака"
+                    )
+                },
+                placeholder = {
+                    Text(if (uiState.fuelType == FuelType.ELECTRIC) "60" else "45")
+                },
+                supportingText = {
+                    Text("Нужен, чтобы напоминать о скорой заправке")
+                },
+                suffix = {
+                    Text(if (uiState.fuelType == FuelType.ELECTRIC) "кВт·ч" else "л")
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                enabled = !uiState.isSaving
+            )
+
             // VIN
             OutlinedTextField(
                 value = uiState.vin,

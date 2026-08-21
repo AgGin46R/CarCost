@@ -28,14 +28,21 @@ class FuelReminderWorker(
         val cars = carDao.getAllCars().first()
 
         cars.forEachIndexed { index, car ->
-            val tankCapacity = car.tankCapacity ?: return@forEachIndexed
-
             // Берём последние топливные расходы
             val fuelExpenses = expenseDao.getExpensesByCategory(car.id, ExpenseCategory.FUEL)
                 .first()
                 .sortedByDescending { it.date }
 
             if (fuelExpenses.isEmpty()) return@forEachIndexed
+
+            // Объём бака: указанный человеком либо оценка по истории.
+            //
+            // Раньше здесь стоял выход, если объём не задан. А задать его было
+            // негде — поле не запрашивалось ни на одном экране, — и напоминание
+            // не срабатывало вообще ни у кого. Теперь поле появилось в формах,
+            // но у всех, кто завёл машину раньше, оно пустое, и оценка нужна.
+            val tankCapacity = car.tankCapacity ?: estimateTankCapacity(fuelExpenses)
+                ?: return@forEachIndexed
 
             // Находим последнюю полную заправку
             val lastFullTank = fuelExpenses.firstOrNull { it.isFullTank } ?: return@forEachIndexed
@@ -71,6 +78,21 @@ class FuelReminderWorker(
         }
 
         return Result.success()
+    }
+
+    /**
+     * Оценка объёма бака по истории: самая большая заправка «до полного».
+     *
+     * Величина заведомо заниженная — человек редко приезжает на совсем пустом
+     * баке. Для напоминания это приемлемо: порог сработает чуть раньше, чем
+     * нужно, и это лучше, чем не сработать никогда.
+     *
+     * Меньше двух полных заправок — оценивать не на чем, и мы честно молчим.
+     */
+    private fun estimateTankCapacity(fuelExpenses: List<com.aggin.carcost.data.local.database.entities.Expense>): Double? {
+        val fullTanks = fuelExpenses.filter { it.isFullTank && (it.fuelLiters ?: 0.0) > 0.0 }
+        if (fullTanks.size < 2) return null
+        return fullTanks.mapNotNull { it.fuelLiters }.maxOrNull()
     }
 
     private fun calculateAvgConsumption(expenses: List<com.aggin.carcost.data.local.database.entities.Expense>): Double? {

@@ -24,11 +24,38 @@ import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.notifications.NotificationHelper
 import java.util.Calendar
 import com.aggin.carcost.presentation.common.emoji
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.glance.action.ActionParameters
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.state.PreferencesGlanceStateDefinition
+import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.data.local.database.entities.canCharge
+import com.aggin.carcost.data.local.database.entities.canRefuel
+import com.aggin.carcost.domain.fuel.EnergyConsumptionCalculator
+import com.aggin.carcost.domain.fuel.FuelConsumptionCalculator
+import com.aggin.carcost.util.CurrencyUtils
+
+/**
+ * Какая машина показана в этом экземпляре виджета.
+ *
+ * Хранится у каждого экземпляра отдельно: человек с двумя машинами может
+ * поставить два виджета рядом и видеть обе сразу, не переключая.
+ */
+internal val SELECTED_CAR_KEY = stringPreferencesKey("widget_selected_car")
 
 class CarCostWidget : GlanceAppWidget() {
 
+    // Без этого виджет не помнит ничего между обновлениями, и выбранная машина
+    // сбрасывалась бы на первую при каждой перерисовке
+    override val stateDefinition = PreferencesGlanceStateDefinition
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val database = AppDatabase.getDatabase(context)
+        val prefs: Preferences = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
 
         val cal = Calendar.getInstance()
         cal.set(Calendar.DAY_OF_MONTH, 1)
@@ -39,22 +66,45 @@ class CarCostWidget : GlanceAppWidget() {
         val startOfMonth = cal.timeInMillis
 
         val allCars = try { database.carDao().getAllActiveCarsSync() } catch (e: Exception) { emptyList() }
-        val activeCar = allCars.firstOrNull()
 
-        var monthlyTotal = 0.0
-        for (car in allCars) {
+        // Показанная машина, а не всегда первая. Если выбранную удалили —
+        // откатываемся к первой, а не показываем пустоту
+        val selectedId = prefs[SELECTED_CAR_KEY]
+        val activeCar = allCars.firstOrNull { it.id == selectedId } ?: allCars.firstOrNull()
+
+        // Итог за месяц — по показанной машине, а не по всем сразу.
+        //
+        // Раньше сумма считалась по всему автопарку, а пробег, категории и
+        // ближайшее ТО относились к одной машине. Получалась карточка, где
+        // половина цифр про одно, половина про другое.
+        val monthExpenses = activeCar?.let { car ->
             try {
-                val expenses = database.expenseDao().getExpensesInDateRangeSync(
+                database.expenseDao().getExpensesInDateRangeSync(
                     carId = car.id,
                     startDate = startOfMonth,
                     endDate = System.currentTimeMillis()
                 )
-                monthlyTotal += expenses.sumOf { it.amount }
-            } catch (e: Exception) { /* skip */ }
-        }
+            } catch (e: Exception) { emptyList() }
+        } ?: emptyList()
+
+        val monthlyTotal = monthExpenses.sumOf { it.amount }
 
         val carsCount = allCars.size
-        val monthlyFormatted = "%.0f ₽".format(monthlyTotal)
+        // Валюта берётся у машины: символ рубля стоял здесь жёстко в двух местах
+        val currency = activeCar?.currency ?: "RUB"
+        val monthlyFormatted = CurrencyUtils.format(monthlyTotal, currency)
+
+        // Расход — главное, ради чего ведут учёт, и в виджете его не было вовсе
+        val consumptionLabel: String? = activeCar?.let { car ->
+            try {
+                val all = database.expenseDao().getExpensesByCarIdSync(car.id)
+                if (car.fuelType.canCharge && !car.fuelType.canRefuel) {
+                    EnergyConsumptionCalculator.average(all)?.let { "%.1f кВт·ч/100".format(it) }
+                } else {
+                    FuelConsumptionCalculator.average(all)?.let { "%.1f л/100".format(it) }
+                }
+            } catch (e: Exception) { null }
+        }
         val carName = activeCar?.let { "${it.brand} ${it.model}" }
         val odometer = activeCar?.currentOdometer
         val activeCarId = activeCar?.id
@@ -62,19 +112,14 @@ class CarCostWidget : GlanceAppWidget() {
         // Top-3 categories by amount this month (for the active car)
         val top3Categories: List<Pair<String, String>> = try {
             if (activeCar != null) {
-                val expenses = database.expenseDao().getExpensesInDateRangeSync(
-                    carId = activeCar.id,
-                    startDate = startOfMonth,
-                    endDate = System.currentTimeMillis()
-                )
-                expenses.groupBy { it.category }
+                // Расходы уже загружены выше — второй запрос к базе не нужен
+                monthExpenses.groupBy { it.category }
                     .mapValues { (_, list) -> list.sumOf { it.amount } }
                     .entries
                     .sortedByDescending { it.value }
                     .take(3)
                     .map { (cat, amount) ->
-                        val emoji = cat.emoji()
-                        emoji to "%.0f ₽".format(amount)
+                        cat.emoji() to CurrencyUtils.format(amount, currency)
                     }
             } else emptyList()
         } catch (e: Exception) { emptyList() }
@@ -101,6 +146,8 @@ class CarCostWidget : GlanceAppWidget() {
                 carName = carName,
                 odometer = odometer,
                 activeCarId = activeCarId,
+                consumptionLabel = consumptionLabel,
+                canSwitchCar = allCars.size > 1,
                 top3Categories = top3Categories,
                 nextMaintenanceLabel = nextMaintenanceLabel,
                 context = context
@@ -116,6 +163,10 @@ fun CarCostWidgetContent(
     carName: String?,
     odometer: Int?,
     activeCarId: String?,
+    /** Расход на сотню — литры или киловатт-часы, смотря чем машина движется */
+    consumptionLabel: String? = null,
+    /** Машин больше одной: показываем стрелку переключения */
+    canSwitchCar: Boolean = false,
     top3Categories: List<Pair<String, String>> = emptyList(),
     nextMaintenanceLabel: String? = null,
     context: Context
@@ -209,29 +260,77 @@ fun CarCostWidgetContent(
 
         Spacer(GlanceModifier.height(8.dp))
 
-        // ── Active car name ───────────────────────────────────────────────────
+        // ── Название машины и переключение ───────────────────────────────────
+        //
+        // Стрелка появляется только при нескольких машинах: у владельца одной
+        // она была бы кнопкой, которая ничего не делает.
         if (carName != null) {
-            Text(
-                text = carName,
-                style = TextStyle(
-                    color = ColorProvider(Color.White),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = GlanceModifier.fillMaxWidth()
-            )
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = carName,
+                    style = TextStyle(
+                        color = ColorProvider(Color.White),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    modifier = GlanceModifier.defaultWeight()
+                )
+                if (canSwitchCar) {
+                    Box(
+                        modifier = GlanceModifier
+                            .background(ColorProvider(Color.White.copy(alpha = 0.18f)))
+                            .padding(horizontal = 10.dp, vertical = 2.dp)
+                            .clickable(actionRunCallback<SwitchCarAction>()),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "›",
+                            style = TextStyle(
+                                color = ColorProvider(Color.White),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
+            }
         }
 
-        // ── Odometer ─────────────────────────────────────────────────────────
-        if (odometer != null) {
+        // ── Пробег и расход в одной строке ───────────────────────────────────
+        if (odometer != null || consumptionLabel != null) {
             Spacer(GlanceModifier.height(2.dp))
-            Text(
-                text = "%,d км".format(odometer),
-                style = TextStyle(
-                    color = ColorProvider(Color.White.copy(alpha = 0.75f)),
-                    fontSize = 11.sp
-                )
-            )
+            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                if (odometer != null) {
+                    Text(
+                        text = "%,d км".format(odometer),
+                        style = TextStyle(
+                            color = ColorProvider(Color.White.copy(alpha = 0.75f)),
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+                if (consumptionLabel != null) {
+                    if (odometer != null) {
+                        Text(
+                            text = "  •  ",
+                            style = TextStyle(
+                                color = ColorProvider(Color.White.copy(alpha = 0.5f)),
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                    Text(
+                        text = consumptionLabel,
+                        style = TextStyle(
+                            color = ColorProvider(Color.White.copy(alpha = 0.75f)),
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
         }
 
         Spacer(GlanceModifier.height(6.dp))
@@ -302,6 +401,37 @@ fun CarCostWidgetContent(
                 modifier = GlanceModifier.fillMaxWidth()
             )
         }
+    }
+}
+
+/**
+ * Переключение на следующую машину.
+ *
+ * По кругу, а не списком: выпадающее меню в виджете рисовать нечем, а у людей
+ * с несколькими машинами их обычно две-три — пролистать быстрее, чем выбирать.
+ */
+class SwitchCarAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+        val cars = try {
+            AppDatabase.getDatabase(context).carDao().getAllActiveCarsSync()
+        } catch (e: Exception) { emptyList() }
+        if (cars.size < 2) return
+
+        val current = getAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId)[SELECTED_CAR_KEY]
+        val currentIndex = cars.indexOfFirst { it.id == current }
+        // Неизвестная машина (её удалили) даёт -1, и следующей окажется первая
+        val next = cars[(currentIndex + 1).mod(cars.size)]
+
+        // Возвращаем новый набор настроек, а не правим прежний: этого требует
+        // сам updateAppWidgetState — состояние здесь неизменяемое
+        updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+            prefs.toMutablePreferences().apply { this[SELECTED_CAR_KEY] = next.id }
+        }
+        CarCostWidget().update(context, glanceId)
     }
 }
 

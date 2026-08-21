@@ -118,7 +118,13 @@ fun AddExpenseScreen(
             savedStateHandle.remove<String>("scanned_station")
         }
 
-        savedStateHandle?.remove<String>("scanned_fuel_type")
+        // Марка топлива с чека. Раньше ключ просто удалялся, не читая —
+        // распознавание работало, а до формы значение не доходило.
+        val scannedFuelType = savedStateHandle?.get<String>("scanned_fuel_type")
+        if (scannedFuelType != null) {
+            viewModel.updateFuelGrade(scannedFuelType)
+            savedStateHandle.remove<String>("scanned_fuel_type")
+        }
     }
     // --- КОНЕЦ НОВОГО БЛОКА ---
 
@@ -396,6 +402,16 @@ fun AddExpenseScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         enabled = !uiState.isSaving,
                         suffix = { Text("л") }
+                    )
+
+                    OutlinedTextField(
+                        value = uiState.fuelGrade,
+                        onValueChange = { viewModel.updateFuelGrade(it) },
+                        label = { Text("Марка топлива") },
+                        placeholder = { Text("АИ-95") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        enabled = !uiState.isSaving
                     )
 
                     Row(

@@ -27,6 +27,10 @@ import com.google.android.gms.location.LocationServices
 import com.yandex.mapkit.Animation
 import com.yandex.mapkit.MapKitFactory
 import com.yandex.mapkit.geometry.Point
+import com.aggin.carcost.presentation.navigation.navigateOnce
+import com.aggin.carcost.presentation.common.color
+import com.aggin.carcost.presentation.common.emoji
+import androidx.compose.ui.graphics.toArgb
 import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.mapview.MapView
 import kotlinx.coroutines.tasks.await
@@ -42,6 +46,9 @@ fun MapScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
+
+    /** Расход, по метке которого нажали: показываем ту же карточку, что в списке */
+    var selectedExpense by remember { mutableStateOf<Expense?>(null) }
 
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
@@ -151,7 +158,8 @@ fun MapScreen(
                     YandexMapView(
                         expenses = uiState.expenses,
                         currentLocation = currentLocation,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        onExpenseClick = { selectedExpense = it }
                     )
 
                     // Category filter chips — top overlay
@@ -199,15 +207,50 @@ fun MapScreen(
             }
         }
     }
+
+    // Карточка расхода по нажатию на метку — та же, что в списке расходов.
+    //
+    // Валюта берётся из самой записи, а не из автомобиля: экран карты машину не
+    // загружает, а в записи валюта теперь проставляется по автомобилю при
+    // сохранении, так что значение верное.
+    selectedExpense?.let { expense ->
+        com.aggin.carcost.presentation.screens.car_detail.ExpenseDetailSheet(
+            expense = expense,
+            tags = emptyList(),
+            currency = expense.currency,
+            fuelConsumptionL100km = null,
+            onEdit = {
+                val target = expense
+                selectedExpense = null
+                navController.navigateOnce(
+                    com.aggin.carcost.presentation.navigation.Screen.EditExpense
+                        .createRoute(target.carId, target.id)
+                )
+            },
+            onDismiss = { selectedExpense = null }
+        )
+    }
+
 }
 
 @Composable
 fun YandexMapView(
     expenses: List<Expense>,
     currentLocation: Point?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Нажатие по метке — открыть карточку этого расхода */
+    onExpenseClick: (Expense) -> Unit = {}
 ) {
     var isInitialCameraMoveDone by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * Слушатели нажатий держим сами.
+     *
+     * MapKit хранит на них только слабые ссылки: созданный на месте объект
+     * собирается сборщиком мусора, и метки через некоторое время молча
+     * перестают откликаться. Ровно та же оговорка, что и в навигаторе.
+     */
+    val tapListeners = remember { mutableListOf<com.yandex.mapkit.map.MapObjectTapListener>() }
 
     AndroidView(
         factory = { ctx ->
@@ -232,12 +275,32 @@ fun YandexMapView(
         modifier = modifier,
         update = { mapView ->
             mapView.map.mapObjects.clear()
+            // Метки пересоздаются — старые слушатели больше не на что вешать
+            tapListeners.clear()
 
             expenses.forEach { expense ->
                 if (expense.latitude != null && expense.longitude != null) {
                     val point = Point(expense.latitude, expense.longitude)
+                    // Была стандартная точка с текстовой подписью — на карте
+                    // города такие точки теряются, а подписи наезжают друг на
+                    // друга. Рисуем ту же каплю, что и в навигаторе: цвет
+                    // категории берётся из общего справочника Labels.
                     mapView.map.mapObjects.addPlacemark(point).apply {
-                        setText(getCategoryShortName(expense.category))
+                        setIcon(
+                            com.yandex.runtime.image.ImageProvider.fromBitmap(
+                                com.aggin.carcost.presentation.screens.navigator.MapMarkers.customBitmap(
+                                    color = expense.category.color().toArgb(),
+                                    emoji = expense.category.emoji()
+                                )
+                            ),
+                            com.yandex.mapkit.map.IconStyle().setZIndex(10f)
+                        )
+                        val listener = com.yandex.mapkit.map.MapObjectTapListener { _, _ ->
+                            onExpenseClick(expense)
+                            true   // событие обработано
+                        }
+                        tapListeners.add(listener)
+                        addTapListener(listener)
                     }
                 }
             }

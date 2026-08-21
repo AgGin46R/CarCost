@@ -38,6 +38,7 @@ import coil.compose.AsyncImage
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.data.local.database.entities.VehicleType
 import com.aggin.carcost.util.CurrencyUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -262,6 +263,35 @@ fun EditCarScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
 
+                OutlinedTextField(
+                    value = uiState.tankCapacity,
+                    onValueChange = { viewModel.updateTankCapacity(it) },
+                    label = {
+                        Text(
+                            if (uiState.fuelType == FuelType.ELECTRIC) "Ёмкость батареи"
+                            else "Объём бака"
+                        )
+                    },
+                    supportingText = { Text("Нужен, чтобы напоминать о скорой заправке") },
+                    suffix = {
+                        Text(if (uiState.fuelType == FuelType.ELECTRIC) "кВт·ч" else "л")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    enabled = !uiState.isSaving
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                VehicleTypeSelector(
+                    selected = uiState.vehicleType,
+                    onSelected = { viewModel.updateVehicleType(it) },
+                    enabled = !uiState.isSaving
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 FuelTypeSelector(
                     selectedFuelType = uiState.fuelType,
                     onFuelTypeSelected = { viewModel.updateFuelType(it) },
@@ -374,63 +404,66 @@ fun EditCarScreen(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun FuelTypeSelector(
     selectedFuelType: FuelType,
     onFuelTypeSelected: (FuelType) -> Unit,
     enabled: Boolean = true
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+    // Здесь лежала своя копия прибитых гвоздями рядов — и «Подключаемый гибрид»
+    // в неё не попал: значение появилось в перечислении, форма добавления его
+    // получила, а эта копия осталась со старым набором. Строим из перечисления,
+    // чтобы расхождение не могло повториться.
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        maxItemsInEachRow = 2
+    ) {
+        FuelType.entries.forEach { type ->
             FuelTypeChip(
-                label = "Бензин",
-                selected = selectedFuelType == FuelType.GASOLINE,
-                onClick = { onFuelTypeSelected(FuelType.GASOLINE) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            FuelTypeChip(
-                label = "Дизель",
-                selected = selectedFuelType == FuelType.DIESEL,
-                onClick = { onFuelTypeSelected(FuelType.DIESEL) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FuelTypeChip(
-                label = "Электро",
-                selected = selectedFuelType == FuelType.ELECTRIC,
-                onClick = { onFuelTypeSelected(FuelType.ELECTRIC) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
-            FuelTypeChip(
-                label = "Гибрид",
-                selected = selectedFuelType == FuelType.HYBRID,
-                onClick = { onFuelTypeSelected(FuelType.HYBRID) },
+                label = fuelTypeLabel(type),
+                selected = selectedFuelType == type,
+                onClick = { onFuelTypeSelected(type) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FuelTypeChip(
-                label = "Газ",
-                selected = selectedFuelType == FuelType.GAS,
-                onClick = { onFuelTypeSelected(FuelType.GAS) },
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
+        if (FuelType.entries.size % 2 != 0) {
             Spacer(modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+private fun fuelTypeLabel(type: FuelType): String = when (type) {
+    FuelType.GASOLINE -> "Бензин"
+    FuelType.DIESEL -> "Дизель"
+    FuelType.ELECTRIC -> "Электро"
+    FuelType.HYBRID -> "Гибрид"
+    FuelType.PLUGIN_HYBRID -> "Гибрид с розеткой"
+    FuelType.GAS -> "Газ"
+    FuelType.OTHER -> "Другое"
+}
+
+/** Автомобиль или мотоцикл. Тот же выбор, что и при создании */
+@Composable
+fun VehicleTypeSelector(
+    selected: VehicleType,
+    onSelected: (VehicleType) -> Unit,
+    enabled: Boolean = true
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        VehicleType.entries.forEach { type ->
+            FuelTypeChip(
+                label = type.labelRu,
+                selected = selected == type,
+                onClick = { onSelected(type) },
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }

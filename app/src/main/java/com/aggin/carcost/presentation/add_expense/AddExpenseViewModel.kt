@@ -55,6 +55,16 @@ data class AddExpenseUiState(
     /** Киловатт-часы у зарядки — то же поле формы, что литры у заправки */
     val energyKwh: String = "",
     /**
+     * Марка топлива: АИ-95, ДТ и прочее.
+     *
+     * Названа grade, а не fuelType, чтобы не путать с типом двигателя машины
+     * ниже — это разные вещи, и одноимённые поля рядом однажды перепутают.
+     *
+     * Сканер чека распознаёт её давно, но форма это значение выбрасывала: она
+     * удаляла ключ, даже не прочитав.
+     */
+    val fuelGrade: String = "",
+    /**
      * Чем движется машина. Определяет, какие категории показывать и просить ли
      * литры или киловатт-часы. Значение по умолчанию действует лишь до загрузки
      * автомобиля из базы — это доли секунды при открытии формы.
@@ -332,6 +342,10 @@ class AddExpenseViewModel(
         }
     }
 
+    fun updateFuelGrade(value: String) {
+        _uiState.value = _uiState.value.copy(fuelGrade = value)
+    }
+
     fun updateEnergyKwh(value: String) {
         if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
             _uiState.value = _uiState.value.copy(energyKwh = value)
@@ -551,6 +565,7 @@ class AddExpenseViewModel(
                 fuelLiters = if (state.category == ExpenseCategory.FUEL) {
                     state.fuelLiters.toDoubleOrNull()
                 } else null,
+                fuelType = state.fuelGrade.ifBlank { null },
                 // Киловатт-часы живут в зарядке ровно так же, как литры в заправке
                 energyKwh = if (state.category == ExpenseCategory.CHARGING) {
                     state.energyKwh.toDoubleOrNull()

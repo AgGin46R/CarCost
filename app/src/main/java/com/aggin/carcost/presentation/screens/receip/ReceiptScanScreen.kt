@@ -85,14 +85,43 @@ fun ReceiptScanScreen(
         }
     }
 
-    // Launcher для съемки фото
+    /**
+     * Куда камера положит снимок.
+     *
+     * Раньше здесь стоял TakePicturePreview, который возвращает **миниатюру** —
+     * уменьшенный кадр в пару сотен пикселей. Распознать на нём текст чека
+     * невозможно в принципе, отсюда и постоянное «сумма не найдена» при съёмке,
+     * тогда как из галереи всё работало.
+     *
+     * Снимаем в файл и разбираем тем же путём, что и снимок из галереи: там
+     * полное разрешение, и поворот читается из EXIF самой библиотекой.
+     */
+    var cameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        bitmap?.let {
-            imageBitmap = it
-            // Запускаем сканирование
-            viewModel.scanReceiptFromBitmap(it, context)
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        val uri = cameraPhotoUri
+        if (success && uri != null) {
+            viewModel.scanReceipt(uri, context)
+        }
+    }
+
+    /** Готовит файл во временной папке и отдаёт адрес для камеры */
+    fun launchCamera() {
+        try {
+            val dir = java.io.File(context.cacheDir, "receipts").also { it.mkdirs() }
+            val file = java.io.File(dir, "receipt_${System.currentTimeMillis()}.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file
+            )
+            cameraPhotoUri = uri
+            cameraLauncher.launch(uri)
+        } catch (e: Exception) {
+            android.util.Log.e("ReceiptScan", "Не удалось открыть камеру: ${e.message}", e)
+            android.widget.Toast.makeText(
+                context, "Не удалось открыть камеру", android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -157,7 +186,7 @@ fun ReceiptScanScreen(
                             onClick = {
                                 if (cameraPermissionState.status.isGranted) {
                                     // Если разрешение уже есть, запускаем камеру
-                                    cameraLauncher.launch(null)
+                                    launchCamera()
                                 } else {
                                     // Если разрешения нет, запрашиваем его
                                     cameraPermissionState.launchPermissionRequest()

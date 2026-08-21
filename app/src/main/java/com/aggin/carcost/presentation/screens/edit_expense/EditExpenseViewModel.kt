@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Expense
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.data.local.database.entities.VehicleType
 import com.aggin.carcost.data.local.database.entities.ServiceType
 import com.aggin.carcost.data.local.database.entities.ExpenseTag
 import com.aggin.carcost.data.local.database.entities.ExpenseTagCrossRef
@@ -46,6 +48,14 @@ data class EditExpenseUiState(
 
     // Для топлива
     val fuelLiters: String = "",
+    /** Киловатт-часы у зарядки — то же, чем литры являются для заправки */
+    val energyKwh: String = "",
+    /** Марка топлива: АИ-95, ДТ. У расхода это отдельное поле от типа двигателя */
+    val fuelGrade: String = "",
+    /** Чем движется машина: от этого зависят доступные категории */
+    val carFuelType: FuelType = FuelType.GASOLINE,
+    /** Автомобиль или мотоцикл: от этого зависит список видов работ */
+    val vehicleType: VehicleType = VehicleType.CAR,
     val isFullTank: Boolean = false,
 
     // Для обслуживания и ремонта
@@ -103,6 +113,8 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                         description = expense.description ?: "",
                         location = expense.location ?: "",
                         fuelLiters = expense.fuelLiters?.toString() ?: "",
+                        energyKwh = expense.energyKwh?.toString() ?: "",
+                        fuelGrade = expense.fuelType ?: "",
                         isFullTank = expense.isFullTank,
                         serviceType = expense.serviceType,
                         originalServiceType = expense.serviceType, // ✅ Сохраняем оригинальный тип
@@ -193,6 +205,16 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.value = _uiState.value.copy(isFullTank = isFullTank)
     }
 
+    fun updateEnergyKwh(value: String) {
+        if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
+            _uiState.value = _uiState.value.copy(energyKwh = value)
+        }
+    }
+
+    fun updateFuelGrade(value: String) {
+        _uiState.value = _uiState.value.copy(fuelGrade = value)
+    }
+
     fun updateServiceType(serviceType: ServiceType?) {
         _uiState.value = _uiState.value.copy(serviceType = serviceType)
     }
@@ -270,10 +292,17 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                     location = state.location.ifBlank { null },
                     latitude = state.latitude,
                     longitude = state.longitude,
+                    fuelType = state.fuelGrade.ifBlank { null },
+                    energyKwh = if (state.category == ExpenseCategory.CHARGING) {
+                        state.energyKwh.toDoubleOrNull()
+                    } else null,
                     fuelLiters = if (state.category == ExpenseCategory.FUEL) {
                         state.fuelLiters.toDoubleOrNull()
                     } else null,
-                    isFullTank = state.category == ExpenseCategory.FUEL && state.isFullTank,
+                    // Признак «до полного» нужен обоим: расход считается по
+                    // отрезкам между полными заправками, и у зарядки это 100%
+                    isFullTank = (state.category == ExpenseCategory.FUEL ||
+                        state.category == ExpenseCategory.CHARGING) && state.isFullTank,
                     serviceType = if (state.category == ExpenseCategory.MAINTENANCE) {
                         state.serviceType
                     } else null,

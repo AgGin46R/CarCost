@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -58,6 +59,11 @@ fun CarDetailScreen(
     viewModel: CarDetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    /** Расход, по которому нажали: показываем карточку с подробностями и чеком */
+    var selectedExpense by remember {
+        mutableStateOf<com.aggin.carcost.data.local.database.entities.Expense?>(null)
+    }
     var showMenu by rememberSaveable { mutableStateOf(false) }
     var showFilterDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -301,7 +307,11 @@ fun CarDetailScreen(
                         onDelete = { viewModel.deleteExpense(expense) },
                         onEdit = {
                             navController.navigateOnce(Screen.EditExpense.createRoute(expense.carId, expense.id))
-                        }
+                        },
+                        // Нажатие открывает карточку, а не форму правки: чаще
+                        // всего человек хочет посмотреть подробности и чек, а не
+                        // менять запись
+                        onClick = { selectedExpense = expense }
                     )
                 }
                 // Индикатор подгрузки + счётчик скрытых записей
@@ -340,6 +350,24 @@ fun CarDetailScreen(
             onDismiss = { showFilterDialog = false }
         )
     }
+
+    // Карточка расхода по нажатию: подробности и прикреплённый чек
+    selectedExpense?.let { expense ->
+        ExpenseDetailSheet(
+            expense = expense,
+            tags = uiState.expensesWithTags[expense.id] ?: emptyList(),
+            currency = uiState.car?.currency ?: "RUB",
+            fuelConsumptionL100km = uiState.fuelConsumptionPerFill[expense.id],
+            onEdit = {
+                selectedExpense = null
+                navController.navigateOnce(
+                    Screen.EditExpense.createRoute(expense.carId, expense.id)
+                )
+            },
+            onDismiss = { selectedExpense = null }
+        )
+    }
+
 }
 
 @Composable
@@ -524,7 +552,9 @@ fun SwipeableExpenseCard(
     currency: String = "RUB",
     canEditDelete: Boolean = true,
     onDelete: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    /** Нажатие по карточке — открыть подробности расхода вместе с чеком */
+    onClick: () -> Unit = {}
 ) {
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     val density = LocalDensity.current
@@ -559,6 +589,16 @@ fun SwipeableExpenseCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    // Нажатие отдельным обработчиком, а не поверх перетаскивания:
+                    // смахивание и касание не должны мешать друг другу
+                    detectTapGestures(
+                        onTap = {
+                            if (offsetX.value == 0f) onClick()
+                            else scope.launch { offsetX.animateTo(0f, animationSpec = tween(300)) }
+                        }
+                    )
+                }
                 .pointerInput(canEditDelete) {
                     if (!canEditDelete) return@pointerInput
                     detectHorizontalDragGestures(

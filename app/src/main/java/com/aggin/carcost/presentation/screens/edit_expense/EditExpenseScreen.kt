@@ -220,12 +220,56 @@ fun EditExpenseScreen(
                             suffix = { Text("л") }
                         )
 
+                        OutlinedTextField(
+                            value = uiState.fuelGrade,
+                            onValueChange = { viewModel.updateFuelGrade(it) },
+                            label = { Text("Марка топлива") },
+                            placeholder = { Text("АИ-95") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !uiState.isSaving
+                        )
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
                             Text("Полный бак")
+                            Switch(
+                                checked = uiState.isFullTank,
+                                onCheckedChange = { viewModel.updateIsFullTank(it) },
+                                enabled = !uiState.isSaving
+                            )
+                        }
+
+                        HorizontalDivider()
+                    }
+
+                    ExpenseCategory.CHARGING -> {
+                        Text(
+                            text = "Детали зарядки",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        OutlinedTextField(
+                            value = uiState.energyKwh,
+                            onValueChange = { viewModel.updateEnergyKwh(it) },
+                            label = { Text("Киловатт-часов") },
+                            placeholder = { Text("42.0") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            enabled = !uiState.isSaving,
+                            suffix = { Text("кВт·ч") }
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("Заряд до 100%")
                             Switch(
                                 checked = uiState.isFullTank,
                                 onCheckedChange = { viewModel.updateIsFullTank(it) },

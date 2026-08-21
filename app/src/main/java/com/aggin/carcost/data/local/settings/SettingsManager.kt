@@ -22,6 +22,15 @@ class SettingsManager(private val context: Context) {
         val THEME_KEY = stringPreferencesKey("app_theme")
         val ACCENT_KEY = stringPreferencesKey("accent_color")
         val ONBOARDING_DONE_KEY = booleanPreferencesKey("onboarding_done")
+
+        /**
+         * Приглашение внести первую запись уже отправляли.
+         *
+         * Отправляется ровно один раз. Человек, не откликнувшийся на одно
+         * приглашение, не откликнется и на пятое — а настойчивость превращает
+         * приложение в источник раздражения.
+         */
+        val FIRST_RECORD_NUDGE_SENT_KEY = booleanPreferencesKey("first_record_nudge_sent")
         val NOTIF_MAINTENANCE_KEY = booleanPreferencesKey("notif_maintenance")
         val NOTIF_INSURANCE_KEY = booleanPreferencesKey("notif_insurance")
         val NOTIF_DIGEST_KEY = booleanPreferencesKey("notif_digest")
@@ -42,6 +51,9 @@ class SettingsManager(private val context: Context) {
 
     val onboardingDoneFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[ONBOARDING_DONE_KEY] ?: false }
+
+    val firstRecordNudgeSentFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences -> preferences[FIRST_RECORD_NUDGE_SENT_KEY] ?: false }
 
     val notifMaintenanceFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[NOTIF_MAINTENANCE_KEY] ?: true }
@@ -77,6 +89,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setOnboardingDone() {
         context.dataStore.edit { settings -> settings[ONBOARDING_DONE_KEY] = true }
+    }
+
+    suspend fun setFirstRecordNudgeSent() {
+        context.dataStore.edit { it[FIRST_RECORD_NUDGE_SENT_KEY] = true }
     }
 
     suspend fun setNotifMaintenance(enabled: Boolean) {

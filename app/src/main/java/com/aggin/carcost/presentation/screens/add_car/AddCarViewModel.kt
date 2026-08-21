@@ -34,6 +34,14 @@ data class AddCarUiState(
     val currentOdometer: String = "",
     val vehicleType: VehicleType = VehicleType.CAR,
     val fuelType: FuelType = FuelType.GASOLINE,
+    /**
+     * Объём бака или ёмкость батареи.
+     *
+     * Поле давно есть в сущности Car, но не запрашивалось ни на одном экране —
+     * и из-за этого напоминание о скорой заправке не срабатывало ни у кого:
+     * оно первым делом требует эту величину и без неё выходит.
+     */
+    val tankCapacity: String = "",
     val purchasePrice: String = "",
     val purchaseDate: Long? = null,
     val vin: String = "",
@@ -95,6 +103,12 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
     fun updateFuelType(value: FuelType) {
         _uiState.value = _uiState.value.copy(fuelType = value)
+    }
+
+    fun updateTankCapacity(value: String) {
+        if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
+            _uiState.value = _uiState.value.copy(tankCapacity = value)
+        }
     }
 
     fun updatePurchasePrice(value: String) {
@@ -217,6 +231,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                     year = state.year.toInt(),
                     licensePlate = state.licensePlate.trim(),
                     currentOdometer = state.currentOdometer.toInt(),
+                    tankCapacity = state.tankCapacity.toDoubleOrNull(),
                     vehicleType = state.vehicleType,
                     fuelType = state.fuelType,
                     purchaseDate = state.purchaseDate ?: System.currentTimeMillis(),

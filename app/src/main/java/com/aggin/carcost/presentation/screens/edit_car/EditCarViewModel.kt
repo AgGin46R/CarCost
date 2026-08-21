@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.FuelType
+import com.aggin.carcost.data.local.database.entities.VehicleType
 import com.aggin.carcost.data.local.repository.CarRepository
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarRepository
@@ -32,6 +33,9 @@ data class EditCarUiState(
     val year: String = "",
     val licensePlate: String = "",
     val currentOdometer: String = "",
+    val vehicleType: VehicleType = VehicleType.CAR,
+    /** Объём бака или ёмкость батареи — нужен напоминанию о скорой заправке */
+    val tankCapacity: String = "",
     val fuelType: FuelType = FuelType.GASOLINE,
     val vin: String = "",
     val color: String = "",
@@ -97,6 +101,8 @@ class EditCarViewModel(
                     year = it.year.toString(),
                     licensePlate = it.licensePlate,
                     currentOdometer = it.currentOdometer.toString(),
+                    vehicleType = it.vehicleType,
+                    tankCapacity = it.tankCapacity?.toString() ?: "",
                     fuelType = it.fuelType,
                     vin = it.vin ?: "",
                     color = it.color ?: "",
@@ -130,6 +136,16 @@ class EditCarViewModel(
         if (value.isEmpty() || value.all { it.isDigit() }) {
             _uiState.value = _uiState.value.copy(currentOdometer = value, showError = false)
         }
+    }
+
+    fun updateTankCapacity(value: String) {
+        if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
+            _uiState.value = _uiState.value.copy(tankCapacity = value)
+        }
+    }
+
+    fun updateVehicleType(value: VehicleType) {
+        _uiState.value = _uiState.value.copy(vehicleType = value)
     }
 
     fun updateFuelType(value: FuelType) {
@@ -252,6 +268,8 @@ class EditCarViewModel(
                     year = state.year.toInt(),
                     licensePlate = state.licensePlate.trim(),
                     currentOdometer = state.currentOdometer.toInt(),
+                    vehicleType = state.vehicleType,
+                    tankCapacity = state.tankCapacity.toDoubleOrNull(),
                     fuelType = state.fuelType,
                     vin = state.vin.ifBlank { null },
                     color = state.color.ifBlank { null },
