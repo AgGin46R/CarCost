@@ -28,6 +28,7 @@ import com.aggin.carcost.presentation.common.displayName
 import androidx.compose.material.icons.filled.FilterList
 import com.aggin.carcost.presentation.navigation.navigateOnce
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.layout.onGloballyPositioned
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,8 +40,24 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    /**
+     * Поле поиска уже размещено на экране.
+     *
+     * Раньше фокус запрашивался в LaunchedEffect(Unit) — то есть сразу при входе
+     * в композицию. Но само поле живёт в шапке Scaffold, а она собирается позже,
+     * и на медленном устройстве эффект успевал первым: модификатор ещё не
+     * привязан, FocusRequester об этом сообщает исключением, и приложение падало.
+     *
+     * Ждём, пока поле действительно окажется на экране. Это единственный
+     * надёжный признак: composition сам по себе ничего о размещении не говорит.
+     */
+    var searchFieldPlaced by remember { mutableStateOf(false) }
+
+    LaunchedEffect(searchFieldPlaced) {
+        if (!searchFieldPlaced) return@LaunchedEffect
+        // runCatching на случай, когда экран закрывают в тот же миг: фокус
+        // просить уже некому, и падать из-за этого приложение не должно
+        runCatching { focusRequester.requestFocus() }
     }
 
     Scaffold(
@@ -54,7 +71,8 @@ fun SearchScreen(
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .focusRequester(focusRequester),
+                            .focusRequester(focusRequester)
+                            .onGloballyPositioned { searchFieldPlaced = true },
                         trailingIcon = {
                             if (uiState.query.isNotEmpty()) {
                                 IconButton(onClick = viewModel::clearQuery) {

@@ -491,7 +491,6 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         val carId = _uiState.value.selectedCarId
         val destName = _uiState.value.destinationName
 
-        announcedManeuver = null
         speaker?.speak("Начинаем маршрут. $destName")
 
         val intent = Intent(getApplication(), NavigationService::class.java).apply {
@@ -503,7 +502,18 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         }
         getApplication<Application>().startForegroundService(intent)
         com.aggin.carcost.data.analytics.Analytics.navigationStarted()
+        announcedManeuver = null
         _uiState.update { it.copy(mode = NavigatorMode.NAVIGATING, isCameraLocked = true) }
+
+        // Считаем манёвр сразу, не дожидаясь движения.
+        //
+        // Раньше расчёт висел только на обновлении координат. Пока машина стоит,
+        // обновления не приходят — и человек, нажав «Поехали», видел вместо
+        // первого манёвра прочерк. То есть панель была пуста ровно в тот момент,
+        // когда она нужнее всего: перед началом движения.
+        val lat = _uiState.value.currentLat
+        val lon = _uiState.value.currentLon
+        if (lat != null && lon != null) updateManeuver(lat, lon)
     }
 
     fun stopNavigation() {

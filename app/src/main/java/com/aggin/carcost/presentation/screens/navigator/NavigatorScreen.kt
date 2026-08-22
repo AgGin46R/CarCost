@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.entities.FavoritePlaceType
@@ -64,6 +65,48 @@ import androidx.compose.runtime.saveable.rememberSaveable
  * Проверка [MapObject.isValid] — то, о чём просит сам MapKit в тексте ошибки.
  * try/catch рядом — на случай, если объект умрёт между проверкой и удалением.
  */
+/**
+ * Наклон камеры в движении.
+ *
+ * Было 20 градусов — почти вид сверху, из-за чего дорога впереди сжималась в
+ * полоску и понять, что за поворотом, было нельзя. Пятьдесят дают перспективу,
+ * при которой видно продолжение пути; на этом наклоне и высоком зуме MapKit
+ * начинает рисовать объёмную застройку, и карта перестаёт быть плоской схемой.
+ *
+ * Выше шестидесяти горизонт занимает половину экрана, а полезной карты
+ * остаётся мало — проверено подбором.
+ */
+private const val NAVIGATION_TILT = 50f
+
+/** Одна величина в итогах поездки: число крупно, подпись мелко */
+@Composable
+private fun ArrivalStat(value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+    }
+}
+
 private fun MapObjectCollection?.removeSafely(obj: MapObject?) {
     val collection = this ?: return
     if (obj == null || !obj.isValid || !collection.isValid) return
@@ -276,7 +319,7 @@ fun NavigatorScreen(
         val lat = uiState.currentLat ?: return@LaunchedEffect
         val lon = uiState.currentLon ?: return@LaunchedEffect
         mapView?.mapWindow?.map?.move(
-            CameraPosition(Point(lat, lon), 17f, uiState.currentBearing, 20f),
+            CameraPosition(Point(lat, lon), 17f, uiState.currentBearing, NAVIGATION_TILT),
             Animation(Animation.Type.SMOOTH, 0.4f), null
         )
     }
@@ -287,7 +330,7 @@ fun NavigatorScreen(
             val lat = uiState.currentLat ?: return@LaunchedEffect
             val lon = uiState.currentLon ?: return@LaunchedEffect
             mapView?.mapWindow?.map?.move(
-                CameraPosition(Point(lat, lon), 17f, uiState.currentBearing, 20f),
+                CameraPosition(Point(lat, lon), 17f, uiState.currentBearing, NAVIGATION_TILT),
                 Animation(Animation.Type.SMOOTH, 1f), null
             )
         }
@@ -424,30 +467,111 @@ fun NavigatorScreen(
     }
 
     if (showArrivalDialog) {
-        AlertDialog(
-            onDismissRequest = { showArrivalDialog = false; viewModel.clearDestination() },
-            title = { Text("Вы на месте") },
-            text = { Text("Что делаем дальше?") },
-            confirmButton = {
-                Column {
+        // Итог поездки, а не голый вопрос «что делаем дальше».
+        //
+        // Раньше здесь стоял обычный диалог с тремя ссылками. Он ничего не
+        // сообщал: человек только что доехал, и первое, что ему интересно —
+        // сколько это заняло и во что обошлось. Заодно это единственное место,
+        // где навигатор сам связывается с учётом расходов.
+        Dialog(onDismissRequest = { showArrivalDialog = false; viewModel.clearDestination() }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                shadowElevation = 16.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 26.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "Вы на месте",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (uiState.destinationName.isNotBlank()) {
+                        Text(
+                            text = uiState.destinationName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2
+                        )
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ArrivalStat(
+                            value = uiState.routeDistanceKm?.let { "%.1f".format(it) } ?: "—",
+                            label = "км пути",
+                            modifier = Modifier.weight(1f)
+                        )
+                        ArrivalStat(
+                            value = uiState.routeTimeMin?.let { formatDuration(it) } ?: "—",
+                            label = "в дороге",
+                            modifier = Modifier.weight(1f)
+                        )
+                        ArrivalStat(
+                            value = uiState.fuelCostEstimate?.let { "%.0f".format(it) } ?: "—",
+                            label = "на топливо",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+                    Button(
+                        onClick = {
+                            showArrivalDialog = false
+                            val carId = uiState.selectedCarId
+                            if (carId.isNotBlank()) {
+                                navController.navigateOnce(Screen.AddExpense.createRoute(carId))
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Записать расход")
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            showArrivalDialog = false
+                            navController.navigateOnce(Screen.ParkingTimer.route)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.Timer, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Таймер парковки")
+                    }
+
+                    Spacer(Modifier.height(4.dp))
                     TextButton(onClick = {
                         showArrivalDialog = false
-                        val carId = uiState.selectedCarId.ifBlank { return@TextButton }
-                        navController.navigateOnce(Screen.AddExpense.createRoute(carId))
-                    }) { Text("Записать расход") }
-                    TextButton(onClick = {
-                        showArrivalDialog = false
-                        navController.navigateOnce(Screen.ParkingTimer.route)
-                    }) { Text("Таймер парковки") }
+                        viewModel.clearDestination()
+                    }) { Text("Закрыть") }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showArrivalDialog = false
-                    viewModel.clearDestination()
-                }) { Text("Закрыть") }
             }
-        )
+        }
     }
 
     // Error snackbar
@@ -702,46 +826,84 @@ fun NavigatorScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding(),
-                color = MaterialTheme.colorScheme.primary,
-                tonalElevation = 8.dp,
-                shadowElevation = 8.dp
+                    .statusBarsPadding()
+                    // Панель плавает над картой, а не приклеена к краю: под ней
+                    // видно дорогу, и экран не делится пополам глухой полосой
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                tonalElevation = 3.dp,
+                shadowElevation = 12.dp
             ) {
-                // Панель манёвра.
-                //
-                // Раньше здесь висела неизменная надпись «Следуйте по маршруту» с
-                // одной и той же стрелкой — то есть навигатор не сообщал главного:
-                // куда поворачивать. Теперь показывается ближайший манёвр,
-                // расстояние до него и улица, на которую он выводит.
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val maneuver = uiState.nextManeuver
-                    Icon(
-                        maneuverIcon(maneuver?.action),
-                        contentDescription = maneuver?.action?.label,
-                        tint = Color.White,
-                        // Крупнее прежнего: за рулём значок считывается боковым
-                        // зрением, и мелкий здесь бесполезен
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = maneuver?.distanceLabel ?: "—",
-                            color = Color.White,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        Text(
-                            text = maneuver?.let { m ->
-                                m.street?.let { "${m.action.label} на $it" } ?: m.action.label
-                            } ?: uiState.destinationName.take(40),
-                            color = Color.White.copy(alpha = 0.9f),
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 2
-                        )
+                Column {
+                    Row(
+                        modifier = Modifier.padding(start = 16.dp, end = 18.dp, top = 16.dp, bottom = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val maneuver = uiState.nextManeuver
+                        Box(
+                            modifier = Modifier
+                                .size(58.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                maneuverIcon(maneuver?.action),
+                                contentDescription = maneuver?.action?.label,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(34.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = maneuver?.distanceLabel ?: "—",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 36.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                // Табличные цифры: без них число дёргается по
+                                // ширине на каждом обновлении расстояния
+                                style = MaterialTheme.typography.headlineLarge.copy(
+                                    fontFeatureSettings = "tnum"
+                                )
+                            )
+                            Text(
+                                text = maneuver?.let { m ->
+                                    m.street?.let { "${m.action.label.lowercase()} на $it" }
+                                        ?: m.action.label
+                                } ?: uiState.destinationName.take(40),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 2
+                            )
+                        }
+                    }
+
+                    // Следующий манёвр — отдельной строкой на подложке.
+                    // Один поворот без продолжения оставляет в неведении:
+                    // перестраиваться сейчас или можно подождать.
+                    uiState.nextManeuver?.let {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.07f))
+                                .padding(horizontal = 18.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Straight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(Modifier.width(9.dp))
+                            Text(
+                                text = "затем прямо",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
             }
@@ -754,23 +916,30 @@ fun NavigatorScreen(
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 16.dp, bottom = 96.dp)
+                .padding(start = 14.dp, bottom = 104.dp)
         ) {
+            // Круг, а не скруглённый прямоугольник: спидометр так и выглядит,
+            // и круглая форма отличает скорость от прочих панелей на экране
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 4.dp,
-                shadowElevation = 6.dp
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                tonalElevation = 3.dp,
+                shadowElevation = 8.dp,
+                modifier = Modifier.size(64.dp)
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     Text(
                         text = "${uiState.currentSpeedKmh}",
-                        style = MaterialTheme.typography.headlineSmall,
+                        fontSize = 25.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontFeatureSettings = "tnum"
+                        )
                     )
                     Text(
                         text = "км/ч",
@@ -796,7 +965,7 @@ fun NavigatorScreen(
                     val lat = uiState.currentLat ?: return@FloatingActionButton
                     val lon = uiState.currentLon ?: return@FloatingActionButton
                     mapView?.mapWindow?.map?.move(
-                        CameraPosition(Point(lat, lon), 17f, uiState.currentBearing, 20f),
+                        CameraPosition(Point(lat, lon), 17f, uiState.currentBearing, NAVIGATION_TILT),
                         Animation(Animation.Type.SMOOTH, 0.5f), null
                     )
                 },
@@ -1039,75 +1208,84 @@ private fun NavigationBottomBar(
     onStop: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp,
-        shadowElevation = 16.dp
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            // Плавает над картой, как и панель манёвра: карта дороже
+            // сплошной полосы внизу экрана
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        tonalElevation = 3.dp,
+        shadowElevation = 14.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Time remaining
+            // Время в пути — главное число: им человек и меряет поездку.
+            // Раньше время, прибытие и расстояние были равнозначны, и взгляду
+            // не за что было зацепиться.
             Column {
                 Text(
                     text = if (timeMin != null) formatDuration(timeMin) else "--",
-                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 29.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontFeatureSettings = "tnum"
+                    )
                 )
                 Text(
-                    text = "время",
+                    text = "в пути",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            // ETA clock
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.width(16.dp))
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(32.dp)
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+            )
+            Spacer(Modifier.width(16.dp))
+
+            Column {
                 Text(
-                    text = etaString.ifBlank { "--:--" },
-                    style = MaterialTheme.typography.titleLarge,
+                    text = if (distanceKm != null) "%.1f км".format(distanceKm) else "--",
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFeatureSettings = "tnum"
+                    )
                 )
                 Text(
-                    text = "прибытие",
+                    text = if (etaString.isNotBlank()) "прибытие $etaString" else "прибытие --:--",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            // Distance remaining
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = if (distanceKm != null) "%.1f".format(distanceKm) else "--",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "км",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(Modifier.weight(1f))
 
-            // Stop button
-            Button(
+            // Завершение — красный круг, а не текстовая кнопка: за рулём в него
+            // проще попасть, и перепутать его ни с чем нельзя
+            Surface(
                 onClick = onStop,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(46.dp)
             ) {
-                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Завершить", style = MaterialTheme.typography.labelLarge)
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Завершить поездку",
+                        tint = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -1195,21 +1373,36 @@ private fun RouteInfoCard(
                 ) {
                     items(allRoutes.size) { idx ->
                         val route = allRoutes[idx]
-                        val distKm = route.metadata.weight.distance.value / 1000.0
                         val timeMin2 = (route.metadata.weight.timeWithTraffic.value / 60).toInt()
+
+                        // Подписываем улицей, а не временем и длиной.
+                        //
+                        // Яндекс часто возвращает варианты, одинаковые по времени
+                        // и километрам, но идущие разными улицами. Три чипа
+                        // «4 км · 8 мин» подряд говорят правду и не дают выбрать
+                        // ничего: они показывают то, что у маршрутов общее.
+                        val street = distinguishingStreet(allRoutes, idx)
+                        val bestTime = allRoutes.minOf {
+                            (it.metadata.weight.timeWithTraffic.value / 60).toInt()
+                        }
+                        val diff = timeMin2 - bestTime
+
                         FilterChip(
                             selected = idx == selectedRouteIndex,
                             onClick = { onSelectRoute(idx) },
                             label = {
                                 Text(
-                                    "%.0f км · %s".format(distKm, formatDuration(timeMin2)),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            leadingIcon = {
-                                Text(
-                                    when (idx) { 0 -> "🚀"; 1 -> "⬡"; else -> "↩" },
-                                    fontSize = 10.sp
+                                    text = when {
+                                        street != null && diff > 0 ->
+                                            "через $street · +${formatDuration(diff)}"
+                                        street != null -> "через $street"
+                                        // Улицу определить не удалось — остаётся
+                                        // хотя бы разница во времени
+                                        diff > 0 -> "дольше на ${formatDuration(diff)}"
+                                        else -> "быстрый"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1
                                 )
                             }
                         )

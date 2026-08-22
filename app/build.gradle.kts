@@ -34,8 +34,8 @@ android {
         applicationId = "com.aggin.carcost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 104
-        versionName = "5.3.4"
+        versionCode = 106
+        versionName = "5.3.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -138,6 +138,15 @@ tracer {
     create("defaultConfig") {
         pluginToken = localProps.getProperty("tracer.plugin_token").orEmpty()
         appToken = localProps.getProperty("tracer.app_token").orEmpty()
+
+        // Без этого плагин не создаёт задачу выгрузки вовсе, и стеки вылетов в
+        // отчётах остаются набором вида «r0.n.a» — место в коде по ним не найти.
+        // Проверяется просто: ./gradlew :app:tasks --all | grep -i upload
+        uploadMapping = true
+
+        // Символы нативных библиотек. Вылет навигатора приходил именно из
+        // нативной части Яндекс-карт, и без них такой стек тоже нечитаем.
+        uploadNativeSymbols = true
     }
 }
 

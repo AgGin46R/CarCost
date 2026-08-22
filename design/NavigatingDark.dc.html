@@ -1,0 +1,187 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, Roboto, "Helvetica Neue", sans-serif; }
+    a { color: #5AA9F8; } a:hover { color: #0D47A1; }
+    .num { font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 412px; height: 892px; overflow: hidden; background: linear-gradient(#BFD6EF 0%, #D9E4F0 42%, #1A1D21 100%);">
+
+  <!-- ── Земля в перспективе ─────────────────────────────────────────── -->
+  <div style="position: absolute; inset: 0; perspective: 620px; perspective-origin: 50% 0%; overflow: hidden;">
+    <div style="position: absolute; left: -100%; top: 168px; width: 300%; height: 1250px; transform: rotateX(58deg); transform-origin: 50% 0%;">
+      <svg viewBox="0 0 1236 1250" style="width: 100%; height: 100%; display: block;">
+        <rect width="1236" height="1250" fill="#1A1D21"/>
+
+        <!-- Кварталы -->
+        <rect x="180" y="120" width="300" height="240" rx="4" fill="#212429"/>
+        <rect x="540" y="90"  width="260" height="200" rx="4" fill="#212429"/>
+        <rect x="860" y="140" width="280" height="230" rx="4" fill="#212429"/>
+        <rect x="150" y="470" width="330" height="300" rx="4" fill="#212429"/>
+        <rect x="860" y="470" width="300" height="300" rx="4" fill="#212429"/>
+        <rect x="140" y="700" width="340" height="200" rx="4" fill="#212429"/>
+        <rect x="880" y="700" width="320" height="200" rx="4" fill="#212429"/>
+        <rect x="540" y="1000" width="280" height="230" rx="4" fill="#212429"/>
+
+        <!-- Парк -->
+        <rect x="520" y="470" width="270" height="300" rx="8" fill="#1C2A20"/>
+        <circle cx="580" cy="540" r="26" fill="#233326"/>
+        <circle cx="700" cy="640" r="32" fill="#233326"/>
+        <circle cx="620" cy="710" r="22" fill="#233326"/>
+
+        <!-- Вода -->
+        <path d="M-20 250 C 300 200, 900 300, 1260 230 L 1260 130 C 900 200, 300 100, -20 150 Z" fill="#16243A"/>
+
+        <!-- Поперечные улицы -->
+        <path d="M-20 400 L1260 400" stroke="#14171A" stroke-width="46" fill="none"/>
+        <path d="M-20 400 L1260 400" stroke="#2E3339" stroke-width="36" fill="none"/>
+        <path d="M-20 820 L1260 820" stroke="#14171A" stroke-width="46" fill="none"/>
+        <path d="M-20 820 L1260 820" stroke="#2E3339" stroke-width="36" fill="none"/>
+        <path d="M-20 940 L1260 940" stroke="#14171A" stroke-width="52" fill="none"/>
+        <path d="M-20 940 L1260 940" stroke="#3E3A2C" stroke-width="42" fill="none"/>
+
+        <!-- Продольные улицы -->
+        <path d="M500 -20 L500 1270" stroke="#14171A" stroke-width="56" fill="none"/>
+        <path d="M500 -20 L500 1270" stroke="#2E3339" stroke-width="46" fill="none"/>
+        <path d="M820 -20 L820 1270" stroke="#14171A" stroke-width="46" fill="none"/>
+        <path d="M820 -20 L820 1270" stroke="#2E3339" stroke-width="36" fill="none"/>
+
+        <!-- Пройденный путь -->
+        <path d="M618 1250 L618 1010" stroke="#3C4147" stroke-width="30" stroke-linecap="round" fill="none"/>
+        <!-- Маршрут: прямо, затем направо -->
+        <path d="M618 1010 L618 520 L1240 520" stroke="#2E3339" stroke-width="52" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <path d="M618 1010 L618 520 L1240 520" stroke="#5AA9F8" stroke-width="38" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <path d="M618 1010 L618 520 L1240 520" stroke="#9CCBFF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.85"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Дымка у горизонта ───────────────────────────────────────────── -->
+  <div style="position: absolute; left: 0; right: 0; top: 150px; height: 90px; background: linear-gradient(rgba(214,226,240,0.85), rgba(233,230,225,0));"></div>
+
+  <!-- ── Застройка ───────────────────────────────────────────────────── -->
+  <svg viewBox="0 0 412 892" style="position: absolute; inset: 0; width: 412px; height: 892px;">
+    <!-- дальние -->
+    <g opacity="0.55">
+      <path d="M18 258 L52 250 L52 210 L18 218 Z" fill="#20242A"/>
+      <path d="M52 250 L52 210 L60 214 L60 254 Z" fill="#191D22"/>
+      <path d="M356 256 L392 248 L392 206 L356 214 Z" fill="#20242A"/>
+      <path d="M356 256 L356 214 L348 218 L348 260 Z" fill="#191D22"/>
+    </g>
+    <!-- средние -->
+    <path d="M0 330 L58 314 L58 236 L0 250 Z" fill="#242930"/>
+    <path d="M58 314 L58 236 L74 244 L74 322 Z" fill="#1B1F25"/>
+    <path d="M0 250 L58 236 L74 244 L16 258 Z" fill="#2C323A"/>
+
+    <path d="M338 326 L412 308 L412 226 L338 244 Z" fill="#242930"/>
+    <path d="M338 326 L338 244 L322 252 L322 334 Z" fill="#1B1F25"/>
+    <path d="M338 244 L412 226 L412 218 L322 252 Z" fill="#2C323A"/>
+
+    <!-- ближние -->
+    <path d="M0 520 L74 486 L74 340 L0 372 Z" fill="#232830"/>
+    <path d="M74 486 L74 340 L96 352 L96 498 Z" fill="#1A1E24"/>
+    <path d="M0 372 L74 340 L96 352 L22 384 Z" fill="#2A3038"/>
+
+    <path d="M320 512 L412 470 L412 320 L320 358 Z" fill="#232830"/>
+    <path d="M320 512 L320 358 L298 370 L298 524 Z" fill="#1A1E24"/>
+    <path d="M320 358 L412 320 L412 310 L298 370 Z" fill="#2A3038"/>
+
+    <!-- самые ближние, обрезаны краем -->
+    <path d="M0 892 L58 820 L58 600 L0 660 Z" fill="#1E2228" opacity="0.95"/>
+    <path d="M354 892 L412 806 L412 590 L354 654 Z" fill="#1E2228" opacity="0.95"/>
+  </svg>
+
+  <!-- ── Подписи улиц ────────────────────────────────────────────────── -->
+  <div style="position: absolute; left: 214px; top: 402px; transform: rotate(-2deg); color: #6B6459; font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-shadow: 0 0 4px rgba(255,255,255,0.9);">Кирова</div>
+  <div style="position: absolute; left: 120px; top: 560px; color: #6B6459; font-size: 12px; font-weight: 600; letter-spacing: 0.4px; text-shadow: 0 0 4px rgba(255,255,255,0.9);">Советская</div>
+  <div style="position: absolute; left: 246px; top: 700px; color: #7A6A45; font-size: 13px; font-weight: 700; letter-spacing: 0.4px; text-shadow: 0 0 5px rgba(255,255,255,0.95);">Ленина</div>
+
+  <!-- ── Машина ──────────────────────────────────────────────────────── -->
+  <div style="position: absolute; left: 50%; top: 660px; transform: translateX(-50%);">
+    <svg width="120" height="120" viewBox="0 0 120 120" style="display: block;">
+      <ellipse cx="60" cy="76" rx="46" ry="26" fill="#5AA9F8" opacity="0.13"/>
+      <path d="M60 34 L82 88 L60 76 L38 88 Z" fill="#5AA9F8" stroke="#2E3339" stroke-width="3" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <!-- ── Панель манёвра ──────────────────────────────────────────────── -->
+  <div style="position: absolute; top: 14px; left: 12px; right: 12px; background: rgba(255,255,255,0.94); backdrop-filter: blur(24px); border-radius: 22px; box-shadow: 0 8px 28px rgba(31,41,55,0.22); overflow: hidden;">
+    <div style="display: flex; align-items: center; gap: 16px; padding: 18px 18px 16px 18px;">
+      <div style="width: 58px; height: 58px; border-radius: 18px; background: rgba(90,169,248,0.16); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2E3339" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 20 L6 13 A4 4 0 0 1 10 9 L17 9"/>
+          <path d="M13 5 L17 9 L13 13"/>
+        </svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0;">
+        <div class="num" style="color: #1F2937; font-size: 38px; font-weight: 800; line-height: 0.95;">450<span style="font-size: 20px; font-weight: 600; margin-left: 4px;">м</span></div>
+        <div style="color: #4B5563; font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">направо на Ленина</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 9px; padding: 9px 18px 12px 18px; background: rgba(26,115,232,0.07); border-top: 1px solid rgba(31,41,55,0.07);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5F6B7A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20 L12 5"/><path d="M6 11 L12 5 L18 11"/>
+      </svg>
+      <div style="color: #5F6B7A; font-size: 13px;">затем прямо <span class="num" style="font-weight: 600;">1,2 км</span></div>
+    </div>
+  </div>
+
+  <!-- ── Кнопки справа ───────────────────────────────────────────────── -->
+  <div style="position: absolute; right: 12px; top: 232px; display: flex; flex-direction: column; gap: 9px;">
+    <div style="width: 44px; height: 44px; border-radius: 15px; background: rgba(255,255,255,0.94); backdrop-filter: blur(18px); box-shadow: 0 3px 12px rgba(31,41,55,0.20); display: flex; align-items: center; justify-content: center;">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#5AA9F8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3.2"/><path d="M12 2 L12 5.2"/><path d="M12 18.8 L12 22"/><path d="M2 12 L5.2 12"/><path d="M18.8 12 L22 12"/>
+      </svg>
+    </div>
+    <div style="width: 44px; height: 44px; border-radius: 15px; background: rgba(255,255,255,0.94); backdrop-filter: blur(18px); box-shadow: 0 3px 12px rgba(31,41,55,0.20); display: flex; align-items: center; justify-content: center;">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5 L6 9 L2 9 L2 15 L6 15 L11 19 Z"/><path d="M15 9.5 A4 4 0 0 1 15 14.5"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Скорость ────────────────────────────────────────────────────── -->
+  <div style="position: absolute; left: 14px; bottom: 128px; width: 64px; height: 64px; border-radius: 32px; background: rgba(255,255,255,0.94); backdrop-filter: blur(18px); box-shadow: 0 3px 14px rgba(31,41,55,0.22); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <div class="num" style="color: #1F2937; font-size: 25px; font-weight: 800; line-height: 1;">58</div>
+    <div style="color: #6B7280; font-size: 9px; letter-spacing: 0.5px; margin-top: 1px;">км/ч</div>
+  </div>
+
+  <!-- ── Нижняя панель ───────────────────────────────────────────────── -->
+  <div style="position: absolute; left: 12px; right: 12px; bottom: 14px; background: rgba(255,255,255,0.95); backdrop-filter: blur(24px); border-radius: 24px; box-shadow: 0 8px 30px rgba(31,41,55,0.24); padding: 16px 18px;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div class="num" style="color: #5AA9F8; font-size: 30px; font-weight: 800; line-height: 1;">24<span style="font-size: 17px; font-weight: 600; margin-left: 3px;">мин</span></div>
+        <div style="color: #6B7280; font-size: 11px;">в пути</div>
+      </div>
+      <div style="width: 1px; height: 32px; background: rgba(31,41,55,0.12);"></div>
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div class="num" style="color: #1F2937; font-size: 19px; font-weight: 700; line-height: 1;">18,4 км</div>
+        <div style="color: #6B7280; font-size: 11px;">прибытие 14:38</div>
+      </div>
+      <div style="flex-grow: 1;"></div>
+      <div style="width: 46px; height: 46px; border-radius: 23px; background: #FF6B5E; box-shadow: 0 3px 10px rgba(228,68,58,0.35); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#2E3339" stroke-width="2.8" stroke-linecap="round">
+          <path d="M6 6 L18 18"/><path d="M18 6 L6 18"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

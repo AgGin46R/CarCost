@@ -134,3 +134,48 @@ private fun com.yandex.mapkit.directions.driving.Action.toManeuverAction(): Mane
         "UTURN", "U_TURN" -> ManeuverAction.U_TURN
         else -> ManeuverAction.STRAIGHT
     }
+
+/**
+ * Чем один вариант маршрута отличается от остальных.
+ *
+ * Яндекс нередко возвращает несколько маршрутов, одинаковых по времени и длине,
+ * но идущих разными улицами. Подпись «4 км · 8 мин» на всех трёх вариантах
+ * говорит правду и при этом бесполезна: она показывает ровно то, что у них
+ * общее, а выбирать человеку приходится по тому, что различается.
+ *
+ * Поэтому ищем улицу, которая есть в этом маршруте и отсутствует в остальных,
+ * и по ней его называем — «через Копылова». Так подписывают альтернативы все
+ * карты, и так человек их и держит в голове.
+ *
+ * @return название улицы либо null, если отличить нечем
+ */
+fun distinguishingStreet(routes: List<DrivingRoute>, index: Int): String? {
+    if (index !in routes.indices || routes.size < 2) return null
+
+    /** Длина каждой улицы в маршруте: короткий проезд не должен побеждать проспект */
+    fun streetLengths(route: DrivingRoute): Map<String, Double> {
+        val result = mutableMapOf<String, Double>()
+        for (section in route.sections) {
+            val name = section.metadata.annotation.toponym?.takeIf { it.isNotBlank() } ?: continue
+            val meters = section.metadata.weight.distance.value
+            result[name] = (result[name] ?: 0.0) + meters
+        }
+        return result
+    }
+
+    val mine = streetLengths(routes[index])
+    if (mine.isEmpty()) return null
+
+    val others = routes.indices
+        .filter { it != index }
+        .flatMap { streetLengths(routes[it]).keys }
+        .toSet()
+
+    // Улица, которой нет у соседей, — самая длинная из таких
+    val unique = mine.filterKeys { it !in others }
+    val chosen = (unique.takeIf { it.isNotEmpty() } ?: mine)
+        .maxByOrNull { it.value }?.key
+        ?: return null
+
+    return chosen
+}
