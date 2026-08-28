@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material3.*
+import com.aggin.carcost.data.reference.VehicleCatalog
+import com.aggin.carcost.presentation.components.SuggestField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -196,24 +198,26 @@ fun EditCarScreen(
                 )
 
                 // Марка
-                OutlinedTextField(
+                SuggestField(
                     value = uiState.brand,
                     onValueChange = { viewModel.updateBrand(it) },
-                    label = { Text("Марка *") },
-                    placeholder = { Text("Toyota") },
+                    suggestions = VehicleCatalog.suggestBrands(uiState.vehicleType, uiState.brand),
+                    label = "Марка *",
+                    placeholder = "Toyota",
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
                     enabled = !uiState.isSaving
                 )
 
                 // Модель
-                OutlinedTextField(
+                SuggestField(
                     value = uiState.model,
                     onValueChange = { viewModel.updateModel(it) },
-                    label = { Text("Модель *") },
-                    placeholder = { Text("Camry") },
+                    suggestions = VehicleCatalog.suggestModels(
+                        uiState.vehicleType, uiState.brand, uiState.model
+                    ),
+                    label = "Модель *",
+                    placeholder = "Camry",
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
                     enabled = !uiState.isSaving
                 )
 

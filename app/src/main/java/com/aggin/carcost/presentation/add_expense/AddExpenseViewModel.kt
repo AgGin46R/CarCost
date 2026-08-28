@@ -55,6 +55,21 @@ data class AddExpenseUiState(
     /** Киловатт-часы у зарядки — то же поле формы, что литры у заправки */
     val energyKwh: String = "",
     /**
+     * Цена за литр или за киловатт-час.
+     *
+     * Из трёх чисел заправки — сумма, объём, цена — независимы любые два:
+     * третье получается делением. На колонке человек видит цену на табло и
+     * сумму на чеке, а литры до сих пор считал в уме или не заполнял вовсе,
+     * из-за чего расход топлива потом не считался. Теперь достаточно ввести
+     * любые два, третье подставится само.
+     *
+     * В базе не хранится: это производная величина, и хранить её отдельно
+     * значит однажды получить сумму, не сходящуюся с ценой и объёмом.
+     */
+    val pricePerUnit: String = "",
+    /** Места, где эту машину уже заправляли и обслуживали — для подсказок */
+    val recentLocations: List<String> = emptyList(),
+    /**
      * Марка топлива: АИ-95, ДТ и прочее.
      *
      * Названа grade, а не fuelType, чтобы не путать с типом двигателя машины
@@ -162,6 +177,11 @@ class AddExpenseViewModel(
 
             // Образец для «как в прошлый раз» — по той категории, что открылась
             loadLastSimilar(_uiState.value.category)
+
+            // Места из истории — чтобы название колонки не набирать заново
+            runCatching { database.expenseDao().getRecentLocations(carId) }
+                .getOrNull()
+                ?.let { places -> _uiState.value = _uiState.value.copy(recentLocations = places) }
 
             // Загружаем текущий пробег автомобиля
             val car = carRepository.getCarById(carId)
@@ -289,6 +309,7 @@ class AddExpenseViewModel(
     fun updateAmount(value: String) {
         if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
             _uiState.value = _uiState.value.copy(amount = value, showError = false)
+            recalcFuelTriangle(changed = FuelField.AMOUNT)
         }
     }
 
@@ -339,6 +360,70 @@ class AddExpenseViewModel(
     fun updateFuelLiters(value: String) {
         if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
             _uiState.value = _uiState.value.copy(fuelLiters = value)
+            recalcFuelTriangle(changed = FuelField.VOLUME)
+        }
+    }
+
+
+    /** Какое из трёх чисел заправки человек правит прямо сейчас */
+    private enum class FuelField { AMOUNT, VOLUME, PRICE }
+
+    fun updatePricePerUnit(value: String) {
+        if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
+            _uiState.value = _uiState.value.copy(pricePerUnit = value)
+            recalcFuelTriangle(changed = FuelField.PRICE)
+        }
+    }
+
+    /**
+     * Досчитывает третье число по двум известным.
+     *
+     * Поле, которое правят прямо сейчас, не трогаем никогда — иначе цифры
+     * будут выпрыгивать из-под пальца. Из двух оставшихся заполняем то, для
+     * которого хватает данных, начиная с объёма: ради него всё и затевалось,
+     * без литров не считается расход.
+     */
+    private fun recalcFuelTriangle(changed: FuelField) {
+        val state = _uiState.value
+        val isFuel = state.category == ExpenseCategory.FUEL
+        val isCharge = state.category == ExpenseCategory.CHARGING
+        if (!isFuel && !isCharge) return
+
+        val amount = state.amount.toDoubleOrNull()
+        val volume = (if (isFuel) state.fuelLiters else state.energyKwh).toDoubleOrNull()
+        val price = state.pricePerUnit.toDoubleOrNull()
+
+        fun show(value: Double): String =
+            String.format(java.util.Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
+
+        fun setVolume(text: String) {
+            _uiState.value = if (isFuel) {
+                _uiState.value.copy(fuelLiters = text)
+            } else {
+                _uiState.value.copy(energyKwh = text)
+            }
+        }
+
+        when (changed) {
+            FuelField.AMOUNT -> when {
+                amount != null && price != null && price > 0.0 -> setVolume(show(amount / price))
+                amount != null && volume != null && volume > 0.0 ->
+                    _uiState.value = _uiState.value.copy(pricePerUnit = show(amount / volume))
+                else -> Unit
+            }
+            FuelField.PRICE -> when {
+                amount != null && price != null && price > 0.0 -> setVolume(show(amount / price))
+                volume != null && price != null ->
+                    _uiState.value = _uiState.value.copy(amount = show(volume * price))
+                else -> Unit
+            }
+            FuelField.VOLUME -> when {
+                volume != null && price != null ->
+                    _uiState.value = _uiState.value.copy(amount = show(volume * price))
+                amount != null && volume != null && volume > 0.0 ->
+                    _uiState.value = _uiState.value.copy(pricePerUnit = show(amount / volume))
+                else -> Unit
+            }
         }
     }
 
@@ -349,6 +434,7 @@ class AddExpenseViewModel(
     fun updateEnergyKwh(value: String) {
         if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
             _uiState.value = _uiState.value.copy(energyKwh = value)
+            recalcFuelTriangle(changed = FuelField.VOLUME)
         }
     }
 
@@ -631,13 +717,8 @@ class AddExpenseViewModel(
                 }
             }
 
-            // 4. Обновляем одометр машины
-            val car = carRepository.getCarById(carId)
-            car?.let {
-                if (state.odometer.toInt() > it.currentOdometer) {
-                    carRepository.updateOdometer(carId, state.odometer.toInt())
-                }
-            }
+            // 4. Пробег автомобиля — по наибольшему из его записей
+            carRepository.refreshOdometerFromExpenses(carId, database.expenseDao())
 
             // 5. ✅ СИНХРОНИЗИРУЕМ С SUPABASE
             try {

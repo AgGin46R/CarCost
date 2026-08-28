@@ -476,7 +476,8 @@ class ChatViewModel(
             val offset = totalCount // skip what we already have
             supabaseChat.getMessagesPaged(carId, PAGE_SIZE, offset).onSuccess { older ->
                 if (older.isNotEmpty()) {
-                    db.chatMessageDao().insertAll(older)
+                    // insertAllIgnore, а не insertAll: REPLACE снёс бы реакции
+                    db.chatMessageDao().insertAllIgnore(older)
                     _uiState.update { it.copy(hasMoreMessages = older.size == PAGE_SIZE) }
                 } else {
                     _uiState.update { it.copy(hasMoreMessages = false) }
@@ -1240,10 +1241,24 @@ fun ChatScreen(carId: String, navController: NavController) {
         onDispose { ActiveChatTracker.activeCarId = null }
     }
 
-    // Сбрасываем счётчик непрочитанных при открытии чата
-    LaunchedEffect(carId) {
+    // Отметка о прочтении — по времени самого свежего сообщения на экране.
+    //
+    // Раньше сюда писалось System.currentTimeMillis() этого телефона, а
+    // сравнивалось оно с createdAt, который проставляет отправитель своими
+    // часами. Расхождение часов между двумя телефонами ломало счётчик в обе
+    // стороны: сообщение с временем из будущего оставалось непрочитанным даже
+    // после того, как его прочли, а с временем из прошлого — не попадало в
+    // непрочитанные вовсе. Отсюда и «то работает, то нет».
+    //
+    // Отмечаем не «сейчас», а «до вот этого сообщения», и обновляем по мере
+    // прихода новых, пока чат открыт.
+    val newestOnScreen = uiState.messages.maxOfOrNull { it.createdAt } ?: 0L
+    LaunchedEffect(carId, newestOnScreen) {
         val settingsManager = SettingsManager(context)
-        settingsManager.setLastChatSeen(carId)
+        val alreadySeen = settingsManager.lastChatSeenFlow(carId).first()
+        if (newestOnScreen > alreadySeen) {
+            settingsManager.setLastChatSeen(carId, newestOnScreen)
+        }
     }
 
     // Обновляем сообщения при каждом возврате на экран

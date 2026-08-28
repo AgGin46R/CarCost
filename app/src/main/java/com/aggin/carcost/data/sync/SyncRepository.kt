@@ -132,6 +132,7 @@ class SyncRepository(
             syncCategoryBudgets()
             syncCarDocuments()
             syncAchievements()
+            syncChatMessages()
 
             if (pushFailures > 0) {
                 // Часть данных осталась только на устройстве. Молчать об этом нельзя:
@@ -308,6 +309,12 @@ class SyncRepository(
                     localExpenseRepo.saveFromServer(remoteExpense)
                 }
             }
+
+            // 4. Пробег автомобиля — по наибольшему из записей. Запись
+            // совладельца пробег на карточке раньше не двигала.
+            localDb?.let { db ->
+                localCarRepo.refreshOdometerFromExpenses(car.id, db.expenseDao())
+            }
         }
     }
 
@@ -436,6 +443,43 @@ class SyncRepository(
         }
 
         Log.d(TAG, "✅ Tags sync completed: ${remoteTags.size} remote, ${localTags.size} local")
+    }
+
+    /**
+     * Загрузка сообщений чата в локальную базу.
+     *
+     * Счётчик непрочитанных на главном экране считается по локальной таблице
+     * chat_messages, а попадали туда сообщения только двумя путями: через
+     * realtime, то есть пока приложение запущено и подписка жива, и при
+     * открытии самого чата. Значит сообщение, пришедшее при закрытом
+     * приложении, до открытия чата просто не существовало для счётчика — и
+     * значка непрочитанного не было. Ровно тот случай, когда человек написал,
+     * а у собеседника чат выглядел пустым и прочитанным.
+     *
+     * Отправка отдельная: сообщение уходит на сервер сразу при отправке, здесь
+     * только забираем чужие.
+     */
+    private suspend fun syncChatMessages() {
+        Log.d(TAG, "Syncing chat messages...")
+        val db = localDb ?: return
+        val chatRepo = com.aggin.carcost.data.remote.repository.SupabaseChatRepository()
+
+        for (car in localCarRepo.getAllCars().first()) {
+            // Отказ загрузки — не «в чате пусто»: молча пропускаем до следующего раза
+            val remote = chatRepo.getMessages(car.id).getOrNull()
+            if (remote == null) {
+                Log.w(TAG, "Пропуск чата ${car.id}: не удалось загрузить")
+                continue
+            }
+            // Только вставка новых: REPLACE удалил бы строку сообщения, а от неё
+            // каскадом висят реакции — они бы пропали при каждой синхронизации
+            try {
+                db.chatMessageDao().insertAllIgnore(remote)
+            } catch (e: Exception) {
+                Log.e(TAG, "Не удалось сохранить сообщения чата ${car.id}: ${e.message}")
+            }
+        }
+        Log.d(TAG, "✅ Chat messages sync completed")
     }
 
     /**

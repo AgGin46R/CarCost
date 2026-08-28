@@ -263,7 +263,8 @@ class RealtimeSyncManager(private val context: Context) {
                 try {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.record)
                     if (!ensureCarExists(dto.carId)) return@onEach
-                    db.expenseDao().insertExpense(dto.toExpense())
+                    db.expenseDao().upsertExpense(dto.toExpense())
+                    raiseOdometer(dto.carId)
                     Log.d(TAG, "📥 Expense inserted: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = false)
                 } catch (e: Exception) { Log.e(TAG, "Error handling expense insert", e) }
@@ -275,7 +276,8 @@ class RealtimeSyncManager(private val context: Context) {
                 try {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.record)
                     if (!ensureCarExists(dto.carId)) return@onEach
-                    db.expenseDao().insertExpense(dto.toExpense())
+                    db.expenseDao().upsertExpense(dto.toExpense())
+                    raiseOdometer(dto.carId)
                     Log.d(TAG, "✏️ Expense updated: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = true)
                 } catch (e: Exception) { Log.e(TAG, "Error handling expense update", e) }
@@ -298,7 +300,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(CarDto.serializer(), change.record)
-                    db.carDao().insertCar(dto.toCar())
+                    db.carDao().upsertCar(dto.toCar())
                     Log.d(TAG, "🚗 Car synced: ${dto.id}")
                 } catch (e: Exception) { Log.e(TAG, "Error handling car insert", e) }
             }.catch { Log.w(TAG, "Car insert flow error: ${it.message}") }.launchIn(chScope)
@@ -308,7 +310,7 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(CarDto.serializer(), change.record)
-                    db.carDao().insertCar(dto.toCar())
+                    db.carDao().upsertCar(dto.toCar())
                     Log.d(TAG, "🚗 Car updated: ${dto.id}")
                 } catch (e: Exception) { Log.e(TAG, "Error handling car update", e) }
             }.catch { Log.w(TAG, "Car update flow error: ${it.message}") }.launchIn(chScope)
@@ -358,7 +360,15 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(ChatMessageDto.serializer(), change.record)
-                    db.chatMessageDao().insert(dto.toChatMessage())
+                    val message = dto.toChatMessage()
+                    // Правка меняет только текст. Через REPLACE строка сообщения
+                    // удалялась и вставлялась заново, унося каскадом все реакции
+                    // на него: кто-то поправил опечатку — реакции исчезли у всех.
+                    if (db.chatMessageDao().getById(message.id) != null) {
+                        db.chatMessageDao().updateContent(message.id, message.message, message.isEdited)
+                    } else {
+                        db.chatMessageDao().insert(message)
+                    }
                     Log.d(TAG, "✏️ Chat message updated: ${dto.id}")
                 } catch (e: Exception) { Log.e(TAG, "Error handling chat update", e) }
             }.catch { Log.w(TAG, "Chat update flow error: ${it.message}") }.launchIn(chScope)
@@ -522,6 +532,22 @@ class RealtimeSyncManager(private val context: Context) {
             carId = dto.carId
         )
         Log.d(TAG, "🔔 Sent reminder notification for ${dto.id}")
+    }
+
+    /**
+     * Подтягивает пробег автомобиля к записи, пришедшей от совладельца.
+     *
+     * Пробег указан в каждом расходе, но на карточку автомобиля он попадал
+     * только с экрана добавления на этом же устройстве. Заправка совладельца
+     * приходила, а пробег на карточке оставался прежним.
+     */
+    private suspend fun raiseOdometer(carId: String) {
+        try {
+            com.aggin.carcost.data.local.repository.CarRepository(db.carDao())
+                .refreshOdometerFromExpenses(carId, db.expenseDao())
+        } catch (e: Exception) {
+            Log.w(TAG, "Не удалось обновить пробег $carId: ${e.message}")
+        }
     }
 
     private suspend fun maybeNotifyChat(dto: ChatMessageDto) {

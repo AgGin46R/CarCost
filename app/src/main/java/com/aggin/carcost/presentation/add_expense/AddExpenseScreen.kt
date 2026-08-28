@@ -360,14 +360,16 @@ fun AddExpenseScreen(
                 enabled = !uiState.isSaving
             )
 
-            // Место
-            OutlinedTextField(
+            // Место — с подсказками из истории этой машины
+            com.aggin.carcost.presentation.components.SuggestField(
                 value = uiState.location,
                 onValueChange = { viewModel.updateLocation(it) },
-                label = { Text("Место") },
-                placeholder = { Text("Shell, ул. Ленина") },
+                suggestions = uiState.recentLocations
+                    .filter { it.contains(uiState.location.trim(), ignoreCase = true) }
+                    .take(6),
+                label = "Место",
+                placeholder = "Shell, ул. Ленина",
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
                 enabled = !uiState.isSaving
             )
 
@@ -392,25 +394,44 @@ fun AddExpenseScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
 
-                    OutlinedTextField(
-                        value = uiState.fuelLiters,
-                        onValueChange = { viewModel.updateFuelLiters(it) },
-                        label = { Text("Литров") },
-                        placeholder = { Text("45.5") },
+                    // Литры и цена за литр рядом: вместе с суммой это три
+                    // числа, из которых независимы любые два — третье
+                    // подставляется само, считать в уме на колонке не нужно
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        enabled = !uiState.isSaving,
-                        suffix = { Text("л") }
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = uiState.fuelLiters,
+                            onValueChange = { viewModel.updateFuelLiters(it) },
+                            label = { Text("Литров") },
+                            placeholder = { Text("45.5") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            enabled = !uiState.isSaving,
+                            suffix = { Text("л") }
+                        )
+                        OutlinedTextField(
+                            value = uiState.pricePerUnit,
+                            onValueChange = { viewModel.updatePricePerUnit(it) },
+                            label = { Text("Цена за литр") },
+                            placeholder = { Text("58.90") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            enabled = !uiState.isSaving
+                        )
+                    }
 
-                    OutlinedTextField(
+                    com.aggin.carcost.presentation.components.SuggestField(
                         value = uiState.fuelGrade,
                         onValueChange = { viewModel.updateFuelGrade(it) },
-                        label = { Text("Марка топлива") },
-                        placeholder = { Text("АИ-95") },
+                        suggestions = fuelGradesFor(uiState.fuelType)
+                            .filter { it.contains(uiState.fuelGrade.trim(), ignoreCase = true) },
+                        label = "Марка топлива",
+                        placeholder = "АИ-95",
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
                         enabled = !uiState.isSaving
                     )
 
@@ -435,17 +456,32 @@ fun AddExpenseScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
 
-                    OutlinedTextField(
-                        value = uiState.energyKwh,
-                        onValueChange = { viewModel.updateEnergyKwh(it) },
-                        label = { Text("Киловатт-часов") },
-                        placeholder = { Text("42.0") },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        enabled = !uiState.isSaving,
-                        suffix = { Text("кВт·ч") }
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = uiState.energyKwh,
+                            onValueChange = { viewModel.updateEnergyKwh(it) },
+                            label = { Text("Киловатт-часов") },
+                            placeholder = { Text("42.0") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            enabled = !uiState.isSaving,
+                            suffix = { Text("кВт·ч") }
+                        )
+                        OutlinedTextField(
+                            value = uiState.pricePerUnit,
+                            onValueChange = { viewModel.updatePricePerUnit(it) },
+                            label = { Text("Цена за кВт·ч") },
+                            placeholder = { Text("12.50") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            enabled = !uiState.isSaving
+                        )
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -835,4 +871,22 @@ fun DatePickerDialog(
     ) {
         DatePicker(state = datePickerState)
     }
+}
+
+/**
+ * Марки топлива, которые имеет смысл предлагать этой машине.
+ *
+ * Дизелю не нужен АИ-95, бензину — ДТ. Список короткий и закрытый: марок
+ * топлива на заправках в самом деле пять-шесть, и набирать их руками каждый
+ * раз незачем.
+ */
+private fun fuelGradesFor(
+    fuelType: com.aggin.carcost.data.local.database.entities.FuelType
+): List<String> = when (fuelType) {
+    com.aggin.carcost.data.local.database.entities.FuelType.DIESEL ->
+        listOf("ДТ", "ДТ зимнее", "ДТ Евро", "ДТ премиум")
+    com.aggin.carcost.data.local.database.entities.FuelType.GAS ->
+        listOf("Пропан", "Метан")
+    else ->
+        listOf("АИ-92", "АИ-95", "АИ-98", "АИ-100", "АИ-95 премиум", "Пропан")
 }

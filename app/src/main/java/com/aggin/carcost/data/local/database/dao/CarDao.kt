@@ -11,6 +11,22 @@ interface CarDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCar(car: Car): Long
 
+    /**
+     * Запись автомобиля, пришедшего с сервера.
+     *
+     * НЕ через INSERT OR REPLACE. В SQLite REPLACE — это удаление строки и
+     * вставка новой, а от cars каскадом висит всё: расходы, напоминания, чат,
+     * документы, страховки, бюджеты, поездки. То есть каждое обновление
+     * автомобиля с сервера сначала стирало локально всю его историю, а потом
+     * синхронизация возвращала из облака то, что там уже есть. Всё, что не
+     * успело уехать на сервер — запись, добавленная без сети, — исчезало
+     * навсегда. Совладелец переименовал машину, и у второго пропадали расходы.
+     *
+     * Upsert обновляет строку на месте, ничего не удаляя.
+     */
+    @Upsert
+    suspend fun upsertCar(car: Car)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCars(cars: List<Car>)
 

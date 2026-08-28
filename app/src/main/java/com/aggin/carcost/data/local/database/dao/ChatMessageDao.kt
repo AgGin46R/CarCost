@@ -38,4 +38,18 @@ interface ChatMessageDao {
 
     @Query("SELECT COUNT(*) FROM chat_messages WHERE carId = :carId AND createdAt > :afterTimestamp AND userId != :currentUserId")
     fun getUnreadCount(carId: String, afterTimestamp: Long, currentUserId: String): Flow<Int>
+
+    /**
+     * Время самого свежего сообщения в чате.
+     *
+     * Отметка о прочтении ставится по нему, а не по часам этого телефона.
+     * createdAt проставляет отправитель своими часами, и если они расходятся с
+     * нашими хотя бы на минуту, сравнение «сообщение новее момента, когда я
+     * открывал чат» врёт в обе стороны: чужое сообщение с временем из будущего
+     * остаётся непрочитанным навсегда, а с временем из прошлого не отмечается
+     * непрочитанным вовсе. Сравнивая время сообщений со временем сообщений, мы
+     * убираем чужие часы из уравнения.
+     */
+    @Query("SELECT MAX(createdAt) FROM chat_messages WHERE carId = :carId")
+    suspend fun getNewestTimestamp(carId: String): Long?
 }

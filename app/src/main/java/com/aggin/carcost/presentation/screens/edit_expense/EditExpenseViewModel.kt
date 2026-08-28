@@ -316,6 +316,11 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                 expenseRepository.updateExpense(updatedExpense)
                 Log.d("EditExpense", "✅ Expense updated locally")
 
+                // Пробег автомобиля — по наибольшему из его записей. Правка
+                // расхода его раньше не двигала вовсе.
+                com.aggin.carcost.data.local.repository.CarRepository(database.carDao())
+                    .refreshOdometerFromExpenses(updatedExpense.carId, database.expenseDao())
+
                 // ✅ 2. ДОБАВЛЕНО: Обновляем теги
                 try {
                     // Удаляем старые связи

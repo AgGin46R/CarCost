@@ -139,12 +139,16 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                                 Log.d("Login", "✅ Background sync completed")
                                 // После синхронизации: пометить все чаты как прочитанные до текущего момента,
                                 // чтобы сообщения до входа не показывались как непрочитанными
+                                // Отметку ставим по времени последнего сообщения, а не по
+                                // часам телефона: у отправителя они свои, и если они уходят
+                                // вперёд, все сообщения оказываются «новее» момента входа и
+                                // висят непрочитанными, сколько их ни открывай.
                                 val settingsManager = com.aggin.carcost.data.local.settings.SettingsManager(getApplication())
-                                val now = System.currentTimeMillis()
                                 database.carDao().getAllActiveCarsSync().forEach { car ->
                                     val lastSeen = settingsManager.lastChatSeenFlow(car.id).firstOrNull() ?: 0L
                                     if (lastSeen == 0L) {
-                                        settingsManager.setLastChatSeen(car.id, now)
+                                        val newest = database.chatMessageDao().getNewestTimestamp(car.id) ?: 0L
+                                        if (newest > 0L) settingsManager.setLastChatSeen(car.id, newest)
                                     }
                                 }
                             } catch (e: Exception) {

@@ -12,6 +12,18 @@ interface ExpenseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: Expense) // ✅ Void - не возвращает ID
 
+    /**
+     * Запись расхода, пришедшего с сервера.
+     *
+     * Через REPLACE строка расхода удалялась и вставлялась заново, а от неё
+     * каскадом висит expense_tag_cross_ref — привязки тегов. Поэтому теги
+     * пропадали с расхода при каждой синхронизации и возвращались, только если
+     * связь успела уехать на сервер и вернуться оттуда. Отсюда «то есть, то
+     * нет» и нули в подсчёте по тегам.
+     */
+    @Upsert
+    suspend fun upsertExpense(expense: Expense)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpenses(expenses: List<Expense>)
 
@@ -162,4 +174,35 @@ interface ExpenseDao {
 
     @Query("DELETE FROM expenses")
     suspend fun deleteAllExpenses() // ✅ Удалить все расходы
+
+    /**
+     * Наибольший пробег среди записей автомобиля.
+     *
+     * Пробег указывается в каждом расходе, но на карточку автомобиля он до сих
+     * пор попадал только из одного места — экрана добавления, и только если
+     * оказывался больше текущего. Запись совладельца, пришедшая с сервера, и
+     * правка уже существующего расхода пробег не двигали вовсе. Порядок
+     * добавления при этом произвольный: можно внести заправку на 1200, потом
+     * вспомнить про мойку на 900 — считать надо по максимуму, а не по
+     * последней внесённой.
+     */
+    @Query("SELECT MAX(odometer) FROM expenses WHERE carId = :carId")
+    suspend fun getMaxOdometer(carId: String): Int?
+
+    /**
+     * Места, где этот автомобиль уже обслуживали или заправляли.
+     *
+     * Заправляются люди на одних и тех же трёх-четырёх колонках, а название
+     * набирали заново каждый раз — и писали по-разному, отчего по месту потом
+     * ничего не сгруппировать. Порядок — по свежести: последняя заправка почти
+     * всегда и есть нужная.
+     */
+    @Query("""
+        SELECT location FROM expenses
+        WHERE carId = :carId AND location IS NOT NULL AND TRIM(location) != ''
+        GROUP BY LOWER(TRIM(location))
+        ORDER BY MAX(date) DESC
+        LIMIT :limit
+    """)
+    suspend fun getRecentLocations(carId: String, limit: Int = 8): List<String>
 }

@@ -85,7 +85,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
      * для сравнения "кто новее".
      */
     suspend fun saveFromServer(expense: Expense) {
-        expenseDao.insertExpense(expense)
+        expenseDao.upsertExpense(expense)
     }
 
     suspend fun updateExpense(expense: Expense) {

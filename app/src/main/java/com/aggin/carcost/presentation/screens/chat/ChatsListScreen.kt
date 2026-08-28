@@ -55,9 +55,12 @@ class ChatsListViewModel(application: Application) : AndroidViewModel(applicatio
                 val cars = db.carDao().getAllActiveCars().first()
                 cars.forEach { car ->
                     supabaseChat.getMessages(car.id).onSuccess { messages ->
-                        messages.forEach {
-                            try { db.chatMessageDao().insert(it) } catch (_: Exception) {}
-                        }
+                        // Только новые. Через REPLACE каждое открытие списка
+                        // чатов удаляло и вставляло заново КАЖДОЕ сообщение
+                        // всех машин, а от сообщений каскадом висят реакции —
+                        // они пропадали целиком, во всех чатах сразу. Отсюда
+                        // «реакции иногда исчезают».
+                        try { db.chatMessageDao().insertAllIgnore(messages) } catch (_: Exception) {}
                     }
                 }
             } catch (e: Exception) {

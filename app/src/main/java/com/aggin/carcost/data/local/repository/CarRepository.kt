@@ -52,7 +52,7 @@ class CarRepository(private val carDao: CarDao) {
      * для сравнения "кто новее".
      */
     suspend fun saveFromServer(car: Car) {
-        carDao.insertCar(car)
+        carDao.upsertCar(car)
     }
 
     suspend fun updateCar(car: Car) {
@@ -61,6 +61,23 @@ class CarRepository(private val carDao: CarDao) {
 
     suspend fun updateOdometer(carId: String, odometer: Int) {
         carDao.updateOdometer(carId, odometer)
+    }
+
+    /**
+     * Подтягивает пробег автомобиля к наибольшему из его расходов.
+     *
+     * Вызывается после любого изменения расходов — своего, совладельца или
+     * пришедшего синхронизацией. Пробег только растёт: указанный вручную на
+     * карточке не сбрасывается вниз, если записи отстают от него.
+     *
+     * @return true, если значение изменилось
+     */
+    suspend fun refreshOdometerFromExpenses(carId: String, expenseDao: com.aggin.carcost.data.local.database.dao.ExpenseDao): Boolean {
+        val car = carDao.getCarById(carId) ?: return false
+        val fromExpenses = expenseDao.getMaxOdometer(carId) ?: 0
+        if (fromExpenses <= car.currentOdometer) return false
+        carDao.updateOdometer(carId, fromExpenses)
+        return true
     }
 
     suspend fun updateCarActiveStatus(carId: String, isActive: Boolean) {

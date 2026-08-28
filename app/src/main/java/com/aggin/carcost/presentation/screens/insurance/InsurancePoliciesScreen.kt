@@ -25,6 +25,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.InsurancePolicy
+import com.aggin.carcost.presentation.components.DateField
+import com.aggin.carcost.presentation.components.dateDigitsToMillis
+import com.aggin.carcost.presentation.components.millisToDateDigits
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -255,11 +258,13 @@ fun AddInsurancePolicyDialog(
     var costStr by rememberSaveable { mutableStateOf("") }
     var notes by rememberSaveable { mutableStateOf("") }
 
-    val fmt = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
     val cal = Calendar.getInstance()
-    var startDateStr by remember { mutableStateOf(fmt.format(cal.time)) }
+    var startDigits by rememberSaveable { mutableStateOf(millisToDateDigits(cal.timeInMillis)) }
     cal.add(Calendar.YEAR, 1)
-    var endDateStr by remember { mutableStateOf(fmt.format(cal.time)) }
+    var endDigits by rememberSaveable { mutableStateOf(millisToDateDigits(cal.timeInMillis)) }
+
+    val startMillis = dateDigitsToMillis(startDigits)
+    val endMillis = dateDigitsToMillis(endDigits)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -287,15 +292,13 @@ fun AddInsurancePolicyDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = startDateStr, onValueChange = { startDateStr = it },
-                        label = { Text("Начало") }, singleLine = true,
-                        modifier = Modifier.weight(1f)
+                    DateField(
+                        digits = startDigits, onDigitsChange = { startDigits = it },
+                        label = "Начало", modifier = Modifier.weight(1f)
                     )
-                    OutlinedTextField(
-                        value = endDateStr, onValueChange = { endDateStr = it },
-                        label = { Text("Конец") }, singleLine = true,
-                        modifier = Modifier.weight(1f)
+                    DateField(
+                        digits = endDigits, onDigitsChange = { endDigits = it },
+                        label = "Конец", modifier = Modifier.weight(1f)
                     )
                 }
                 OutlinedTextField(
@@ -312,14 +315,16 @@ fun AddInsurancePolicyDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val start = runCatching { fmt.parse(startDateStr)?.time }.getOrNull()
-                    ?: System.currentTimeMillis()
-                val end = runCatching { fmt.parse(endDateStr)?.time }.getOrNull()
-                    ?: (System.currentTimeMillis() + 365L * 24 * 3600 * 1000)
-                val cost = costStr.toDoubleOrNull() ?: 0.0
-                onConfirm(selectedType, company, policyNumber, start, end, cost, notes)
-            }) { Text("Добавить") }
+            // Кнопка недоступна, пока даты не разобраны. Раньше неверная дата
+            // молча заменялась сегодняшней, и человек получал полис не с той
+            // датой, о чём узнавал в лучшем случае через год.
+            TextButton(
+                enabled = startMillis != null && endMillis != null,
+                onClick = {
+                    val cost = costStr.toDoubleOrNull() ?: 0.0
+                    onConfirm(selectedType, company, policyNumber, startMillis!!, endMillis!!, cost, notes)
+                }
+            ) { Text("Добавить") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Отмена") }
