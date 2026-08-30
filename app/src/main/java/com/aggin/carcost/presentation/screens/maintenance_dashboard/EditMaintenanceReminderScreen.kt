@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.maintenance_dashboard
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -50,8 +52,8 @@ fun EditMaintenanceReminderScreen(
     if (showDeleteDialog && reminderId != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Удалить напоминание?") },
-            text = { Text("Это действие нельзя отменить.") },
+            title = { Text(stringResource(R.string.maintenancedashboard_udalit_napominanie)) },
+            text = { Text(stringResource(R.string.cardetail_eto_deystvie_nelzya_otmenit)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -59,10 +61,10 @@ fun EditMaintenanceReminderScreen(
                         showDeleteDialog = false
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Удалить") }
+                ) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Отмена") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -70,10 +72,10 @@ fun EditMaintenanceReminderScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (uiState.isEditMode) "Редактировать ТО" else "Новое напоминание ТО") },
+                title = { Text(if (uiState.isEditMode) stringResource(R.string.maintenancedashboard_redaktirovat_to) else stringResource(R.string.maintenancedashboard_novoe_napominanie_to)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -81,7 +83,7 @@ fun EditMaintenanceReminderScreen(
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(
                                 Icons.Default.Delete,
-                                "Удалить",
+                                stringResource(R.string.action_delete),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -118,10 +120,10 @@ fun EditMaintenanceReminderScreen(
             ) {
                 OutlinedTextField(
                     value = uiState.cars.firstOrNull { it.id == uiState.selectedCarId }
-                        ?.let { "${it.brand} ${it.model}" } ?: "Выберите автомобиль",
+                        ?.let { "${it.brand} ${it.model}" } ?: stringResource(R.string.maintenancedashboard_vyberite_avtomobil),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Автомобиль") },
+                    label = { Text(stringResource(R.string.maintenancedashboard_avtomobil)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = carExpanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor()
                 )
@@ -147,10 +149,10 @@ fun EditMaintenanceReminderScreen(
                 onExpandedChange = { typeExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = uiState.selectedType.displayName,
+                    value = stringResource(uiState.selectedType.displayNameRes),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Тип обслуживания") },
+                    label = { Text(stringResource(R.string.addexp_tip_obsluzhivaniya)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor()
                 )
@@ -171,9 +173,9 @@ fun EditMaintenanceReminderScreen(
                         DropdownMenuItem(
                             text = {
                                 Column {
-                                    Text(type.displayName)
+                                    Text(stringResource(type.displayNameRes))
                                     Text(
-                                        "Интервал по умолчанию: ${type.defaultInterval} км",
+                                        stringResource(R.string.maintenancedashboard_interval_po_umolchaniyu_km, type.defaultInterval),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                     )
@@ -192,8 +194,8 @@ fun EditMaintenanceReminderScreen(
             OutlinedTextField(
                 value = uiState.lastChangeOdometer,
                 onValueChange = viewModel::updateLastOdometer,
-                label = { Text("Одометр при последней замене (км)") },
-                placeholder = { Text("например, 85000") },
+                label = { Text(stringResource(R.string.maintenancedashboard_odometr_pri_posledney_zamene_km)) },
+                placeholder = { Text(stringResource(R.string.maintenancedashboard_naprimer_85000)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -203,14 +205,14 @@ fun EditMaintenanceReminderScreen(
             OutlinedTextField(
                 value = uiState.intervalKm,
                 onValueChange = viewModel::updateIntervalKm,
-                label = { Text("Интервал замены (км)") },
-                placeholder = { Text("например, ${uiState.selectedType.defaultInterval}") },
+                label = { Text(stringResource(R.string.maintenancedashboard_interval_zameny_km)) },
+                placeholder = { Text(stringResource(R.string.maintenancedashboard_naprimer, uiState.selectedType.defaultInterval)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 supportingText = {
                     Text(
-                        "По умолчанию для ${uiState.selectedType.displayName}: ${uiState.selectedType.defaultInterval} км",
+                        stringResource(R.string.maintenancedashboard_po_umolchaniyu_dlya_km, stringResource(uiState.selectedType.displayNameRes), uiState.selectedType.defaultInterval),
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -220,12 +222,12 @@ fun EditMaintenanceReminderScreen(
             OutlinedTextField(
                 value = uiState.intervalDays,
                 onValueChange = viewModel::updateIntervalDays,
-                label = { Text("Интервал по времени (дней, необязательно)") },
-                placeholder = { Text("например, 180 (полгода)") },
+                label = { Text(stringResource(R.string.maintenancedashboard_interval_po_vremeni_dney_neobyazatelno)) },
+                placeholder = { Text(stringResource(R.string.maintenancedashboard_naprimer_180_polgoda)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                supportingText = { Text("Напоминание сработает раньше — по пробегу или по дате") }
+                supportingText = { Text(stringResource(R.string.maintenancedashboard_napominanie_srabotaet_ranshe_po_probegu)) }
             )
 
             // ── Дата следующего ТО ────────────────────────────────────────────
@@ -234,17 +236,17 @@ fun EditMaintenanceReminderScreen(
                 value = uiState.nextChangeDateMs?.let { dateFormat.format(Date(it)) } ?: "",
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Дата следующего ТО (необязательно)") },
-                placeholder = { Text("Нажмите для выбора даты") },
+                label = { Text(stringResource(R.string.maintenancedashboard_data_sleduyuschego_to_neobyazatelno)) },
+                placeholder = { Text(stringResource(R.string.maintenancedashboard_nazhmite_dlya_vybora_daty)) },
                 trailingIcon = {
                     Row {
                         if (uiState.nextChangeDateMs != null) {
                             IconButton(onClick = { viewModel.updateNextChangeDateMs(null) }) {
-                                Icon(Icons.Default.Delete, "Сбросить дату", tint = MaterialTheme.colorScheme.error)
+                                Icon(Icons.Default.Delete, stringResource(R.string.maintenancedashboard_sbrosit_datu), tint = MaterialTheme.colorScheme.error)
                             }
                         }
                         IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, "Выбрать дату")
+                            Icon(Icons.Default.CalendarMonth, stringResource(R.string.addcar_vybrat_datu))
                         }
                     }
                 },
@@ -263,10 +265,10 @@ fun EditMaintenanceReminderScreen(
                         TextButton(onClick = {
                             datePickerState.selectedDateMillis?.let { viewModel.updateNextChangeDateMs(it) }
                             showDatePicker = false
-                        }) { Text("Выбрать") }
+                        }) { Text(stringResource(R.string.maintenancedashboard_vybrat)) }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showDatePicker = false }) { Text("Отмена") }
+                        TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.action_cancel)) }
                     }
                 ) {
                     DatePicker(state = datePickerState)
@@ -286,12 +288,12 @@ fun EditMaintenanceReminderScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Следующее ТО:",
+                            stringResource(R.string.maintenancedashboard_sleduyuschee_to),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                         Text(
-                            "${uiState.nextChangeOdometer} км",
+                            stringResource(R.string.home_km, uiState.nextChangeOdometer),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -304,8 +306,8 @@ fun EditMaintenanceReminderScreen(
             OutlinedTextField(
                 value = uiState.notes,
                 onValueChange = viewModel::updateNotes,
-                label = { Text("Заметки (необязательно)") },
-                placeholder = { Text("Например, использовать синтетику 5W-40") },
+                label = { Text(stringResource(R.string.documents_zametki_neobyazatelno)) },
+                placeholder = { Text(stringResource(R.string.maintenancedashboard_naprimer_ispolzovat_sintetiku_5w_40)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 maxLines = 4
@@ -338,7 +340,7 @@ fun EditMaintenanceReminderScreen(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text(if (uiState.isEditMode) "Сохранить изменения" else "Добавить напоминание")
+                    Text(if (uiState.isEditMode) stringResource(R.string.editexp_sohranit_izmeneniya) else stringResource(R.string.maintenancedashboard_dobavit_napominanie))
                 }
             }
         }

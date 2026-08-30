@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.car_detail
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -72,30 +74,30 @@ fun CarDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = uiState.car?.let { "${it.brand} ${it.model}" } ?: "Загрузка...",
+                        text = uiState.car?.let { "${it.brand} ${it.model}" } ?: stringResource(R.string.cardetail_zagruzka),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     // Chat moved here for quick access — Planned Purchases moved to overflow menu
                     IconButton(onClick = { navController.navigateOnce(Screen.Chat.createRoute(carId)) }) {
-                        Icon(Icons.Default.Chat, "Чат")
+                        Icon(Icons.Default.Chat, stringResource(R.string.cardetail_chat))
                     }
                     IconButton(onClick = { navController.navigateOnce(Screen.Map.createRoute(carId)) }) {
-                        Icon(Icons.Default.Map, "Карта")
+                        Icon(Icons.Default.Map, stringResource(R.string.cardetail_karta))
                     }
                     IconButton(onClick = { navController.navigateOnce(Screen.Analytics.createRoute(carId)) }) {
-                        Icon(Icons.Default.Assessment, "Аналитика")
+                        Icon(Icons.Default.Assessment, stringResource(R.string.cardetail_analitika))
                     }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, "Меню")
+                            Icon(Icons.Default.MoreVert, stringResource(R.string.cardetail_menyu))
                         }
                         DropdownMenu(
                             expanded = showMenu,
@@ -104,7 +106,7 @@ fun CarDetailScreen(
                             // Only owners can edit car data
                             if (uiState.isOwner) {
                                 DropdownMenuItem(
-                                    text = { Text("Редактировать") },
+                                    text = { Text(stringResource(R.string.cardetail_redaktirovat)) },
                                     onClick = {
                                         showMenu = false
                                         navController.navigateOnce(Screen.EditCar.createRoute(carId))
@@ -113,7 +115,7 @@ fun CarDetailScreen(
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text("Планы покупок") },
+                                text = { Text(stringResource(R.string.cardetail_plany_pokupok)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.PlannedExpenses.createRoute(carId))
@@ -121,7 +123,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Assignment, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Документы и страховки") },
+                                text = { Text(stringResource(R.string.cardetail_dokumenty_i_strahovki)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.Documents.createRoute(carId))
@@ -129,7 +131,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Folder, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Бюджет") },
+                                text = { Text(stringResource(R.string.cardetail_byudzhet)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.Budget.createRoute(carId))
@@ -137,7 +139,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.AccountBalanceWallet, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Стоимость владения") },
+                                text = { Text(stringResource(R.string.cardetail_stoimost_vladeniya)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.Tco.createRoute(carId))
@@ -145,7 +147,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.MonetizationOn, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Таймлайн ТО") },
+                                text = { Text(stringResource(R.string.cardetail_taymlayn_to)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.ServiceTimeline.createRoute(carId))
@@ -153,7 +155,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Timeline, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Поездки по GPS") },
+                                text = { Text(stringResource(R.string.cardetail_poezdki_po_gps)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.GpsTrip.createRoute(carId))
@@ -161,7 +163,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Map, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Участники") },
+                                text = { Text(stringResource(R.string.cardetail_uchastniki)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.CarMembers.createRoute(carId))
@@ -169,7 +171,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Group, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Цели накопления") },
+                                text = { Text(stringResource(R.string.cardetail_tseli_nakopleniya)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.Goals.createRoute(carId))
@@ -177,7 +179,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Savings, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("История инцидентов") },
+                                text = { Text(stringResource(R.string.cardetail_istoriya_intsidentov)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.IncidentHistory.createRoute(carId))
@@ -185,7 +187,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.Warning, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Уровни жидкостей") },
+                                text = { Text(stringResource(R.string.cardetail_urovni_zhidkostey)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.FluidLevels.createRoute(carId))
@@ -193,7 +195,7 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.WaterDrop, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Экспорт данных") },
+                                text = { Text(stringResource(R.string.cardetail_eksport_dannyh)) },
                                 onClick = {
                                     showMenu = false
                                     navController.navigateOnce(Screen.Export.createRoute(carId))
@@ -230,7 +232,7 @@ fun CarDetailScreen(
             ) {
                 Icon(
                     if (isMechanic) Icons.Default.Build else Icons.Default.Add,
-                    contentDescription = if (isMechanic) "Добавить ТО" else "Добавить расход"
+                    contentDescription = if (isMechanic) stringResource(R.string.cardetail_dobavit_to) else stringResource(R.string.cardetail_dobavit_rashod)
                 )
             }
         }
@@ -326,7 +328,7 @@ fun CarDetailScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
                                 Text(
-                                    "Ещё ${uiState.totalExpenseCount - uiState.expenses.size}",
+                                    stringResource(R.string.cardetail_esche, uiState.totalExpenseCount - uiState.expenses.size),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -378,7 +380,7 @@ fun CarInfoCard(uiState: CarDetailUiState) {
     car.photoUri?.let { photoUrl ->
         AsyncImage(
             model = photoUrl,
-            contentDescription = "Фото автомобиля",
+            contentDescription = stringResource(R.string.home_foto_avtomobilya),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(180.dp)
@@ -396,7 +398,7 @@ fun CarInfoCard(uiState: CarDetailUiState) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Статистика",
+                text = stringResource(R.string.cardetail_statistika),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -407,17 +409,17 @@ fun CarInfoCard(uiState: CarDetailUiState) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 StatItem(
-                    label = "Всего расходов",
+                    label = stringResource(R.string.cardetail_vsego_rashodov),
                     value = formatCurrency(uiState.totalExpenses, uiState.car?.currency ?: "RUB"),
                     icon = Icons.Default.AttachMoney
                 )
                 StatItem(
-                    label = "За 30 дней",
+                    label = stringResource(R.string.home_za_30_dney),
                     value = formatCurrency(uiState.monthlyExpenses, uiState.car?.currency ?: "RUB"),
                     icon = Icons.Default.CalendarMonth
                 )
                 StatItem(
-                    label = "Записей",
+                    label = stringResource(R.string.cardetail_zapisey),
                     value = uiState.expenseCount.toString(),
                     icon = Icons.Default.Receipt
                 )
@@ -455,7 +457,7 @@ fun CarInfoCard(uiState: CarDetailUiState) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Оценочная стоимость",
+                        stringResource(R.string.cardetail_otsenochnaya_stoimost),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -467,7 +469,7 @@ fun CarInfoCard(uiState: CarDetailUiState) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            "-$deprPct% от покупки",
+                            stringResource(R.string.cardetail_ot_pokupki, deprPct),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
@@ -495,15 +497,15 @@ private fun FuelLevelIndicator(pct: Float, liters: Double, tankCapacity: Double?
                 Text("⛽", style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "Расчётный остаток топлива",
+                    stringResource(R.string.cardetail_raschetnyy_ostatok_topliva),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 buildString {
-                    append("~${liters.toInt()} л")
-                    if (tankCapacity != null) append(" / ${tankCapacity.toInt()} л")
+                    append(stringResource(R.string.cardetail_l, liters.toInt()))
+                    if (tankCapacity != null) append(stringResource(R.string.cardetail_l_2, tankCapacity.toInt()))
                     append("  (${(pct * 100).toInt()}%)")
                 },
                 style = MaterialTheme.typography.labelMedium,
@@ -629,8 +631,8 @@ fun SwipeableExpenseCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Удалить расход?") },
-            text = { Text("Это действие нельзя отменить.") },
+            title = { Text(stringResource(R.string.cardetail_udalit_rashod)) },
+            text = { Text(stringResource(R.string.cardetail_eto_deystvie_nelzya_otmenit)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -639,12 +641,12 @@ fun SwipeableExpenseCard(
                         showDeleteDialog = false
                     }
                 ) {
-                    Text("Удалить", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { hapticClick(); showDeleteDialog = false }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -684,7 +686,7 @@ fun SwipeBackground(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Редактировать",
+                        contentDescription = stringResource(R.string.cardetail_redaktirovat),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(24.dp)
                     )
@@ -707,7 +709,7 @@ fun SwipeBackground(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Удалить",
+                        contentDescription = stringResource(R.string.action_delete),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(24.dp)
                     )
@@ -763,7 +765,7 @@ fun ExpenseCardContent(
                     )
                     if (fuelConsumptionL100km != null) {
                         Text(
-                            text = "%.1f л/100км".format(fuelConsumptionL100km),
+                            text = stringResource(R.string.cardetail_1f_l_100km).format(fuelConsumptionL100km),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
@@ -779,7 +781,7 @@ fun ExpenseCardContent(
                     }
                     if (expense.maintenanceParts?.isNotBlank() == true) {
                         Text(
-                            text = "Детали: ${expense.maintenanceParts}",
+                            text = stringResource(R.string.cardetail_detali, expense.maintenanceParts),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -818,7 +820,7 @@ fun ExpenseCardContent(
                     color = MaterialTheme.colorScheme.error
                 )
                 Text(
-                    text = "${expense.odometer} км",
+                    text = stringResource(R.string.home_km, expense.odometer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -860,7 +862,7 @@ fun ExpensesHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Расходы ($expenseCount)",
+            text = stringResource(R.string.cardetail_rashody, expenseCount),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
@@ -874,7 +876,7 @@ fun ExpensesHeader(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Сбросить")
+                    Text(stringResource(R.string.action_reset))
                 }
             }
             TextButton(onClick = onFilterClick) {
@@ -890,7 +892,7 @@ fun ExpensesHeader(
                     tint = filterColor
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Фильтр", color = filterColor)
+                Text(stringResource(R.string.action_filter), color = filterColor)
             }
         }
     }
@@ -900,16 +902,17 @@ fun ExpensesHeader(
 fun EmptyExpensesState(isFiltered: Boolean) {
     EmptyState(
         icon = Icons.Default.Receipt,
-        title = if (isFiltered) "Нет расходов по фильтру" else "Расходов пока нет",
+        title = if (isFiltered) stringResource(R.string.cardetail_net_rashodov_po_filtru) else stringResource(R.string.cardetail_rashodov_poka_net),
         subtitle = if (isFiltered)
-            "Попробуйте изменить фильтры или выбрать другой период"
+            stringResource(R.string.cardetail_poprobuyte_izmenit_filtry_ili_vybrat)
         else
-            "Добавьте первый расход, нажав кнопку + внизу экрана"
+            stringResource(R.string.cardetail_dobavte_pervyy_rashod_nazhav_knopku_vnizu)
     )
 }
 
 fun getCategoryIcon(category: ExpenseCategory) = category.icon()
 
+@Composable
 fun getCategoryName(category: ExpenseCategory) = category.displayName()
 
 fun formatDate(timestamp: Long): String = formatDateShort(timestamp)
@@ -922,10 +925,10 @@ fun formatCurrency(amount: Double, currency: String = "RUB"): String {
 @Composable
 private fun QuickAddRow(carId: String, navController: NavController, isMechanic: Boolean = false) {
     val allChips = listOf(
-        Triple("⛽ Топливо", ExpenseCategory.FUEL, false),
-        Triple("🔧 ТО", ExpenseCategory.MAINTENANCE, true),
-        Triple("🚿 Мойка", ExpenseCategory.WASH, false),
-        Triple("🅿️ Парковка", ExpenseCategory.PARKING, false)
+        Triple(stringResource(R.string.cardetail_toplivo), ExpenseCategory.FUEL, false),
+        Triple(stringResource(R.string.cardetail_to), ExpenseCategory.MAINTENANCE, true),
+        Triple(stringResource(R.string.cardetail_moyka), ExpenseCategory.WASH, false),
+        Triple(stringResource(R.string.cardetail_parkovka), ExpenseCategory.PARKING, false)
     )
     // Механик видит только чип ТО
     val chips = if (isMechanic) allChips.filter { it.third } else allChips
@@ -958,10 +961,10 @@ private fun QuickAddRow(carId: String, navController: NavController, isMechanic:
 fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
     val colorScheme = MaterialTheme.colorScheme
     val (label, color) = when {
-        score.total >= 85 -> "Отличное"        to colorScheme.tertiary
-        score.total >= 65 -> "Хорошее"         to colorScheme.primary
-        score.total >= 40 -> "Среднее"         to colorScheme.error.copy(alpha = 0.75f)
-        else              -> "Требует внимания" to colorScheme.error
+        score.total >= 85 -> stringResource(R.string.cardetail_otlichnoe)        to colorScheme.tertiary
+        score.total >= 65 -> stringResource(R.string.cardetail_horoshee)         to colorScheme.primary
+        score.total >= 40 -> stringResource(R.string.cardetail_srednee)         to colorScheme.error.copy(alpha = 0.75f)
+        else              -> stringResource(R.string.cardetail_trebuet_vnimaniya) to colorScheme.error
     }
     var expanded by rememberSaveable { mutableStateOf(false) }
 
@@ -997,7 +1000,7 @@ fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
                 Spacer(Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Состояние авто",
+                        stringResource(R.string.cardetail_sostoyanie_avto),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
@@ -1013,23 +1016,23 @@ fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         if (score.overdueReminders > 0) {
-                            HealthChip("⚠ ТО: ${score.overdueReminders}", danger = true)
+                            HealthChip(stringResource(R.string.cardetail_to_2, score.overdueReminders), danger = true)
                         }
                         if (!score.activeInsurance) {
-                            HealthChip("Нет ОСАГО", danger = true)
+                            HealthChip(stringResource(R.string.cardetail_net_osago), danger = true)
                         }
                         if (score.recentIncidents > 0) {
-                            HealthChip("ДТП: ${score.recentIncidents}", danger = true)
+                            HealthChip(stringResource(R.string.cardetail_dtp, score.recentIncidents), danger = true)
                         }
                         if (score.overdueReminders == 0 && score.activeInsurance && score.recentIncidents == 0) {
-                            HealthChip("Всё в порядке", danger = false)
+                            HealthChip(stringResource(R.string.cardetail_vse_v_poryadke), danger = false)
                         }
                     }
                 }
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
                         if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = if (expanded) "Свернуть" else "Подробнее"
+                        contentDescription = if (expanded) stringResource(R.string.cardetail_svernut) else stringResource(R.string.cardetail_podrobnee)
                     )
                 }
             }

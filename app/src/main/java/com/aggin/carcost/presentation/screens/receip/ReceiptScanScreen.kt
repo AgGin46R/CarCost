@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.receipt_scan
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -120,7 +122,7 @@ fun ReceiptScanScreen(
         } catch (e: Exception) {
             android.util.Log.e("ReceiptScan", "Не удалось открыть камеру: ${e.message}", e)
             android.widget.Toast.makeText(
-                context, "Не удалось открыть камеру", android.widget.Toast.LENGTH_SHORT
+                context, context.getString(R.string.receip_ne_udalos_otkryt_kameru), android.widget.Toast.LENGTH_SHORT
             ).show()
         }
     }
@@ -128,10 +130,10 @@ fun ReceiptScanScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Сканирование чека") },
+                title = { Text(stringResource(R.string.receip_skanirovanie_cheka)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -168,13 +170,13 @@ fun ReceiptScanScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = "Отсканируйте чек",
+                            text = stringResource(R.string.receip_otskaniruyte_chek),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
 
                         Text(
-                            text = "Сумма и дата подставятся в форму автоматически",
+                            text = stringResource(R.string.receip_summa_i_data_podstavyatsya_v_formu),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -196,7 +198,7 @@ fun ReceiptScanScreen(
                         ) {
                             Icon(Icons.Default.CameraAlt, null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Сфотографировать чек")
+                            Text(stringResource(R.string.receip_sfotografirovat_chek))
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -214,7 +216,7 @@ fun ReceiptScanScreen(
                         ) {
                             Icon(Icons.Default.PhotoLibrary, null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Выбрать из галереи")
+                            Text(stringResource(R.string.profile_vybrat_iz_galerei))
                         }
                     }
                 }
@@ -230,7 +232,7 @@ fun ReceiptScanScreen(
                     Column {
                         Image(
                             bitmap = bitmap.asImageBitmap(),
-                            contentDescription = "Фото чека",
+                            contentDescription = stringResource(R.string.addexp_foto_cheka),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 300.dp),
@@ -248,7 +250,7 @@ fun ReceiptScanScreen(
                                 selectedImageUri = null
                                 viewModel.reset()
                             }) {
-                                Icon(Icons.Default.Delete, "Удалить")
+                                Icon(Icons.Default.Delete, stringResource(R.string.action_delete))
                             }
 
                             IconButton(onClick = {
@@ -258,7 +260,7 @@ fun ReceiptScanScreen(
                                     mediaPermission.launchPermissionRequest()
                                 }
                             }) {
-                                Icon(Icons.Default.Refresh, "Выбрать другое")
+                                Icon(Icons.Default.Refresh, stringResource(R.string.receip_vybrat_drugoe))
                             }
                         }
                     }
@@ -271,7 +273,7 @@ fun ReceiptScanScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Сканирование чека...")
+                    Text(stringResource(R.string.receip_skanirovanie_cheka_2))
                 }
 
                 uiState.receiptData != null -> {
@@ -287,7 +289,7 @@ fun ReceiptScanScreen(
                             modifier = Modifier.padding(16.dp)
                         ) {
                             Text(
-                                text = "Результаты сканирования",
+                                text = stringResource(R.string.receip_rezultaty_skanirovaniya),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -301,7 +303,7 @@ fun ReceiptScanScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Сумма:")
+                                    Text(stringResource(R.string.receip_summa))
                                     Text(
                                         text = String.format("%.2f ₽", amount),
                                         style = MaterialTheme.typography.titleLarge,
@@ -311,7 +313,7 @@ fun ReceiptScanScreen(
                                 }
                             } ?: run {
                                 Text(
-                                    "Сумма не найдена",
+                                    stringResource(R.string.receip_summa_ne_naydena),
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
@@ -324,7 +326,7 @@ fun ReceiptScanScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Дата:")
+                                    Text(stringResource(R.string.receip_data))
                                     Text(
                                         text = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date(date))
                                     )
@@ -339,7 +341,7 @@ fun ReceiptScanScreen(
                                 TextButton(
                                     onClick = { showFullText = !showFullText }
                                 ) {
-                                    Text(if (showFullText) "Скрыть текст" else "Показать распознанный текст")
+                                    Text(if (showFullText) stringResource(R.string.receip_skryt_tekst) else stringResource(R.string.receip_pokazat_raspoznannyy_tekst))
                                 }
 
                                 if (showFullText) {
@@ -392,7 +394,7 @@ fun ReceiptScanScreen(
                     ) {
                         Icon(Icons.Default.Check, null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Применить данные")
+                        Text(stringResource(R.string.receip_primenit_dannye))
                     }
                 }
 
@@ -414,7 +416,7 @@ fun ReceiptScanScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                uiState.error ?: "Неизвестная ошибка",
+                                uiState.error ?: stringResource(R.string.carmembers_neizvestnaya_oshibka),
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }

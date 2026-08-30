@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.compare
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -39,10 +41,10 @@ fun CompareScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Сравнение авто") },
+                title = { Text(stringResource(R.string.compare_sravnenie_avto)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -60,7 +62,7 @@ fun CompareScreen(
             // ── Car selection ─────────────────────────────────────────────────
             item {
                 Text(
-                    "Выберите автомобили для сравнения",
+                    stringResource(R.string.compare_vyberite_avtomobili_dlya_sravneniya),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
@@ -84,7 +86,7 @@ fun CompareScreen(
             if (uiState.selectedCarIds.size >= 2) {
                 item {
                     Text(
-                        "Период",
+                        stringResource(R.string.components_period),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
@@ -120,7 +122,7 @@ fun CompareScreen(
                             )
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                "Выберите минимум 2 автомобиля",
+                                stringResource(R.string.compare_vyberite_minimum_2_avtomobilya),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 textAlign = TextAlign.Center
@@ -145,7 +147,7 @@ fun CompareScreen(
 
                 // ── Total expenses ───────────────────────────────────────────
                 item {
-                    CompareCard(title = "Общие расходы за период", icon = Icons.Default.AccountBalanceWallet) {
+                    CompareCard(title = stringResource(R.string.compare_obschie_rashody_za_period), icon = Icons.Default.AccountBalanceWallet) {
                         CompareRow(selectedStats) { stats ->
                             String.format("%.0f ₽", stats.totalExpenses)
                         }
@@ -154,18 +156,18 @@ fun CompareScreen(
 
                 // ── Records count ────────────────────────────────────────────
                 item {
-                    CompareCard(title = "Записей расходов", icon = Icons.Default.Receipt) {
+                    CompareCard(title = stringResource(R.string.analytics_zapisey_rashodov), icon = Icons.Default.Receipt) {
                         CompareRow(selectedStats) { stats ->
-                            "${stats.expenseCount} шт."
+                            stringResource(R.string.compare_sht, stats.expenseCount)
                         }
                     }
                 }
 
                 // ── Cost per km ──────────────────────────────────────────────
                 item {
-                    CompareCard(title = "Стоимость 1 км", icon = Icons.Default.Speed) {
+                    CompareCard(title = stringResource(R.string.compare_stoimost_1_km), icon = Icons.Default.Speed) {
                         CompareRow(selectedStats) { stats ->
-                            if (stats.costPerKm > 0) String.format("%.2f ₽/км", stats.costPerKm)
+                            if (stats.costPerKm > 0) String.format(stringResource(R.string.compare_2f_km), stats.costPerKm)
                             else "—"
                         }
                     }
@@ -173,7 +175,7 @@ fun CompareScreen(
 
                 // ── Maintenance per 10k km ────────────────────────────────────
                 item {
-                    CompareCard(title = "ТО и ремонт на 10 000 км", icon = Icons.Default.Build) {
+                    CompareCard(title = stringResource(R.string.compare_to_i_remont_na_10_000_km), icon = Icons.Default.Build) {
                         CompareRow(selectedStats) { stats ->
                             if (stats.maintenancePer10k > 0)
                                 String.format("%.0f ₽", stats.maintenancePer10k)
@@ -184,9 +186,9 @@ fun CompareScreen(
 
                 // ── Avg fuel consumption ─────────────────────────────────────
                 item {
-                    CompareCard(title = "Средний расход топлива", icon = Icons.Default.LocalGasStation) {
+                    CompareCard(title = stringResource(R.string.compare_sredniy_rashod_topliva), icon = Icons.Default.LocalGasStation) {
                         CompareRow(selectedStats) { stats ->
-                            stats.avgFuelConsumption?.let { String.format("%.2f л/100км", it) } ?: "Нет данных"
+                            stats.avgFuelConsumption?.let { String.format(stringResource(R.string.analytics_2f_l_100km), it) } ?: stringResource(R.string.compare_net_dannyh)
                         }
                     }
                 }
@@ -194,7 +196,7 @@ fun CompareScreen(
                 // ── Top categories ────────────────────────────────────────────
                 if (selectedStats.all { it.topCategories.isNotEmpty() }) {
                     item {
-                        CompareCard(title = "Топ категорий расходов", icon = Icons.Default.PieChart) {
+                        CompareCard(title = stringResource(R.string.compare_top_kategoriy_rashodov), icon = Icons.Default.PieChart) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -258,7 +260,7 @@ fun MonthlyCompareChartCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Расходы по месяцам",
+                    stringResource(R.string.analytics_rashody_po_mesyatsam),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -306,7 +308,7 @@ fun MonthlyCompareChartCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "Нет данных за выбранный период",
+                        stringResource(R.string.compare_net_dannyh_za_vybrannyy_period),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
@@ -340,7 +342,9 @@ fun CompareCard(
 @Composable
 fun CompareRow(
     stats: List<CarCompareStats>,
-    valueFor: (CarCompareStats) -> String
+    // Значение собирается из ресурсов, а значит внутри композиции: без пометки
+    // подписи в вызовах пришлось бы поднимать наружу по одной
+    valueFor: @Composable (CarCompareStats) -> String
 ) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         stats.forEach { carStats ->

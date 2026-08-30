@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.components
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,14 +41,14 @@ fun ExpenseFilterDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Фильтр расходов") },
+        title = { Text(stringResource(R.string.components_filtr_rashodov)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Категории
-                Text("Категории", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.components_kategorii), style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ExpenseCategory.values().forEach { category ->
                         FilterChip(
@@ -65,7 +67,7 @@ fun ExpenseFilterDialog(
 
                 // Теги
                 if (availableTags.isNotEmpty()) {
-                    Text("Теги", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.components_tegi), style = MaterialTheme.typography.titleMedium)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         availableTags.forEach { tag ->
                             FilterChip(
@@ -84,26 +86,26 @@ fun ExpenseFilterDialog(
                 }
 
                 // Сумма
-                Text("Сумма", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.components_summa), style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = minAmount,
                         onValueChange = { minAmount = it },
-                        label = { Text("От") },
+                        label = { Text(stringResource(R.string.components_ot)) },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     OutlinedTextField(
                         value = maxAmount,
                         onValueChange = { maxAmount = it },
-                        label = { Text("До") },
+                        label = { Text(stringResource(R.string.components_do)) },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
 
                 // Дата
-                Text("Период", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.components_period), style = MaterialTheme.typography.titleMedium)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -112,13 +114,13 @@ fun ExpenseFilterDialog(
                         onClick = { showStartDatePicker = true },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(startDate?.let { formatDate(it) } ?: "С даты")
+                        Text(startDate?.let { formatDate(it) } ?: stringResource(R.string.components_s_daty))
                     }
                     OutlinedButton(
                         onClick = { showEndDatePicker = true },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(endDate?.let { formatDate(it) } ?: "По дату")
+                        Text(endDate?.let { formatDate(it) } ?: stringResource(R.string.components_po_datu))
                     }
                 }
             }
@@ -137,11 +139,11 @@ fun ExpenseFilterDialog(
                     onFilterApplied(newFilter)
                 }
             ) {
-                Text("Применить")
+                Text(stringResource(R.string.action_apply))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 
@@ -155,7 +157,7 @@ fun ExpenseFilterDialog(
                     showStartDatePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showStartDatePicker = false }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { showStartDatePicker = false }) { Text(stringResource(R.string.action_cancel)) } }
         ) {
             DatePicker(state = datePickerState)
         }
@@ -171,7 +173,7 @@ fun ExpenseFilterDialog(
                     showEndDatePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showEndDatePicker = false }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { showEndDatePicker = false }) { Text(stringResource(R.string.action_cancel)) } }
         ) {
             DatePicker(state = datePickerState)
         }

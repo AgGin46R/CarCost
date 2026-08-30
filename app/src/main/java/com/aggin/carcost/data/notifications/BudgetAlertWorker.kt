@@ -66,7 +66,7 @@ class BudgetAlertWorker(
                 val usedPct = (spent / budget.monthlyLimit * 100).toInt()
 
                 if (usedPct >= (BUDGET_ALERT_THRESHOLD * 100).toInt()) {
-                    val categoryName = NotificationHelper.categoryDisplayName(budget.category.name)
+                    val categoryName = NotificationHelper.categoryDisplayName(applicationContext, budget.category.name)
                     NotificationHelper.sendBudgetAlertNotification(
                         context = applicationContext,
                         notificationId = notifId++,

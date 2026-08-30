@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.edit_expense
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,10 +44,10 @@ fun EditExpenseScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Редактировать расход") },
+                title = { Text(stringResource(R.string.editexp_redaktirovat_rashod)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -90,7 +92,7 @@ fun EditExpenseScreen(
 
                 // Категория
                 Text(
-                    text = "Категория",
+                    text = stringResource(R.string.addexp_kategoriya_2),
                     style = MaterialTheme.typography.titleMedium
                 )
                 CategorySelector(
@@ -103,7 +105,7 @@ fun EditExpenseScreen(
 
                 // Основная информация
                 Text(
-                    text = "Основная информация",
+                    text = stringResource(R.string.addexp_osnovnaya_informatsiya),
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -111,7 +113,7 @@ fun EditExpenseScreen(
                 OutlinedTextField(
                     value = uiState.amount,
                     onValueChange = { viewModel.updateAmount(it) },
-                    label = { Text("Сумма *") },
+                    label = { Text(stringResource(R.string.addexp_summa)) },
                     placeholder = { Text("100.00") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -128,7 +130,7 @@ fun EditExpenseScreen(
                 OutlinedTextField(
                     value = uiState.odometer,
                     onValueChange = { viewModel.updateOdometer(it) },
-                    label = { Text("Пробег (км) *") },
+                    label = { Text(stringResource(R.string.addexp_probeg_km)) },
                     placeholder = { Text("50000") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -146,7 +148,7 @@ fun EditExpenseScreen(
                 OutlinedTextField(
                     value = formatDate(uiState.date),
                     onValueChange = { },
-                    label = { Text("Дата") },
+                    label = { Text(stringResource(R.string.cardetail_data)) },
                     modifier = Modifier.fillMaxWidth(),
                     readOnly = true,
                     enabled = !uiState.isSaving,
@@ -169,8 +171,8 @@ fun EditExpenseScreen(
                 OutlinedTextField(
                     value = uiState.description,
                     onValueChange = { viewModel.updateDescription(it) },
-                    label = { Text("Описание") },
-                    placeholder = { Text("Заправка на Shell") },
+                    label = { Text(stringResource(R.string.cardetail_opisanie)) },
+                    placeholder = { Text(stringResource(R.string.addexp_zapravka_na_shell)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4,
@@ -181,8 +183,8 @@ fun EditExpenseScreen(
                 OutlinedTextField(
                     value = uiState.location,
                     onValueChange = { viewModel.updateLocation(it) },
-                    label = { Text("Место") },
-                    placeholder = { Text("Shell, ул. Ленина") },
+                    label = { Text(stringResource(R.string.cardetail_mesto)) },
+                    placeholder = { Text(stringResource(R.string.addexp_shell_ul_lenina)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     enabled = !uiState.isSaving
@@ -204,27 +206,27 @@ fun EditExpenseScreen(
                 when (uiState.category) {
                     ExpenseCategory.FUEL -> {
                         Text(
-                            text = "Детали заправки",
+                            text = stringResource(R.string.addexp_detali_zapravki),
                             style = MaterialTheme.typography.titleMedium
                         )
 
                         OutlinedTextField(
                             value = uiState.fuelLiters,
                             onValueChange = { viewModel.updateFuelLiters(it) },
-                            label = { Text("Литров") },
+                            label = { Text(stringResource(R.string.addexp_litrov)) },
                             placeholder = { Text("45.5") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             enabled = !uiState.isSaving,
-                            suffix = { Text("л") }
+                            suffix = { Text(stringResource(R.string.addexp_l)) }
                         )
 
                         OutlinedTextField(
                             value = uiState.fuelGrade,
                             onValueChange = { viewModel.updateFuelGrade(it) },
-                            label = { Text("Марка топлива") },
-                            placeholder = { Text("АИ-95") },
+                            label = { Text(stringResource(R.string.cardetail_marka_topliva)) },
+                            placeholder = { Text(stringResource(R.string.addexp_ai_95)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !uiState.isSaving
@@ -235,7 +237,7 @@ fun EditExpenseScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Text("Полный бак")
+                            Text(stringResource(R.string.addexp_polnyy_bak))
                             Switch(
                                 checked = uiState.isFullTank,
                                 onCheckedChange = { viewModel.updateIsFullTank(it) },
@@ -248,20 +250,20 @@ fun EditExpenseScreen(
 
                     ExpenseCategory.CHARGING -> {
                         Text(
-                            text = "Детали зарядки",
+                            text = stringResource(R.string.addexp_detali_zaryadki),
                             style = MaterialTheme.typography.titleMedium
                         )
 
                         OutlinedTextField(
                             value = uiState.energyKwh,
                             onValueChange = { viewModel.updateEnergyKwh(it) },
-                            label = { Text("Киловатт-часов") },
+                            label = { Text(stringResource(R.string.addexp_kilovatt_chasov)) },
                             placeholder = { Text("42.0") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             enabled = !uiState.isSaving,
-                            suffix = { Text("кВт·ч") }
+                            suffix = { Text(stringResource(R.string.addexp_kvt_ch)) }
                         )
 
                         Row(
@@ -269,7 +271,7 @@ fun EditExpenseScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Text("Заряд до 100%")
+                            Text(stringResource(R.string.addexp_zaryad_do_100))
                             Switch(
                                 checked = uiState.isFullTank,
                                 onCheckedChange = { viewModel.updateIsFullTank(it) },
@@ -282,7 +284,7 @@ fun EditExpenseScreen(
 
                     ExpenseCategory.MAINTENANCE -> {
                         Text(
-                            text = "Детали обслуживания",
+                            text = stringResource(R.string.addexp_detali_obsluzhivaniya),
                             style = MaterialTheme.typography.titleMedium
                         )
 
@@ -295,8 +297,8 @@ fun EditExpenseScreen(
                         OutlinedTextField(
                             value = uiState.workshopName,
                             onValueChange = { viewModel.updateWorkshopName(it) },
-                            label = { Text("Название СТО") },
-                            placeholder = { Text("Автосервис №1") },
+                            label = { Text(stringResource(R.string.addexp_nazvanie_sto)) },
+                            placeholder = { Text(stringResource(R.string.addexp_avtoservis_1)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !uiState.isSaving
@@ -307,15 +309,15 @@ fun EditExpenseScreen(
 
                     ExpenseCategory.REPAIR -> {
                         Text(
-                            text = "Детали ремонта",
+                            text = stringResource(R.string.addexp_detali_remonta),
                             style = MaterialTheme.typography.titleMedium
                         )
 
                         OutlinedTextField(
                             value = uiState.workshopName,
                             onValueChange = { viewModel.updateWorkshopName(it) },
-                            label = { Text("Название СТО") },
-                            placeholder = { Text("Автосервис №1") },
+                            label = { Text(stringResource(R.string.addexp_nazvanie_sto)) },
+                            placeholder = { Text(stringResource(R.string.addexp_avtoservis_1)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !uiState.isSaving
@@ -347,12 +349,12 @@ fun EditExpenseScreen(
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
-                        Text("Сохранить изменения", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.editexp_sohranit_izmeneniya), style = MaterialTheme.typography.titleMedium)
                     }
                 }
 
                 Text(
-                    text = "* Обязательные поля",
+                    text = stringResource(R.string.addexp_obyazatelnye_polya),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -374,21 +376,21 @@ fun CategorySelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CategoryChip(
-                label = "⛽ Топливо",
+                label = stringResource(R.string.cardetail_toplivo),
                 selected = selectedCategory == ExpenseCategory.FUEL,
                 onClick = { onCategorySelected(ExpenseCategory.FUEL) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
             CategoryChip(
-                label = "🔧 ТО",
+                label = stringResource(R.string.cardetail_to),
                 selected = selectedCategory == ExpenseCategory.MAINTENANCE,
                 onClick = { onCategorySelected(ExpenseCategory.MAINTENANCE) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
             CategoryChip(
-                label = "🛠️ Ремонт",
+                label = stringResource(R.string.addexp_remont),
                 selected = selectedCategory == ExpenseCategory.REPAIR,
                 onClick = { onCategorySelected(ExpenseCategory.REPAIR) },
                 enabled = enabled,
@@ -402,21 +404,21 @@ fun CategorySelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CategoryChip(
-                label = "🛡️ Страховка",
+                label = stringResource(R.string.addexp_strahovka),
                 selected = selectedCategory == ExpenseCategory.INSURANCE,
                 onClick = { onCategorySelected(ExpenseCategory.INSURANCE) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
             CategoryChip(
-                label = "🧾 Налог",
+                label = stringResource(R.string.addexp_nalog),
                 selected = selectedCategory == ExpenseCategory.TAX,
                 onClick = { onCategorySelected(ExpenseCategory.TAX) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
             CategoryChip(
-                label = "🅿️ Парковка",
+                label = stringResource(R.string.cardetail_parkovka),
                 selected = selectedCategory == ExpenseCategory.PARKING,
                 onClick = { onCategorySelected(ExpenseCategory.PARKING) },
                 enabled = enabled,
@@ -430,21 +432,21 @@ fun CategorySelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CategoryChip(
-                label = "🛣️ Дорога",
+                label = stringResource(R.string.addexp_doroga),
                 selected = selectedCategory == ExpenseCategory.TOLL,
                 onClick = { onCategorySelected(ExpenseCategory.TOLL) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
             CategoryChip(
-                label = "💧 Мойка",
+                label = stringResource(R.string.addexp_moyka),
                 selected = selectedCategory == ExpenseCategory.WASH,
                 onClick = { onCategorySelected(ExpenseCategory.WASH) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
             CategoryChip(
-                label = "⚠️ Штраф",
+                label = stringResource(R.string.addexp_shtraf),
                 selected = selectedCategory == ExpenseCategory.FINE,
                 onClick = { onCategorySelected(ExpenseCategory.FINE) },
                 enabled = enabled,
@@ -458,14 +460,14 @@ fun CategorySelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CategoryChip(
-                label = "🛒 Аксессуары",
+                label = stringResource(R.string.addexp_aksessuary),
                 selected = selectedCategory == ExpenseCategory.ACCESSORIES,
                 onClick = { onCategorySelected(ExpenseCategory.ACCESSORIES) },
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             )
             CategoryChip(
-                label = "➕ Другое",
+                label = stringResource(R.string.addexp_drugoe),
                 selected = selectedCategory == ExpenseCategory.OTHER,
                 onClick = { onCategorySelected(ExpenseCategory.OTHER) },
                 enabled = enabled,
@@ -508,10 +510,10 @@ fun ServiceTypeDropdown(
         onExpandedChange = { if (enabled) expanded = !expanded }
     ) {
         OutlinedTextField(
-            value = selectedServiceType?.let { getServiceTypeName(it) } ?: "Выберите тип",
+            value = selectedServiceType?.let { getServiceTypeName(it) } ?: stringResource(R.string.addexp_vyberite_tip),
             onValueChange = {},
             readOnly = true,
-            label = { Text("Тип обслуживания") },
+            label = { Text(stringResource(R.string.addexp_tip_obsluzhivaniya)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -536,6 +538,7 @@ fun ServiceTypeDropdown(
     }
 }
 
+@Composable
 fun getServiceTypeName(serviceType: ServiceType) = serviceType.displayName()
 
 fun formatDate(timestamp: Long): String = formatDateLong(timestamp)
@@ -565,7 +568,7 @@ fun DatePickerDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Отмена")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     ) {

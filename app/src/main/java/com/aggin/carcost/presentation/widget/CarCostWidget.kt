@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.widget
 
+import com.aggin.carcost.R
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
@@ -99,9 +100,9 @@ class CarCostWidget : GlanceAppWidget() {
             try {
                 val all = database.expenseDao().getExpensesByCarIdSync(car.id)
                 if (car.fuelType.canCharge && !car.fuelType.canRefuel) {
-                    EnergyConsumptionCalculator.average(all)?.let { "%.1f кВт·ч/100".format(it) }
+                    EnergyConsumptionCalculator.average(all)?.let { context.getString(R.string.widget_1f_kvt_ch_100).format(it) }
                 } else {
-                    FuelConsumptionCalculator.average(all)?.let { "%.1f л/100".format(it) }
+                    FuelConsumptionCalculator.average(all)?.let { context.getString(R.string.widget_1f_l_100).format(it) }
                 }
             } catch (e: Exception) { null }
         }
@@ -134,7 +135,7 @@ class CarCostWidget : GlanceAppWidget() {
                     .minByOrNull { it.nextChangeOdometer - activeCar.currentOdometer }
                 if (nearest != null) {
                     val remaining = nearest.nextChangeOdometer - activeCar.currentOdometer
-                    "${nearest.type.displayName}: через $remaining км"
+                    context.getString(R.string.widget_cherez_km, context.getString(nearest.type.displayNameRes), remaining)
                 } else null
             } else null
         } catch (e: Exception) { null }
@@ -248,7 +249,7 @@ fun CarCostWidgetContent(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "+ Расход",
+                    text = context.getString(R.string.widget_rashod),
                     style = TextStyle(
                         color = ColorProvider(Color.White),
                         fontSize = 11.sp,
@@ -305,7 +306,7 @@ fun CarCostWidgetContent(
             Row(modifier = GlanceModifier.fillMaxWidth()) {
                 if (odometer != null) {
                     Text(
-                        text = "%,d км".format(odometer),
+                        text = context.getString(R.string.widget_d_km).format(odometer),
                         style = TextStyle(
                             color = ColorProvider(Color.White.copy(alpha = 0.75f)),
                             fontSize = 11.sp
@@ -337,7 +338,7 @@ fun CarCostWidgetContent(
 
         // ── Monthly expenses ─────────────────────────────────────────────────
         Text(
-            text = "Расходы за месяц",
+            text = context.getString(R.string.widget_rashody_za_mesyats),
             style = TextStyle(
                 color = ColorProvider(Color.White.copy(alpha = 0.75f)),
                 fontSize = 11.sp
@@ -357,7 +358,7 @@ fun CarCostWidgetContent(
         // ── Cars count (only if more than 1 car) ─────────────────────────────
         if (carsCount > 1) {
             Text(
-                text = "$carsCount авт.",
+                text = context.getString(R.string.widget_avt, carsCount),
                 style = TextStyle(
                     color = ColorProvider(Color.White.copy(alpha = 0.75f)),
                     fontSize = 11.sp

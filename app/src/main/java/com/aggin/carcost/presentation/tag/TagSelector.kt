@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.components
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,7 +41,7 @@ fun TagSelector(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Теги",
+                text = stringResource(R.string.components_tegi),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Medium
             )
@@ -47,7 +49,7 @@ fun TagSelector(
                 TextButton(onClick = { showTagPicker = true }) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Добавить")
+                    Text(stringResource(R.string.action_add))
                 }
             }
         }
@@ -56,7 +58,7 @@ fun TagSelector(
 
         if (selectedTags.isEmpty()) {
             Text(
-                text = "Теги не выбраны",
+                text = stringResource(R.string.tag_tegi_ne_vybrany),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -119,7 +121,7 @@ fun TagChip(
             if (enabled) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Удалить",
+                    contentDescription = stringResource(R.string.action_delete),
                     modifier = Modifier
                         .size(16.dp)
                         .clickable(onClick = onRemove),
@@ -143,11 +145,11 @@ fun TagPickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Выберите тег") },
+        title = { Text(stringResource(R.string.tag_vyberite_teg)) },
         text = {
             if (unselectedTags.isEmpty()) {
                 Text(
-                    "Все теги уже добавлены",
+                    stringResource(R.string.tag_vse_tegi_uzhe_dobavleny),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -169,7 +171,7 @@ fun TagPickerDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Закрыть")
+                Text(stringResource(R.string.action_close))
             }
         }
     )

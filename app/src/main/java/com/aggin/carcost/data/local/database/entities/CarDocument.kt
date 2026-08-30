@@ -1,5 +1,7 @@
 package com.aggin.carcost.data.local.database.entities
 
+import androidx.annotation.StringRes
+import com.aggin.carcost.R
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -33,12 +35,13 @@ data class CarDocument(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
-enum class DocumentType(val displayName: String) {
-    INSURANCE("Страховка (ОСАГО/КАСКО)"),
-    REGISTRATION("Свидетельство о регистрации (СТС)"),
-    TITLE("ПТС"),
-    DIAGNOSTIC_CARD("Диагностическая карта"),
-    WARRANTY("Гарантийный талон"),
-    PURCHASE_AGREEMENT("Договор купли-продажи"),
-    OTHER("Другое")
+/** Виды документов. Подпись — ключ ресурса, как и у остальных справочников */
+enum class DocumentType(@StringRes val displayNameRes: Int) {
+    INSURANCE(R.string.doc_insurance),
+    REGISTRATION(R.string.doc_registration),
+    TITLE(R.string.doc_title),
+    DIAGNOSTIC_CARD(R.string.doc_diagnostic),
+    WARRANTY(R.string.doc_warranty),
+    PURCHASE_AGREEMENT(R.string.doc_purchase),
+    OTHER(R.string.doc_other)
 }

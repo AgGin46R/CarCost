@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.tco
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -47,7 +49,7 @@ fun TcoScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Стоимость владения (TCO)")
+                        Text(stringResource(R.string.tco_stoimost_vladeniya_tco))
                         uiState.car?.let {
                             Text(
                                 "${it.brand} ${it.model} ${it.year}",
@@ -58,7 +60,7 @@ fun TcoScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -98,7 +100,7 @@ fun TcoScreen(
             if (uiState.categoryBreakdown.isNotEmpty()) {
                 item {
                     Text(
-                        "РАСХОДЫ ПО КАТЕГОРИЯМ",
+                        stringResource(R.string.tco_rashody_po_kategoriyam),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -115,7 +117,7 @@ fun TcoScreen(
 
 @Composable
 private fun TcoSummaryCard(uiState: TcoUiState) {
-    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
+    val fmt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 0 }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -123,7 +125,7 @@ private fun TcoSummaryCard(uiState: TcoUiState) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Итоговая стоимость владения",
+                stringResource(R.string.tco_itogovaya_stoimost_vladeniya),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -144,16 +146,16 @@ private fun TcoSummaryCard(uiState: TcoUiState) {
             // Слагаемые
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("Цена покупки", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.addcar_tsena_pokupki), style = MaterialTheme.typography.labelSmall)
                     Text(
                         if (uiState.purchasePrice > 0) "${fmt.format(uiState.purchasePrice)} ₽"
-                        else "Не указана",
+                        else stringResource(R.string.plannedexpenses_ne_ukazana),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Расходы за всё время", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.tco_rashody_za_vse_vremya), style = MaterialTheme.typography.labelSmall)
                     Text(
                         "${fmt.format(uiState.totalExpenses)} ₽",
                         style = MaterialTheme.typography.bodyMedium,
@@ -165,11 +167,11 @@ private fun TcoSummaryCard(uiState: TcoUiState) {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("Пробег с покупки", style = MaterialTheme.typography.labelSmall)
-                    Text("${fmt.format(uiState.kmDriven)} км", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.tco_probeg_s_pokupki), style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.home_km, fmt.format(uiState.kmDriven)), style = MaterialTheme.typography.bodyMedium)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Период владения", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.tco_period_vladeniya), style = MaterialTheme.typography.labelSmall)
                     Text(formatMonths(uiState.monthsOwned), style = MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -179,13 +181,13 @@ private fun TcoSummaryCard(uiState: TcoUiState) {
 
 @Composable
 private fun TcoMetricsCard(uiState: TcoUiState) {
-    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 2 }
-    val fmtInt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
+    val fmt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 2 }
+    val fmtInt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 0 }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Показатели эффективности",
+                stringResource(R.string.tco_pokazateli_effektivnosti),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -193,17 +195,17 @@ private fun TcoMetricsCard(uiState: TcoUiState) {
 
             Row(Modifier.fillMaxWidth()) {
                 MetricItem(
-                    label = "За 1 км",
+                    label = stringResource(R.string.tco_za_1_km),
                     value = if (uiState.costPerKm > 0) "${fmt.format(uiState.costPerKm)} ₽" else "—",
                     modifier = Modifier.weight(1f)
                 )
                 MetricItem(
-                    label = "В месяц",
+                    label = stringResource(R.string.tco_v_mesyats),
                     value = "${fmtInt.format(uiState.costPerMonth)} ₽",
                     modifier = Modifier.weight(1f)
                 )
                 MetricItem(
-                    label = "В год",
+                    label = stringResource(R.string.tco_v_god),
                     value = "${fmtInt.format(uiState.costPerYear)} ₽",
                     modifier = Modifier.weight(1f)
                 )
@@ -231,7 +233,7 @@ private fun MetricItem(label: String, value: String, modifier: Modifier = Modifi
 
 @Composable
 private fun CategoryBreakdownRow(item: TcoCategoryBreakdown, totalExpenses: Double) {
-    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
+    val fmt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 0 }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -248,7 +250,7 @@ private fun CategoryBreakdownRow(item: TcoCategoryBreakdown, totalExpenses: Doub
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        "${item.count} записей",
+                        stringResource(R.string.tco_zapisey, item.count),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
@@ -282,12 +284,12 @@ private fun DepreciationCard(
     uiState: TcoUiState,
     onMarketValueChange: (String) -> Unit
 ) {
-    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
+    val fmt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 0 }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Амортизация автомобиля",
+                stringResource(R.string.tco_amortizatsiya_avtomobilya),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -296,8 +298,8 @@ private fun DepreciationCard(
             OutlinedTextField(
                 value = uiState.marketValueInput,
                 onValueChange = onMarketValueChange,
-                label = { Text("Текущая рыночная стоимость") },
-                placeholder = { Text("Оставьте пустым для авторасчёта") },
+                label = { Text(stringResource(R.string.tco_tekuschaya_rynochnaya_stoimost)) },
+                placeholder = { Text(stringResource(R.string.tco_ostavte_pustym_dlya_avtorascheta)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -311,7 +313,7 @@ private fun DepreciationCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("Текущая стоимость", style = MaterialTheme.typography.labelSmall,
+                        Text(stringResource(R.string.tco_tekuschaya_stoimost), style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         Text(
                             "${fmt.format(uiState.estimatedCurrentValue)} ₽",
@@ -321,7 +323,7 @@ private fun DepreciationCard(
                         )
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("Обесценивание", style = MaterialTheme.typography.labelSmall,
+                        Text(stringResource(R.string.tco_obestsenivanie), style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         Text(
                             "−${fmt.format(uiState.totalDepreciation)} ₽",
@@ -336,7 +338,7 @@ private fun DepreciationCard(
             // Vico LineChart
             if (uiState.depreciationPoints.size >= 2) {
                 Text(
-                    "Прогноз стоимости на 10 лет",
+                    stringResource(R.string.tco_prognoz_stoimosti_na_10_let),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -367,16 +369,18 @@ private fun DepreciationCard(
     }
 }
 
+@Composable
 private fun formatMonths(months: Int): String {
     val y = months / 12
     val m = months % 12
     return buildString {
-        if (y > 0) append("${y} г. ")
-        if (m > 0) append("${m} мес.")
-        if (y == 0 && m == 0) append("< 1 мес.")
+        if (y > 0) append(stringResource(R.string.tco_g, y))
+        if (m > 0) append(stringResource(R.string.tco_mes, m))
+        if (y == 0 && m == 0) append(stringResource(R.string.tco_1_mes))
     }.trim()
 }
 
 private fun categoryEmoji(c: ExpenseCategory) = c.emoji()
 
+@Composable
 private fun categoryName(c: ExpenseCategory) = c.displayName()

@@ -1,28 +1,35 @@
 package com.aggin.carcost.data.local.database.entities
 
+import androidx.annotation.StringRes
+import com.aggin.carcost.R
+
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.util.UUID
 
-enum class AchievementType(val title: String, val description: String, val icon: String) {
-    FIRST_EXPENSE("Первый расход", "Добавьте первый расход", "🎉"),
-    EXPENSES_10("10 расходов", "Добавьте 10 расходов", "📝"),
-    EXPENSES_50("Полтинник", "Добавьте 50 расходов", "🏅"),
-    EXPENSES_100("Сотня записей", "Добавьте 100 расходов", "💯"),
-    ECO_DRIVER("Эко-водитель", "Расход топлива ниже среднего 3 месяца подряд", "🌿"),
-    BUDGET_MASTER("Мастер бюджета", "Не превысьте бюджет 3 месяца подряд", "💰"),
-    REGULAR_MAINTENANCE("Педант ТО", "Пройдите 5 плановых ТО вовремя", "🔧"),
-    FIRST_DOCUMENT("Архивариус", "Добавьте первый документ", "📄"),
-    TRIP_TRACKER("GPS-трекер", "Запишите первую поездку по GPS", "📍"),
-    SAVINGS_GOAL_COMPLETE("Цель достигнута", "Достигните первой цели накопления", "🏆"),
-    YEAR_OWNER("Год с нами", "Используйте приложение год", "🎂"),
+enum class AchievementType(
+    @StringRes val titleRes: Int,
+    @StringRes val descriptionRes: Int,
+    val icon: String
+) {
+    FIRST_EXPENSE(R.string.ach_pervyy_rashod, R.string.achd_dobavte_pervyy_rashod, "🎉"),
+    EXPENSES_10(R.string.ach_10_rashodov, R.string.achd_dobavte_10_rashodov, "📝"),
+    EXPENSES_50(R.string.ach_poltinnik, R.string.achd_dobavte_50_rashodov, "🏅"),
+    EXPENSES_100(R.string.ach_sotnya_zapisey, R.string.achd_dobavte_100_rashodov, "💯"),
+    ECO_DRIVER(R.string.ach_eko_voditel, R.string.achd_rashod_topliva_nizhe_srednego_3, "🌿"),
+    BUDGET_MASTER(R.string.ach_master_byudzheta, R.string.achd_ne_prevyste_byudzhet_3_mesyatsa_podryad, "💰"),
+    REGULAR_MAINTENANCE(R.string.ach_pedant_to, R.string.achd_proydite_5_planovyh_to_vovremya, "🔧"),
+    FIRST_DOCUMENT(R.string.ach_arhivarius, R.string.achd_dobavte_pervyy_dokument, "📄"),
+    TRIP_TRACKER(R.string.ach_gps_treker, R.string.achd_zapishite_pervuyu_poezdku_po_gps, "📍"),
+    SAVINGS_GOAL_COMPLETE(R.string.ach_tsel_dostignuta, R.string.achd_dostignite_pervoy_tseli_nakopleniya, "🏆"),
+    YEAR_OWNER(R.string.ach_god_s_nami, R.string.achd_ispolzuyte_prilozhenie_god, "🎂"),
     // Новые достижения
-    MULTI_CAR("Автопарк", "Добавьте 2 и более автомобиля", "🚘"),
-    FUEL_VETERAN("Завсегдатай АЗС", "Заправьтесь 20 раз", "⛽"),
-    NIGHT_DRIVER("Ночной водитель", "Добавьте расход после 23:00", "🌙"),
-    PHOTO_COLLECTOR("Фотограф", "Прикрепите чек к 10 расходам", "📸"),
-    WORKSHOP_REGULAR("Постоянный клиент", "Посетите один автосервис 5+ раз", "🔩"),
-    HIGH_MILEAGE("Стотысячник", "Пробег авто достиг 100 000 км", "💫")
+    MULTI_CAR(R.string.ach_avtopark, R.string.achd_dobavte_2_i_bolee_avtomobilya, "🚘"),
+    FUEL_VETERAN(R.string.ach_zavsegdatay_azs, R.string.achd_zapravtes_20_raz, "⛽"),
+    NIGHT_DRIVER(R.string.ach_nochnoy_voditel, R.string.achd_dobavte_rashod_posle_23_00, "🌙"),
+    PHOTO_COLLECTOR(R.string.ach_fotograf, R.string.achd_prikrepite_chek_k_10_rashodam, "📸"),
+    WORKSHOP_REGULAR(R.string.ach_postoyannyy_klient, R.string.achd_posetite_odin_avtoservis_5_raz, "🔩"),
+    HIGH_MILEAGE(R.string.ach_stotysyachnik, R.string.achd_probeg_avto_dostig_100_000_km, "💫")
 }
 
 @Entity(tableName = "achievements")

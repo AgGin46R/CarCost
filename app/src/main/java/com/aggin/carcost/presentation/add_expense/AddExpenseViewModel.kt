@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.add_expense
 
+import com.aggin.carcost.R
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
@@ -462,10 +463,10 @@ class AddExpenseViewModel(
             }
             try {
                 val inputStream = (getApplication() as android.app.Application).contentResolver.openInputStream(uri)
-                    ?: throw IllegalStateException("Не удалось открыть изображение")
+                    ?: throw IllegalStateException(getApplication<Application>().getString(R.string.addcar_ne_udalos_otkryt_izobrazhenie))
                 val bitmap = BitmapFactory.decodeStream(inputStream)
                 inputStream.close()
-                if (bitmap == null) throw IllegalStateException("Не удалось декодировать изображение")
+                if (bitmap == null) throw IllegalStateException(getApplication<Application>().getString(R.string.addexp_ne_udalos_dekodirovat_izobrazhenie))
                 val maxSize = 1024
                 val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height, 1f)
                 val scaled = Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
@@ -507,11 +508,11 @@ class AddExpenseViewModel(
 
         // Валидация
         if (state.amount.isBlank() || state.amount.toDoubleOrNull() == null) {
-            _uiState.value = state.copy(showError = true, errorMessage = "Введите сумму")
+            _uiState.value = state.copy(showError = true, errorMessage = getApplication<Application>().getString(R.string.addexp_vvedite_summu))
             return
         }
         if (state.odometer.isBlank() || state.odometer.toIntOrNull() == null) {
-            _uiState.value = state.copy(showError = true, errorMessage = "Введите пробег")
+            _uiState.value = state.copy(showError = true, errorMessage = getApplication<Application>().getString(R.string.addcar_vvedite_probeg))
             return
         }
 
@@ -717,8 +718,17 @@ class AddExpenseViewModel(
                 }
             }
 
-            // 4. Пробег автомобиля — по наибольшему из его записей
-            carRepository.refreshOdometerFromExpenses(carId, database.expenseDao())
+            // 4. Пробег автомобиля — по наибольшему из его записей.
+            // Сразу же отправляем на сервер: расход уезжает туда мгновенно, а
+            // пробег автомобиля ждал бы следующей синхронизации, и загрузка в
+            // этом промежутке возвращала бы старое значение обратно.
+            if (carRepository.refreshOdometerFromExpenses(carId, database.expenseDao())) {
+                runCatching {
+                    carRepository.getCarById(carId)?.let { supabaseCarRepo.updateCar(it) }
+                }.onFailure { error ->
+                    android.util.Log.w("AddExpense", "Пробег не уехал на сервер: ${error.message}")
+                }
+            }
 
             // 5. ✅ СИНХРОНИЗИРУЕМ С SUPABASE
             try {
@@ -847,12 +857,12 @@ class AddExpenseViewModel(
                             ?.sumOf { it.amount } ?: 0.0
                         if (monthlyTotal > budget.monthlyLimit) {
                             val over = monthlyTotal - budget.monthlyLimit
-                            val catName = NotificationHelper.categoryDisplayName(state.category.name)
+                            val catName = NotificationHelper.categoryDisplayName(getApplication(), state.category.name)
                             NotificationHelper.sendGenericNotification(
                                 context = getApplication(),
                                 notificationId = state.category.ordinal + 3000,
-                                title = "Превышен бюджет: $catName",
-                                body = "Перерасход: +${"%.0f".format(over)} ₽ (лимит ${"%.0f".format(budget.monthlyLimit)} ₽)"
+                                title = getApplication<Application>().getString(R.string.addexp_prevyshen_byudzhet, catName),
+                                body = getApplication<Application>().getString(R.string.addexp_pererashod_limit, "%.0f".format(over), "%.0f".format(budget.monthlyLimit))
                             )
                         }
                     }
@@ -920,7 +930,7 @@ class AddExpenseViewModel(
             _uiState.value = state.copy(
                 isSaving = false,
                 showError = true,
-                errorMessage = "Ошибка сохранения: ${e.message}"
+                errorMessage = getApplication<Application>().getString(R.string.addcar_oshibka_sohraneniya, e.message)
             )
         }
     }

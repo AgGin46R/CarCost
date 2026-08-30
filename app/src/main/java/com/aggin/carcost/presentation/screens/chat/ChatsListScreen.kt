@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.chat
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import android.util.Log
 import androidx.compose.foundation.clickable
@@ -107,10 +109,10 @@ fun ChatsListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Чаты") },
+                title = { Text(stringResource(R.string.chat_chaty)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -140,12 +142,12 @@ fun ChatsListScreen(
                     )
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "Нет автомобилей",
+                        stringResource(R.string.home_net_avtomobiley),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                     Text(
-                        "Добавьте автомобиль чтобы начать общаться",
+                        stringResource(R.string.chat_dobavte_avtomobil_chtoby_nachat_obschatsya),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
@@ -233,7 +235,7 @@ private fun CarChatItem(
                 text = preview.lastMessage?.let { msg ->
                     val sender = msg.userEmail.substringBefore("@")
                     "$sender: ${msg.message}"
-                } ?: "Нет сообщений",
+                } ?: stringResource(R.string.chat_net_soobscheniy),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(
                     alpha = if (preview.lastMessage != null) 0.7f else 0.4f
@@ -251,7 +253,7 @@ private fun formatTime(epochMs: Long): String {
     val dayMs = 24 * 60 * 60 * 1000L
     return when {
         diff < dayMs -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epochMs))
-        diff < 7 * dayMs -> SimpleDateFormat("EEE", Locale("ru")).format(Date(epochMs))
+        diff < 7 * dayMs -> SimpleDateFormat("EEE", Locale.getDefault()).format(Date(epochMs))
         else -> SimpleDateFormat("dd.MM", Locale.getDefault()).format(Date(epochMs))
     }
 }

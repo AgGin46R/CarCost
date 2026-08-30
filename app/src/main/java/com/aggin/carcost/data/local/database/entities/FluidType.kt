@@ -1,17 +1,20 @@
 package com.aggin.carcost.data.local.database.entities
 
+import androidx.annotation.StringRes
+import com.aggin.carcost.R
+
 enum class FluidType(
-    val labelRu: String,
+    @StringRes val labelRes: Int,
     val emoji: String,
     val checkIntervalDays: Int
 ) {
-    ENGINE_OIL("Моторное масло", "🛢️", 90),
-    BRAKE_FLUID("Тормозная жидкость", "🔴", 365),
-    COOLANT("Охлаждающая жидкость", "🌡️", 365),
-    WINDSHIELD_WASHER("Омывайка", "🧴", 30),
-    POWER_STEERING("Жидкость ГУР", "🔧", 365),
-    TRANSMISSION("Трансмиссионное масло", "⚙️", 365),
-    BATTERY_COOLANT("Охлаждающая жидкость батареи", "🔋", 365)
+    ENGINE_OIL(R.string.fluid_motornoe_maslo, "🛢️", 90),
+    BRAKE_FLUID(R.string.fluid_tormoznaya_zhidkost, "🔴", 365),
+    COOLANT(R.string.fluid_ohlazhdayuschaya_zhidkost, "🌡️", 365),
+    WINDSHIELD_WASHER(R.string.fluid_omyvayka, "🧴", 30),
+    POWER_STEERING(R.string.fluid_zhidkost_gur, "🔧", 365),
+    TRANSMISSION(R.string.fluid_transmissionnoe_maslo, "⚙️", 365),
+    BATTERY_COOLANT(R.string.fluid_ohlazhdayuschaya_zhidkost_batarei, "🔋", 365)
 }
 
 /**

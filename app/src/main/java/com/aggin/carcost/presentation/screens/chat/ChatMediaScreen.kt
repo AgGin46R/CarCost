@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.chat
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -60,10 +62,10 @@ import java.util.Locale
  * их никто не слушает.
  */
 
-enum class MediaTab(val title: String) {
-    PHOTOS("Фото"),
-    VIDEOS("Видео"),
-    FILES("Файлы")
+enum class MediaTab(@androidx.annotation.StringRes val titleRes: Int) {
+    PHOTOS(R.string.chat_foto),
+    VIDEOS(R.string.chat_video),
+    FILES(R.string.chat_fayly)
 }
 
 data class ChatMediaUiState(
@@ -137,7 +139,7 @@ fun ChatMediaScreen(navController: NavController, carId: String) {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Вложения", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.chat_vlozheniya), fontWeight = FontWeight.Bold)
                         if (uiState.carName.isNotBlank()) {
                             Text(
                                 uiState.carName,
@@ -149,7 +151,7 @@ fun ChatMediaScreen(navController: NavController, carId: String) {
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 }
             )
@@ -170,7 +172,8 @@ fun ChatMediaScreen(navController: NavController, carId: String) {
                         text = {
                             // Число рядом с названием: сразу видно, где искать,
                             // и не нужно открывать пустой раздел, чтобы это понять
-                            Text(if (count > 0) "${entry.title} $count" else entry.title)
+                            val title = stringResource(entry.titleRes)
+                            Text(if (count > 0) "$title $count" else title)
                         }
                     )
                 }
@@ -190,9 +193,9 @@ fun ChatMediaScreen(navController: NavController, carId: String) {
                 items.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                     Text(
                         when (tab) {
-                            MediaTab.PHOTOS -> "Фотографий пока нет"
-                            MediaTab.VIDEOS -> "Видео пока нет"
-                            MediaTab.FILES -> "Файлов пока нет"
+                            MediaTab.PHOTOS -> stringResource(R.string.chat_fotografiy_poka_net)
+                            MediaTab.VIDEOS -> stringResource(R.string.chat_video_poka_net)
+                            MediaTab.FILES -> stringResource(R.string.chat_faylov_poka_net)
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -308,7 +311,7 @@ private fun MediaCell(
         if (isVideo) {
             Icon(
                 Icons.Default.PlayCircle,
-                contentDescription = "Видео",
+                contentDescription = stringResource(R.string.chat_video),
                 tint = Color.White.copy(alpha = 0.9f),
                 modifier = Modifier.size(36.dp).align(Alignment.Center)
             )
@@ -319,7 +322,7 @@ private fun MediaCell(
 /** Строка списка файлов: значок по расширению, название и дата отправки. */
 @Composable
 private fun FileRow(message: ChatMessage, onClick: () -> Unit, onDownload: () -> Unit) {
-    val name = message.fileName ?: "Файл"
+    val name = message.fileName ?: stringResource(R.string.chat_fayl)
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(12.dp)
@@ -344,13 +347,13 @@ private fun FileRow(message: ChatMessage, onClick: () -> Unit, onDownload: () ->
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    SimpleDateFormat("d MMMM yyyy", Locale("ru")).format(Date(message.createdAt)),
+                    SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(message.createdAt)),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(onClick = onDownload) {
-                Icon(Icons.Default.Download, contentDescription = "Скачать")
+                Icon(Icons.Default.Download, contentDescription = stringResource(R.string.action_download))
             }
         }
     }

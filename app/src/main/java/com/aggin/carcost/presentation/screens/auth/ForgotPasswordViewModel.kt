@@ -1,5 +1,8 @@
 package com.aggin.carcost.presentation.screens.auth
 
+import android.app.Application
+import com.aggin.carcost.R
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
@@ -36,7 +39,11 @@ data class ForgotPasswordUiState(
  * два экрана показывали разные числа для одной машины. Один лишний ввод пароля
  * дешевле.
  */
-class ForgotPasswordViewModel : ViewModel() {
+/**
+ * Наследуется от AndroidViewModel ради контекста: сообщения об ошибках лежат
+ * в ресурсах, а достать их без контекста нельзя.
+ */
+class ForgotPasswordViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         /**
@@ -81,7 +88,7 @@ class ForgotPasswordViewModel : ViewModel() {
     fun sendCode() {
         val email = _uiState.value.email.trim()
         if (!email.contains("@") || !email.contains(".")) {
-            _uiState.update { it.copy(errorMessage = "Введите корректный email") }
+            _uiState.update { it.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_korrektnyy_email)) }
             return
         }
 
@@ -99,7 +106,7 @@ class ForgotPasswordViewModel : ViewModel() {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = friendlyError(e, "Не удалось отправить письмо")
+                            errorMessage = friendlyError(e, getApplication<Application>().getString(R.string.auth_ne_udalos_otpravit_pismo))
                         )
                     }
                 }
@@ -110,7 +117,7 @@ class ForgotPasswordViewModel : ViewModel() {
     fun verifyCode() {
         val state = _uiState.value
         if (state.code.length < MIN_CODE_LENGTH) {
-            _uiState.update { it.copy(errorMessage = "Введите код из письма полностью") }
+            _uiState.update { it.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_kod_iz_pisma_polnostyu)) }
             return
         }
 
@@ -125,7 +132,7 @@ class ForgotPasswordViewModel : ViewModel() {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = friendlyError(e, "Код не подошёл. Проверьте его или запросите новый")
+                            errorMessage = friendlyError(e, getApplication<Application>().getString(R.string.auth_kod_ne_podoshel_proverte_ego_ili))
                         )
                     }
                 }
@@ -137,11 +144,11 @@ class ForgotPasswordViewModel : ViewModel() {
         val state = _uiState.value
         when {
             state.password.length < 6 -> {
-                _uiState.update { it.copy(errorMessage = "Пароль должен быть не менее 6 символов") }
+                _uiState.update { it.copy(errorMessage = getApplication<Application>().getString(R.string.profile_parol_dolzhen_byt_ne_menee_6_simvolov)) }
                 return
             }
             state.password != state.passwordRepeat -> {
-                _uiState.update { it.copy(errorMessage = "Пароли не совпадают") }
+                _uiState.update { it.copy(errorMessage = getApplication<Application>().getString(R.string.profile_paroli_ne_sovpadayut)) }
                 return
             }
         }
@@ -160,7 +167,7 @@ class ForgotPasswordViewModel : ViewModel() {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = friendlyError(e, "Не удалось сохранить пароль")
+                            errorMessage = friendlyError(e, getApplication<Application>().getString(R.string.auth_ne_udalos_sohranit_parol))
                         )
                     }
                 }
@@ -193,13 +200,13 @@ class ForgotPasswordViewModel : ViewModel() {
         val raw = e.message?.lowercase().orEmpty()
         return when {
             "expired" in raw || "invalid" in raw ->
-                "Код не подошёл или устарел. Запросите новый"
+                getApplication<Application>().getString(R.string.auth_kod_ne_podoshel_ili_ustarel_zaprosite)
             "rate limit" in raw || "too many" in raw || "429" in raw ->
-                "Слишком много попыток. Подождите минуту"
+                getApplication<Application>().getString(R.string.auth_slishkom_mnogo_popytok_podozhdite_minutu)
             "weak" in raw || "password" in raw && "short" in raw ->
-                "Пароль слишком простой"
+                getApplication<Application>().getString(R.string.auth_parol_slishkom_prostoy)
             "network" in raw || "host" in raw || "timeout" in raw ->
-                "Нет связи с сервером"
+                getApplication<Application>().getString(R.string.auth_net_svyazi_s_serverom)
             else -> fallback
         }
     }

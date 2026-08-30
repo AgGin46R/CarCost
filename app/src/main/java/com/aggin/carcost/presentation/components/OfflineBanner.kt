@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.components
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
@@ -87,7 +89,7 @@ fun OfflineBanner(modifier: Modifier = Modifier) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Нет подключения — данные могут быть устаревшими",
+                    stringResource(R.string.components_net_podklyucheniya_dannye_mogut_byt),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )

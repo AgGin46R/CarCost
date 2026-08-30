@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Языки, которые приложение объявляет системе.
+
+  Android 13 и новее показывает по этому списку пункт «Язык приложения»
+  в системных настройках. Свой переключатель внутри приложения остаётся:
+  на Android 8–12 системного пункта нет, а нижняя граница у нас — Android 8.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="ru"/>
+    <locale android:name="en"/>
+    <locale android:name="be"/>
+    <locale android:name="kk"/>
+</locale-config>

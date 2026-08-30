@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.onboarding
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -60,52 +62,61 @@ data class OnboardingPage(
     val description: String
 )
 
-private val pages = listOf(
+/**
+ * Страницы приветствия.
+ *
+ * Функция, а не свойство файла: тексты читаются из ресурсов, а те доступны
+ * только внутри композиции. Свойство вычислилось бы один раз при загрузке
+ * класса — до того, как язык вообще известен.
+ */
+@Composable
+private fun onboardingPages(): List<OnboardingPage> = listOf(
     OnboardingPage(
         icon = Icons.Default.DirectionsCar,
         iconTint = Green,
         iconBackground = Color(0xFF1A2F1A),
         title = "CarCost",
-        subtitle = "Ваш автомобиль\nпод контролем",
-        description = "Полный учёт расходов, история обслуживания и аналитика — всё в одном месте"
+        subtitle = stringResource(R.string.onboarding_vash_avtomobil_npod_kontrolem),
+        description = stringResource(R.string.onboarding_polnyy_uchet_rashodov_istoriya)
     ),
     OnboardingPage(
         icon = Icons.Default.Receipt,
         iconTint = Color(0xFF64B5F6),
         iconBackground = Color(0xFF0D1F2D),
-        title = "Расходы",
-        subtitle = "Учитывайте\nкаждую трату",
-        description = "Записывайте топливо, ТО, штрафы, страховку и всё остальное. Прикрепляйте фото чеков прямо с камеры"
+        title = stringResource(R.string.onboarding_rashody),
+        subtitle = stringResource(R.string.onboarding_uchityvayte_nkazhduyu_tratu),
+        description = stringResource(R.string.onboarding_zapisyvayte_toplivo_to_shtrafy_strahovku)
     ),
     OnboardingPage(
         icon = Icons.Default.LocalGasStation,
         iconTint = Color(0xFFFFB74D),
         iconBackground = Color(0xFF2D1F00),
-        title = "Топливо",
-        subtitle = "Следите за расходами\nна топливо",
-        description = "Автоматический расчёт л/100км, графики потребления и расчётный остаток в баке"
+        title = stringResource(R.string.home_toplivo),
+        subtitle = stringResource(R.string.onboarding_sledite_za_rashodami_nna_toplivo),
+        description = stringResource(R.string.onboarding_avtomaticheskiy_raschet_l_100km_grafiki)
     ),
     OnboardingPage(
         icon = Icons.Default.BarChart,
         iconTint = Green,
         iconBackground = Color(0xFF1A2F1A),
-        title = "Аналитика",
-        subtitle = "Анализируйте\nи экономьте",
-        description = "Графики расходов по категориям, бюджеты на месяц, TCO и сравнение нескольких автомобилей"
+        title = stringResource(R.string.cardetail_analitika),
+        subtitle = stringResource(R.string.onboarding_analiziruyte_ni_ekonomte),
+        description = stringResource(R.string.onboarding_grafiki_rashodov_po_kategoriyam_byudzhety)
     ),
     OnboardingPage(
         icon = Icons.Default.Notifications,
         iconTint = Color(0xFFEF5350),
         iconBackground = Color(0xFF2D0D0D),
-        title = "Уведомления",
-        subtitle = "Не пропускайте\nважное",
-        description = "Push-уведомления о плановом ТО, истекающих документах и низком уровне топлива"
+        title = stringResource(R.string.onboarding_uvedomleniya),
+        subtitle = stringResource(R.string.onboarding_ne_propuskayte_nvazhnoe),
+        description = stringResource(R.string.onboarding_push_uvedomleniya_o_planovom_to)
     )
 )
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(navController: NavController) {
+    val pages = onboardingPages()
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
     val scope = rememberCoroutineScope()
@@ -197,7 +208,7 @@ fun OnboardingScreen(navController: NavController) {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Загрузить демо-данные (Toyota Camry с примерами расходов)",
+                            stringResource(R.string.onboarding_zagruzit_demo_dannye_toyota_camry_s),
                             color = TextSecondary,
                             fontSize = 13.sp
                         )
@@ -248,7 +259,7 @@ fun OnboardingScreen(navController: NavController) {
                         )
                     } else {
                         Text(
-                            if (isLastPage) "Начать" else "Далее",
+                            if (isLastPage) stringResource(R.string.onboarding_nachat) else stringResource(R.string.action_next),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -268,7 +279,7 @@ fun OnboardingScreen(navController: NavController) {
                             }
                         }
                     ) {
-                        Text("Пропустить", color = TextSecondary, fontSize = 14.sp)
+                        Text(stringResource(R.string.action_skip), color = TextSecondary, fontSize = 14.sp)
                     }
                 }
             }

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.car_detail
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -82,25 +84,25 @@ fun ExpenseDetailSheet(
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
 
-            DetailRow("Дата", formatDateLong(expense.date))
-            DetailRow("Пробег", "${expense.odometer} км")
+            DetailRow(stringResource(R.string.cardetail_data), formatDateLong(expense.date))
+            DetailRow(stringResource(R.string.home_probeg), stringResource(R.string.home_km, expense.odometer))
 
-            expense.fuelLiters?.let { DetailRow("Заправлено", "%.2f л".format(it)) }
-            expense.energyKwh?.let { DetailRow("Заряжено", "%.1f кВт·ч".format(it)) }
-            expense.fuelType?.takeIf { it.isNotBlank() }?.let { DetailRow("Марка топлива", it) }
-            if (expense.isFullTank) DetailRow("Заправка", "до полного")
-            fuelConsumptionL100km?.let { DetailRow("Расход", "%.2f л/100 км".format(it)) }
+            expense.fuelLiters?.let { DetailRow(stringResource(R.string.cardetail_zapravleno), stringResource(R.string.cardetail_2f_l).format(it)) }
+            expense.energyKwh?.let { DetailRow(stringResource(R.string.cardetail_zaryazheno), stringResource(R.string.cardetail_1f_kvt_ch).format(it)) }
+            expense.fuelType?.takeIf { it.isNotBlank() }?.let { DetailRow(stringResource(R.string.cardetail_marka_topliva), it) }
+            if (expense.isFullTank) DetailRow(stringResource(R.string.cardetail_zapravka), stringResource(R.string.cardetail_do_polnogo))
+            fuelConsumptionL100km?.let { DetailRow(stringResource(R.string.cardetail_rashod), stringResource(R.string.cardetail_2f_l_100_km).format(it)) }
 
-            expense.serviceType?.let { DetailRow("Работа", it.displayName()) }
-            expense.workshopName?.takeIf { it.isNotBlank() }?.let { DetailRow("Сервис", it) }
-            expense.maintenanceParts?.takeIf { it.isNotBlank() }?.let { DetailRow("Запчасти", it) }
-            expense.location?.takeIf { it.isNotBlank() }?.let { DetailRow("Место", it) }
-            expense.description?.takeIf { it.isNotBlank() }?.let { DetailRow("Описание", it) }
+            expense.serviceType?.let { DetailRow(stringResource(R.string.cardetail_rabota), it.displayName()) }
+            expense.workshopName?.takeIf { it.isNotBlank() }?.let { DetailRow(stringResource(R.string.cardetail_servis), it) }
+            expense.maintenanceParts?.takeIf { it.isNotBlank() }?.let { DetailRow(stringResource(R.string.cardetail_zapchasti), it) }
+            expense.location?.takeIf { it.isNotBlank() }?.let { DetailRow(stringResource(R.string.cardetail_mesto), it) }
+            expense.description?.takeIf { it.isNotBlank() }?.let { DetailRow(stringResource(R.string.cardetail_opisanie), it) }
 
             if (tags.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Метки",
+                    text = stringResource(R.string.cardetail_metki),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -123,7 +125,7 @@ fun ExpenseDetailSheet(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Чек",
+                        text = stringResource(R.string.cardetail_chek),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -131,7 +133,7 @@ fun ExpenseDetailSheet(
                 Spacer(Modifier.height(8.dp))
                 AsyncImage(
                     model = uri,
-                    contentDescription = "Чек",
+                    contentDescription = stringResource(R.string.cardetail_chek),
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 260.dp)
@@ -142,7 +144,7 @@ fun ExpenseDetailSheet(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Нажмите, чтобы открыть и приблизить",
+                    text = stringResource(R.string.cardetail_nazhmite_chtoby_otkryt_i_priblizit),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -152,7 +154,7 @@ fun ExpenseDetailSheet(
             Button(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Изменить")
+                Text(stringResource(R.string.action_edit))
             }
         }
     }

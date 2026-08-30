@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.fluid_levels
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,10 +50,10 @@ fun FluidLevelsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Уровни жидкостей") },
+                title = { Text(stringResource(R.string.cardetail_urovni_zhidkostey)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -72,7 +74,7 @@ fun FluidLevelsScreen(
             ) {
                 item {
                     Text(
-                        text = "Отмечайте уровень при проверке — приложение напомнит, когда смотреть снова",
+                        text = stringResource(R.string.fluidlevels_otmechayte_uroven_pri_proverke),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp)
@@ -142,19 +144,19 @@ private fun FluidLevelCard(
                     Text(text = item.type.emoji, fontSize = 22.sp)
                     Column {
                         Text(
-                            text = item.type.labelRu,
+                            text = item.type.let { stringResource(it.labelRes) },
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
                         if (item.existing != null) {
                             Text(
-                                text = "Проверено ${dateFormat.format(Date(item.existing.checkedAt))}",
+                                text = stringResource(R.string.fluidlevels_provereno, dateFormat.format(Date(item.existing.checkedAt))),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             Text(
-                                text = "Ещё не проверялось",
+                                text = stringResource(R.string.fluidlevels_esche_ne_proveryalos),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -168,13 +170,13 @@ private fun FluidLevelCard(
                     if (item.isOverdue) {
                         Icon(
                             Icons.Default.Warning,
-                            contentDescription = "Требует проверки",
+                            contentDescription = stringResource(R.string.fluidlevels_trebuet_proverki),
                             tint = Color(0xFFFF9800),
                             modifier = Modifier.size(18.dp)
                         )
                     }
                     TextButton(onClick = onUpdate) {
-                        Text("Обновить")
+                        Text(stringResource(R.string.fluidlevels_obnovit))
                     }
                 }
             }
@@ -222,7 +224,7 @@ private fun FluidLevelCard(
             if (item.isOverdue && item.existing != null) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "⚠ Рекомендуется проверить (интервал ${item.type.checkIntervalDays} дней)",
+                    text = stringResource(R.string.fluidlevels_rekomenduetsya_proverit_interval_dney, item.type.checkIntervalDays),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFFFF9800)
                 )
@@ -251,14 +253,14 @@ private fun FluidUpdateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("${fluidType.emoji} ${fluidType.labelRu}") },
+        title = { Text("${fluidType.emoji} ${fluidType.let { stringResource(it.labelRes) }}") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Укажите текущий уровень: ${(sliderValue * 100).toInt()}%",
+                    text = stringResource(R.string.fluidlevels_ukazhite_tekuschiy_uroven, (sliderValue * 100).toInt()),
                     style = MaterialTheme.typography.bodyMedium,
                     color = levelColor,
                     fontWeight = FontWeight.SemiBold
@@ -291,7 +293,7 @@ private fun FluidUpdateDialog(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Заметка (необязательно)") },
+                    label = { Text(stringResource(R.string.fluidlevels_zametka_neobyazatelno)) },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 2
                 )
@@ -299,11 +301,11 @@ private fun FluidUpdateDialog(
         },
         confirmButton = {
             Button(onClick = { onConfirm(sliderValue, notes) }) {
-                Text("Сохранить")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.gps_trip
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.*
@@ -126,10 +128,10 @@ fun TripMapScreen(tripId: String, navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Маршрут поездки") },
+                title = { Text(stringResource(R.string.gpstrip_marshrut_poezdki)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -156,7 +158,7 @@ fun TripMapScreen(tripId: String, navController: NavController) {
                             tint = MaterialTheme.colorScheme.error
                         )
                         Spacer(Modifier.height(12.dp))
-                        Text("Поездка не найдена", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.gpstrip_poezdka_ne_naydena), style = MaterialTheme.typography.titleMedium)
                     }
                 }
 
@@ -175,13 +177,13 @@ fun TripMapScreen(tripId: String, navController: NavController) {
                         )
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            "Маршрут не записан",
+                            stringResource(R.string.gpstrip_marshrut_ne_zapisan),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "GPS-точки отсутствуют для этой поездки",
+                            stringResource(R.string.gpstrip_gps_tochki_otsutstvuyut_dlya_etoy_poezdki),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -278,7 +280,7 @@ fun TripStatsCard(trip: GpsTrip) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                "Статистика поездки",
+                stringResource(R.string.gpstrip_statistika_poezdki),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -296,23 +298,23 @@ fun TripStatsRow(trip: GpsTrip) {
     ) {
         TripStatItem(
             icon = Icons.Default.Straighten,
-            label = "Дистанция",
-            value = "%.1f км".format(trip.distanceKm)
+            label = stringResource(R.string.gpstrip_distantsiya),
+            value = stringResource(R.string.analytics_1f_km).format(trip.distanceKm)
         )
         if (trip.endTime != null) {
             val durationMin = ((trip.endTime - trip.startTime) / 60_000).toInt()
             val h = durationMin / 60; val m = durationMin % 60
             TripStatItem(
                 icon = Icons.Default.Timer,
-                label = "Время",
-                value = if (h > 0) "${h}ч ${m}м" else "${m} мин"
+                label = stringResource(R.string.gpstrip_vremya),
+                value = if (h > 0) stringResource(R.string.gpstrip_ch_m, h, m) else stringResource(R.string.gpstrip_min_2, m)
             )
         }
         trip.avgSpeedKmh?.let { speed ->
             TripStatItem(
                 icon = Icons.Default.Speed,
-                label = "Ср. скорость",
-                value = "%.0f км/ч".format(speed)
+                label = stringResource(R.string.analytics_sr_skorost),
+                value = stringResource(R.string.analytics_0f_km_ch).format(speed)
             )
         }
     }

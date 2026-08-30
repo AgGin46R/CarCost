@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.bug_report
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -33,10 +35,10 @@ fun BugReportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Сообщить об ошибке") },
+                title = { Text(stringResource(R.string.bugreport_soobschit_ob_oshibke)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 }
             )
@@ -57,8 +59,8 @@ fun BugReportScreen(
             OutlinedTextField(
                 value = uiState.userDescription,
                 onValueChange = { viewModel.updateDescription(it) },
-                label = { Text("Опишите проблему") },
-                placeholder = { Text("Что пошло не так? Что вы хотели сделать?") },
+                label = { Text(stringResource(R.string.bugreport_opishite_problemu)) },
+                placeholder = { Text(stringResource(R.string.bugreport_chto_poshlo_ne_tak_chto_vy_hoteli_sdelat)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 150.dp),
@@ -72,7 +74,7 @@ fun BugReportScreen(
                             color = MaterialTheme.colorScheme.error
                         )
                     } else {
-                        Text("Минимум 10 символов")
+                        Text(stringResource(R.string.bugreport_minimum_10_simvolov))
                     }
                 }
             )
@@ -93,7 +95,7 @@ fun BugReportScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
-                Text(if (uiState.isLoading) "Отправка..." else "Отправить отчёт")
+                Text(if (uiState.isLoading) stringResource(R.string.bugreport_otpravka) else stringResource(R.string.bugreport_otpravit_otchet))
             }
         }
     }
@@ -127,13 +129,13 @@ fun InfoCard() {
                 // подпись поля ниже. Вместо этого — что писать, чтобы по отчёту
                 // можно было воспроизвести ошибку
                 Text(
-                    text = "Как описать ошибку",
+                    text = stringResource(R.string.bugreport_kak_opisat_oshibku),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Что вы делали, чего ожидали и что вышло вместо этого. " +
-                        "Если получается повторить — напишите, какими шагами.",
+                    text = stringResource(R.string.bugreport_chto_vy_delali_chego_ozhidali_i_chto) +
+                        stringResource(R.string.bugreport_esli_poluchaetsya_povtorit_napishite),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )
@@ -148,32 +150,32 @@ fun DataCollectionInfo() {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "Что будет отправлено:",
+            text = stringResource(R.string.bugreport_chto_budet_otpravleno),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Medium
         )
 
         DataCollectionItem(
             icon = Icons.Default.Description,
-            text = "Ваше описание проблемы"
+            text = stringResource(R.string.bugreport_vashe_opisanie_problemy)
         )
         DataCollectionItem(
             icon = Icons.Default.Smartphone,
-            text = "Информация об устройстве (модель, версия Android)"
+            text = stringResource(R.string.bugreport_informatsiya_ob_ustroystve_model_versiya)
         )
         DataCollectionItem(
             icon = Icons.Default.Analytics,
-            text = "Логи приложения (последние 200 записей)"
+            text = stringResource(R.string.bugreport_logi_prilozheniya_poslednie_200_zapisey)
         )
         DataCollectionItem(
             icon = Icons.Default.Person,
-            text = "Ваш email для обратной связи"
+            text = stringResource(R.string.bugreport_vash_email_dlya_obratnoy_svyazi)
         )
 
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "Мы не собираем персональные данные о ваших автомобилях и расходах.",
+            text = stringResource(R.string.bugreport_my_ne_sobiraem_personalnye_dannye_o),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )

@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.backup
 
+import com.aggin.carcost.R
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -47,19 +48,26 @@ data class CarCostBackup(
         const val FORMAT_VERSION = 1
     }
 
-    val summary: String
-        get() = buildList {
-            if (cars.isNotEmpty()) add("${cars.size} авто")
-            if (expenses.isNotEmpty()) add("${expenses.size} расходов")
-            if (reminders.isNotEmpty()) add("${reminders.size} напоминаний")
-            if (plannedExpenses.isNotEmpty()) add("${plannedExpenses.size} планов")
-            if (documents.isNotEmpty()) add("${documents.size} документов")
-            if (insurancePolicies.isNotEmpty()) add("${insurancePolicies.size} страховок")
-            if (incidents.isNotEmpty()) add("${incidents.size} инцидентов")
-            if (budgets.isNotEmpty()) add("${budgets.size} бюджетов")
-            if (savingsGoals.isNotEmpty()) add("${savingsGoals.size} целей")
-            if (fluidLevels.isNotEmpty()) add("${fluidLevels.size} замеров жидкостей")
-        }.joinToString(", ").ifEmpty { "пусто" }
+    /**
+     * Человеческая сводка резервной копии.
+     *
+     * Функция с контекстом, а не свойство: подписи живут в ресурсах, а у
+     * данных резервной копии своего контекста нет и быть не должно — это
+     * простой набор записей, который сериализуется в файл.
+     */
+    fun summary(context: Context): String =
+        buildList {
+            if (cars.isNotEmpty()) add(context.getString(R.string.backup_avto, cars.size))
+            if (expenses.isNotEmpty()) add(context.getString(R.string.backup_rashodov, expenses.size))
+            if (reminders.isNotEmpty()) add(context.getString(R.string.backup_napominaniy, reminders.size))
+            if (plannedExpenses.isNotEmpty()) add(context.getString(R.string.backup_planov, plannedExpenses.size))
+            if (documents.isNotEmpty()) add(context.getString(R.string.backup_dokumentov, documents.size))
+            if (insurancePolicies.isNotEmpty()) add(context.getString(R.string.backup_strahovok, insurancePolicies.size))
+            if (incidents.isNotEmpty()) add(context.getString(R.string.backup_intsidentov, incidents.size))
+            if (budgets.isNotEmpty()) add(context.getString(R.string.backup_byudzhetov, budgets.size))
+            if (savingsGoals.isNotEmpty()) add(context.getString(R.string.backup_tseley, savingsGoals.size))
+            if (fluidLevels.isNotEmpty()) add(context.getString(R.string.backup_zamerov_zhidkostey, fluidLevels.size))
+        }.joinToString(", ").ifEmpty { context.getString(R.string.backup_pusto) }
 }
 
 class BackupService(private val context: Context) {
@@ -78,7 +86,7 @@ class BackupService(private val context: Context) {
             .format(java.util.Date())
         val file = File(context.cacheDir, "carcost_backup_$stamp.json")
         file.writeText(json.encodeToString(CarCostBackup.serializer(), backup))
-        Log.d(TAG, "Backup written: ${backup.summary}")
+        Log.d(TAG, "Backup written: ${backup.summary(context)}")
         file
     }
 
@@ -130,20 +138,20 @@ class BackupService(private val context: Context) {
         try {
             val text = context.contentResolver.openInputStream(uri)?.use {
                 it.readBytes().decodeToString()
-            } ?: return@withContext Result.failure(Exception("Не удалось открыть файл"))
+            } ?: return@withContext Result.failure(Exception(context.getString(R.string.chat_ne_udalos_otkryt_fayl)))
 
             val backup = json.decodeFromString(CarCostBackup.serializer(), text)
 
             if (backup.formatVersion > CarCostBackup.FORMAT_VERSION) {
                 return@withContext Result.failure(
-                    Exception("Файл создан более новой версией приложения — обновите CarCost")
+                    Exception(context.getString(R.string.backup_fayl_sozdan_bolee_novoy_versiey))
                 )
             }
             Result.success(backup)
         } catch (e: Exception) {
             Log.w(TAG, "Backup parse failed", e)
             Result.failure(
-                Exception("Это не резервная копия CarCost. Старые CSV-файлы восстановить нельзя — их формат для этого не годится.")
+                Exception(context.getString(R.string.backup_eto_ne_rezervnaya_kopiya_carcost_starye))
             )
         }
     }
@@ -174,11 +182,11 @@ class BackupService(private val context: Context) {
             ownedOnly(backup.savingsGoals) { it.carId }.forEach { db.savingsGoalDao().insert(it) }
             ownedOnly(backup.fluidLevels) { it.carId }.forEach { db.fluidLevelDao().insert(it) }
 
-            Log.d(TAG, "Backup restored: ${backup.summary}")
+            Log.d(TAG, "Backup restored: ${backup.summary(context)}")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Restore failed", e)
-            Result.failure(Exception("Не удалось восстановить: ${e.message}"))
+            Result.failure(Exception(context.getString(R.string.backup_ne_udalos_vosstanovit, e.message)))
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.add_expense
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.net.Uri
 import android.os.Build
@@ -131,10 +133,10 @@ fun AddExpenseScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (uiState.isFromPlannedExpense) "Выполнить план" else "Добавить расход") },
+                title = { Text(if (uiState.isFromPlannedExpense) stringResource(R.string.addexp_vypolnit_plan) else stringResource(R.string.cardetail_dobavit_rashod)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -167,7 +169,7 @@ fun AddExpenseScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            "📋 Данные из запланированной покупки",
+                            stringResource(R.string.addexp_dannye_iz_zaplanirovannoy_pokupki),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -198,7 +200,7 @@ fun AddExpenseScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Категория:",
+                        text = stringResource(R.string.addexp_kategoriya),
                         style = MaterialTheme.typography.titleMedium
                     )
                     Surface(
@@ -208,7 +210,7 @@ fun AddExpenseScreen(
                         Text(
                             // Название категории должно совпадать с тем, что стоит
                             // в выборе категории ниже, иначе это выглядит как две разные
-                            text = "🔧 ТО",
+                            text = stringResource(R.string.cardetail_to),
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -217,7 +219,7 @@ fun AddExpenseScreen(
                 }
             } else {
                 Text(
-                    text = "Категория",
+                    text = stringResource(R.string.addexp_kategoriya_2),
                     style = MaterialTheme.typography.titleMedium
                 )
                 CategorySelector(
@@ -243,7 +245,7 @@ fun AddExpenseScreen(
             ) {
                 Icon(Icons.Default.ReceiptLong, null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Сканировать чек")
+                Text(stringResource(R.string.addexp_skanirovat_chek))
             }
             // --- КОНЕЦ НОВОЙ КНОПКИ ---
 
@@ -262,8 +264,8 @@ fun AddExpenseScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = last.location?.takeIf { it.isNotBlank() }
-                            ?.let { "Как в прошлый раз — $it" }
-                            ?: "Как в прошлый раз",
+                            ?.let { stringResource(R.string.addexp_kak_v_proshlyy_raz, it) }
+                            ?: stringResource(R.string.addexp_kak_v_proshlyy_raz_2),
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
@@ -272,7 +274,7 @@ fun AddExpenseScreen(
 
             // Основная информация
             Text(
-                text = "Основная информация",
+                text = stringResource(R.string.addexp_osnovnaya_informatsiya),
                 style = MaterialTheme.typography.titleMedium
             )
 
@@ -280,7 +282,7 @@ fun AddExpenseScreen(
             OutlinedTextField(
                 value = uiState.amount,
                 onValueChange = { viewModel.updateAmount(it) },
-                label = { Text("Сумма *") },
+                label = { Text(stringResource(R.string.addexp_summa)) },
                 placeholder = { Text("100.00") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -299,7 +301,7 @@ fun AddExpenseScreen(
             OutlinedTextField(
                 value = uiState.odometer,
                 onValueChange = { viewModel.updateOdometer(it) },
-                label = { Text("Пробег (км) *") },
+                label = { Text(stringResource(R.string.addexp_probeg_km)) },
                 placeholder = { Text("50000") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -313,12 +315,12 @@ fun AddExpenseScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "GPS-подсказка: $suggested км",
+                        text = stringResource(R.string.addexp_gps_podskazka_km, suggested),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     TextButton(onClick = { viewModel.applySuggestedOdometer() }) {
-                        Text("Применить", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.action_apply), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -329,7 +331,7 @@ fun AddExpenseScreen(
             OutlinedTextField(
                 value = formatDate(uiState.date),
                 onValueChange = { },
-                label = { Text("Дата") },
+                label = { Text(stringResource(R.string.cardetail_data)) },
                 modifier = Modifier.fillMaxWidth(),
                 readOnly = true,
                 enabled = !uiState.isSaving,
@@ -352,8 +354,8 @@ fun AddExpenseScreen(
             OutlinedTextField(
                 value = uiState.description,
                 onValueChange = { viewModel.updateDescription(it) },
-                label = { Text("Описание") },
-                placeholder = { Text("Заправка на Shell") },
+                label = { Text(stringResource(R.string.cardetail_opisanie)) },
+                placeholder = { Text(stringResource(R.string.addexp_zapravka_na_shell)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 maxLines = 4,
@@ -367,8 +369,8 @@ fun AddExpenseScreen(
                 suggestions = uiState.recentLocations
                     .filter { it.contains(uiState.location.trim(), ignoreCase = true) }
                     .take(6),
-                label = "Место",
-                placeholder = "Shell, ул. Ленина",
+                label = stringResource(R.string.cardetail_mesto),
+                placeholder = stringResource(R.string.addexp_shell_ul_lenina),
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isSaving
             )
@@ -390,7 +392,7 @@ fun AddExpenseScreen(
                 ExpenseCategory.FUEL -> {
                     HorizontalDivider()
                     Text(
-                        text = "Детали заправки",
+                        text = stringResource(R.string.addexp_detali_zapravki),
                         style = MaterialTheme.typography.titleMedium
                     )
 
@@ -404,18 +406,18 @@ fun AddExpenseScreen(
                         OutlinedTextField(
                             value = uiState.fuelLiters,
                             onValueChange = { viewModel.updateFuelLiters(it) },
-                            label = { Text("Литров") },
+                            label = { Text(stringResource(R.string.addexp_litrov)) },
                             placeholder = { Text("45.5") },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             enabled = !uiState.isSaving,
-                            suffix = { Text("л") }
+                            suffix = { Text(stringResource(R.string.addexp_l)) }
                         )
                         OutlinedTextField(
                             value = uiState.pricePerUnit,
                             onValueChange = { viewModel.updatePricePerUnit(it) },
-                            label = { Text("Цена за литр") },
+                            label = { Text(stringResource(R.string.addexp_tsena_za_litr)) },
                             placeholder = { Text("58.90") },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
@@ -429,8 +431,8 @@ fun AddExpenseScreen(
                         onValueChange = { viewModel.updateFuelGrade(it) },
                         suggestions = fuelGradesFor(uiState.fuelType)
                             .filter { it.contains(uiState.fuelGrade.trim(), ignoreCase = true) },
-                        label = "Марка топлива",
-                        placeholder = "АИ-95",
+                        label = stringResource(R.string.cardetail_marka_topliva),
+                        placeholder = stringResource(R.string.addexp_ai_95),
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !uiState.isSaving
                     )
@@ -440,7 +442,7 @@ fun AddExpenseScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
-                        Text("Полный бак")
+                        Text(stringResource(R.string.addexp_polnyy_bak))
                         Switch(
                             checked = uiState.isFullTank,
                             onCheckedChange = { viewModel.updateIsFullTank(it) },
@@ -452,7 +454,7 @@ fun AddExpenseScreen(
                 ExpenseCategory.CHARGING -> {
                     HorizontalDivider()
                     Text(
-                        text = "Детали зарядки",
+                        text = stringResource(R.string.addexp_detali_zaryadki),
                         style = MaterialTheme.typography.titleMedium
                     )
 
@@ -463,18 +465,18 @@ fun AddExpenseScreen(
                         OutlinedTextField(
                             value = uiState.energyKwh,
                             onValueChange = { viewModel.updateEnergyKwh(it) },
-                            label = { Text("Киловатт-часов") },
+                            label = { Text(stringResource(R.string.addexp_kilovatt_chasov)) },
                             placeholder = { Text("42.0") },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             enabled = !uiState.isSaving,
-                            suffix = { Text("кВт·ч") }
+                            suffix = { Text(stringResource(R.string.addexp_kvt_ch)) }
                         )
                         OutlinedTextField(
                             value = uiState.pricePerUnit,
                             onValueChange = { viewModel.updatePricePerUnit(it) },
-                            label = { Text("Цена за кВт·ч") },
+                            label = { Text(stringResource(R.string.addexp_tsena_za_kvt_ch)) },
                             placeholder = { Text("12.50") },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
@@ -490,7 +492,7 @@ fun AddExpenseScreen(
                     ) {
                         // Тот же смысл, что «полный бак» у заправки: расход
                         // считается по отрезкам между полными зарядками
-                        Text("Заряд до 100%")
+                        Text(stringResource(R.string.addexp_zaryad_do_100))
                         Switch(
                             checked = uiState.isFullTank,
                             onCheckedChange = { viewModel.updateIsFullTank(it) },
@@ -502,7 +504,7 @@ fun AddExpenseScreen(
                 ExpenseCategory.MAINTENANCE -> {
                     HorizontalDivider()
                     Text(
-                        text = "Детали обслуживания",
+                        text = stringResource(R.string.addexp_detali_obsluzhivaniya),
                         style = MaterialTheme.typography.titleMedium
                     )
 
@@ -517,8 +519,8 @@ fun AddExpenseScreen(
                     OutlinedTextField(
                         value = uiState.workshopName,
                         onValueChange = { viewModel.updateWorkshopName(it) },
-                        label = { Text("Название СТО") },
-                        placeholder = { Text("Автосервис №1") },
+                        label = { Text(stringResource(R.string.addexp_nazvanie_sto)) },
+                        placeholder = { Text(stringResource(R.string.addexp_avtoservis_1)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         enabled = !uiState.isSaving
@@ -527,8 +529,8 @@ fun AddExpenseScreen(
                     OutlinedTextField(
                         value = uiState.maintenanceParts,
                         onValueChange = { viewModel.updateMaintenanceParts(it) },
-                        label = { Text("Запчасти и работы") },
-                        placeholder = { Text("Масло 5W-40, фильтр масляный, прокладка") },
+                        label = { Text(stringResource(R.string.addexp_zapchasti_i_raboty)) },
+                        placeholder = { Text(stringResource(R.string.addexp_maslo_5w_40_filtr_maslyanyy_prokladka)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2,
                         maxLines = 4,
@@ -539,15 +541,15 @@ fun AddExpenseScreen(
                 ExpenseCategory.REPAIR -> {
                     HorizontalDivider()
                     Text(
-                        text = "Детали ремонта",
+                        text = stringResource(R.string.addexp_detali_remonta),
                         style = MaterialTheme.typography.titleMedium
                     )
 
                     OutlinedTextField(
                         value = uiState.workshopName,
                         onValueChange = { viewModel.updateWorkshopName(it) },
-                        label = { Text("Название СТО") },
-                        placeholder = { Text("Автосервис №1") },
+                        label = { Text(stringResource(R.string.addexp_nazvanie_sto)) },
+                        placeholder = { Text(stringResource(R.string.addexp_avtoservis_1)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         enabled = !uiState.isSaving
@@ -565,7 +567,7 @@ fun AddExpenseScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Фото чека", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.addexp_foto_cheka), style = MaterialTheme.typography.titleSmall)
                 OutlinedButton(
                     onClick = {
                         if (!uiState.isUploadingReceipt) {
@@ -581,18 +583,18 @@ fun AddExpenseScreen(
                     if (uiState.isUploadingReceipt) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("Загрузка...")
+                        Text(stringResource(R.string.cardetail_zagruzka))
                     } else {
                         Icon(Icons.Default.CameraAlt, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(if (uiState.receiptPhotoUri != null) "Изменить" else "Прикрепить")
+                        Text(if (uiState.receiptPhotoUri != null) stringResource(R.string.action_edit) else stringResource(R.string.addexp_prikrepit))
                     }
                 }
             }
             if (uiState.receiptPhotoUri != null) {
                 AsyncImage(
                     model = uiState.receiptPhotoUri,
-                    contentDescription = "Фото чека",
+                    contentDescription = stringResource(R.string.addexp_foto_cheka),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
@@ -621,12 +623,12 @@ fun AddExpenseScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text(if (uiState.isFromPlannedExpense) "Выполнить и сохранить" else "Сохранить", style = MaterialTheme.typography.titleMedium)
+                    Text(if (uiState.isFromPlannedExpense) stringResource(R.string.addexp_vypolnit_i_sohranit) else stringResource(R.string.action_save), style = MaterialTheme.typography.titleMedium)
                 }
             }
 
             Text(
-                text = "* Обязательные поля",
+                text = stringResource(R.string.addexp_obyazatelnye_polya),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -679,19 +681,20 @@ fun CategorySelector(
  * В [com.aggin.carcost.presentation.common.Labels] лежат полные названия — они
  * нужны в отчётах и списках, но в фишку шириной в треть экрана не помещаются.
  */
+@Composable
 private fun ExpenseCategory.chipLabel(): String = when (this) {
-    ExpenseCategory.FUEL -> "⛽ Топливо"
-    ExpenseCategory.CHARGING -> "🔌 Зарядка"
-    ExpenseCategory.MAINTENANCE -> "🔧 ТО"
-    ExpenseCategory.REPAIR -> "🛠️ Ремонт"
-    ExpenseCategory.INSURANCE -> "🛡️ Страховка"
-    ExpenseCategory.TAX -> "🧾 Налог"
-    ExpenseCategory.PARKING -> "🅿️ Парковка"
-    ExpenseCategory.TOLL -> "🛣️ Дорога"
-    ExpenseCategory.WASH -> "💧 Мойка"
-    ExpenseCategory.FINE -> "⚠️ Штраф"
-    ExpenseCategory.ACCESSORIES -> "🛒 Аксессуары"
-    ExpenseCategory.OTHER -> "➕ Другое"
+    ExpenseCategory.FUEL -> stringResource(R.string.cardetail_toplivo)
+    ExpenseCategory.CHARGING -> stringResource(R.string.addexp_zaryadka)
+    ExpenseCategory.MAINTENANCE -> stringResource(R.string.cardetail_to)
+    ExpenseCategory.REPAIR -> stringResource(R.string.addexp_remont)
+    ExpenseCategory.INSURANCE -> stringResource(R.string.addexp_strahovka)
+    ExpenseCategory.TAX -> stringResource(R.string.addexp_nalog)
+    ExpenseCategory.PARKING -> stringResource(R.string.cardetail_parkovka)
+    ExpenseCategory.TOLL -> stringResource(R.string.addexp_doroga)
+    ExpenseCategory.WASH -> stringResource(R.string.addexp_moyka)
+    ExpenseCategory.FINE -> stringResource(R.string.addexp_shtraf)
+    ExpenseCategory.ACCESSORIES -> stringResource(R.string.addexp_aksessuary)
+    ExpenseCategory.OTHER -> stringResource(R.string.addexp_drugoe)
 }
 
 @Composable
@@ -729,10 +732,10 @@ fun ServiceTypeDropdown(
         onExpandedChange = { if (enabled) expanded = !expanded }
     ) {
         OutlinedTextField(
-            value = selectedServiceType?.let { getServiceTypeName(it) } ?: "Выберите тип",
+            value = selectedServiceType?.let { getServiceTypeName(it) } ?: stringResource(R.string.addexp_vyberite_tip),
             onValueChange = {},
             readOnly = true,
-            label = { Text("Тип обслуживания") },
+            label = { Text(stringResource(R.string.addexp_tip_obsluzhivaniya)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -757,6 +760,7 @@ fun ServiceTypeDropdown(
     }
 }
 
+@Composable
 fun getServiceTypeName(serviceType: ServiceType) = serviceType.displayName()
 
 /** Row of quick-preset amount chips for fast input. */
@@ -793,17 +797,17 @@ fun AutoCategoryHint(
     // Намеренно НЕ из Labels.kt: в ряд чипов нужны укороченные подписи
     // («Дорога» вместо «Платная дорога»), иначе строка не помещается.
     val categoryLabel = when (category) {
-        ExpenseCategory.FUEL -> "⛽ Топливо"
-        ExpenseCategory.MAINTENANCE -> "🔧 ТО"
-        ExpenseCategory.REPAIR -> "🛠️ Ремонт"
-        ExpenseCategory.INSURANCE -> "🛡️ Страховка"
-        ExpenseCategory.TAX -> "🧾 Налог"
-        ExpenseCategory.PARKING -> "🅿️ Парковка"
-        ExpenseCategory.TOLL -> "🛣️ Дорога"
-        ExpenseCategory.WASH -> "💧 Мойка"
-        ExpenseCategory.FINE -> "⚠️ Штраф"
-        ExpenseCategory.ACCESSORIES -> "🛒 Аксессуары"
-        else -> "Другое"
+        ExpenseCategory.FUEL -> stringResource(R.string.cardetail_toplivo)
+        ExpenseCategory.MAINTENANCE -> stringResource(R.string.cardetail_to)
+        ExpenseCategory.REPAIR -> stringResource(R.string.addexp_remont)
+        ExpenseCategory.INSURANCE -> stringResource(R.string.addexp_strahovka)
+        ExpenseCategory.TAX -> stringResource(R.string.addexp_nalog)
+        ExpenseCategory.PARKING -> stringResource(R.string.cardetail_parkovka)
+        ExpenseCategory.TOLL -> stringResource(R.string.addexp_doroga)
+        ExpenseCategory.WASH -> stringResource(R.string.addexp_moyka)
+        ExpenseCategory.FINE -> stringResource(R.string.addexp_shtraf)
+        ExpenseCategory.ACCESSORIES -> stringResource(R.string.addexp_aksessuary)
+        else -> stringResource(R.string.home_drugoe)
     }
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -823,7 +827,7 @@ fun AutoCategoryHint(
                 tint = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Text(
-                text = "Определено автоматически: $categoryLabel",
+                text = stringResource(R.string.addexp_opredeleno_avtomaticheski, categoryLabel),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.weight(1f)
@@ -832,7 +836,7 @@ fun AutoCategoryHint(
                 onClick = onDismiss,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
             ) {
-                Text("Изменить", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.action_edit), style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -865,7 +869,7 @@ fun DatePickerDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Отмена")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     ) {
@@ -880,13 +884,14 @@ fun DatePickerDialog(
  * топлива на заправках в самом деле пять-шесть, и набирать их руками каждый
  * раз незачем.
  */
+@Composable
 private fun fuelGradesFor(
     fuelType: com.aggin.carcost.data.local.database.entities.FuelType
 ): List<String> = when (fuelType) {
     com.aggin.carcost.data.local.database.entities.FuelType.DIESEL ->
-        listOf("ДТ", "ДТ зимнее", "ДТ Евро", "ДТ премиум")
+        listOf(stringResource(R.string.addexp_dt), stringResource(R.string.addexp_dt_zimnee), stringResource(R.string.addexp_dt_evro), stringResource(R.string.addexp_dt_premium))
     com.aggin.carcost.data.local.database.entities.FuelType.GAS ->
-        listOf("Пропан", "Метан")
+        listOf(stringResource(R.string.addexp_propan), stringResource(R.string.addexp_metan))
     else ->
-        listOf("АИ-92", "АИ-95", "АИ-98", "АИ-100", "АИ-95 премиум", "Пропан")
+        listOf(stringResource(R.string.addexp_ai_92), stringResource(R.string.addexp_ai_95), stringResource(R.string.addexp_ai_98), stringResource(R.string.addexp_ai_100), stringResource(R.string.addexp_ai_95_premium), stringResource(R.string.addexp_propan))
 }

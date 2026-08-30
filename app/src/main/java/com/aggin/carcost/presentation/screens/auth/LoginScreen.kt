@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.auth
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -55,7 +56,7 @@ fun LoginScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Вход") },
+                title = { Text(stringResource(R.string.auth_vhod)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -114,7 +115,7 @@ fun LoginScreen(
             OutlinedTextField(
                 value = uiState.password,
                 onValueChange = { viewModel.updatePassword(it) },
-                label = { Text("Пароль") },
+                label = { Text(stringResource(R.string.auth_parol)) },
                 leadingIcon = {
                     Icon(Icons.Default.Lock, null)
                 },
@@ -159,7 +160,7 @@ fun LoginScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text("Войти", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.auth_voyti), style = MaterialTheme.typography.titleMedium)
                 }
             }
 
@@ -169,7 +170,7 @@ fun LoginScreen(
                 onClick = { navController.navigateOnce("forgot_password") },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Забыли пароль?")
+                Text(stringResource(R.string.auth_zabyli_parol))
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -191,7 +192,7 @@ fun LoginScreen(
                     tint = Color.Unspecified
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Войти через VK", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.auth_voyti_cherez_vk), style = MaterialTheme.typography.titleSmall)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -201,7 +202,7 @@ fun LoginScreen(
                 onClick = { navController.navigateOnce("register") },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Нет аккаунта? Зарегистрироваться")
+                Text(stringResource(R.string.auth_net_akkaunta_zaregistrirovatsya))
             }
         }
     }

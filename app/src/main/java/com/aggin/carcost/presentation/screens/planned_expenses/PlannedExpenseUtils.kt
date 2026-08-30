@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.presentation.common.displayName
@@ -12,6 +13,7 @@ import com.aggin.carcost.util.CurrencyUtils
 
 fun getCategoryIcon(category: ExpenseCategory): ImageVector = category.icon()
 
+@Composable
 fun getCategoryName(category: ExpenseCategory): String = category.displayName()
 
 fun formatDate(timestamp: Long): String = formatDateShort(timestamp)

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.search
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -48,15 +50,15 @@ fun SearchFilterSheet(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Фильтры", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.search_filtry), style = MaterialTheme.typography.titleLarge)
 
             if (cars.size > 1) {
-                Text("Автомобиль", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.maintenancedashboard_avtomobil), style = MaterialTheme.typography.titleSmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = carId == null,
                         onClick = { carId = null },
-                        label = { Text("Все") }
+                        label = { Text(stringResource(R.string.map_vse)) }
                     )
                     cars.forEach { car ->
                         FilterChip(
@@ -68,7 +70,7 @@ fun SearchFilterSheet(
                 }
             }
 
-            Text("Категории", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.components_kategorii), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ExpenseCategory.values().forEach { category ->
                     FilterChip(
@@ -82,24 +84,24 @@ fun SearchFilterSheet(
                 }
             }
 
-            Text("Период", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.components_period), style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = { showStartPicker = true },
                     modifier = Modifier.weight(1f)
-                ) { Text(startDate?.let { formatDateCompact(it) } ?: "С даты") }
+                ) { Text(startDate?.let { formatDateCompact(it) } ?: stringResource(R.string.components_s_daty)) }
                 OutlinedButton(
                     onClick = { showEndPicker = true },
                     modifier = Modifier.weight(1f)
-                ) { Text(endDate?.let { formatDateCompact(it) } ?: "По дату") }
+                ) { Text(endDate?.let { formatDateCompact(it) } ?: stringResource(R.string.components_po_datu)) }
             }
 
-            Text("Сумма", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.components_summa), style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = minAmount,
                     onValueChange = { minAmount = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("От") },
+                    label = { Text(stringResource(R.string.components_ot)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f)
@@ -107,7 +109,7 @@ fun SearchFilterSheet(
                 OutlinedTextField(
                     value = maxAmount,
                     onValueChange = { maxAmount = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("До") },
+                    label = { Text(stringResource(R.string.components_do)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f)
@@ -116,7 +118,7 @@ fun SearchFilterSheet(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onClear, modifier = Modifier.weight(1f)) {
-                    Text("Сбросить")
+                    Text(stringResource(R.string.action_reset))
                 }
                 Button(
                     onClick = {
@@ -132,7 +134,7 @@ fun SearchFilterSheet(
                         )
                     },
                     modifier = Modifier.weight(1f)
-                ) { Text("Применить") }
+                ) { Text(stringResource(R.string.action_apply)) }
             }
         }
     }
@@ -148,7 +150,7 @@ fun SearchFilterSheet(
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showStartPicker = false }) { Text("Отмена") }
+                TextButton(onClick = { showStartPicker = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         ) { DatePicker(state = state) }
     }
@@ -165,7 +167,7 @@ fun SearchFilterSheet(
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showEndPicker = false }) { Text("Отмена") }
+                TextButton(onClick = { showEndPicker = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         ) { DatePicker(state = state) }
     }

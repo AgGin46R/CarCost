@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.chat
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -133,16 +135,16 @@ fun PdfPreviewDialog(
                         Text(fileName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Закрыть") }
+                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, stringResource(R.string.action_close)) }
                     },
                     actions = {
                         IconButton(
                             onClick = { downloadAttachment(context, url, fileName, "file") }
                         ) {
-                            Icon(Icons.Default.Download, "Сохранить документ")
+                            Icon(Icons.Default.Download, stringResource(R.string.chat_sohranit_dokument))
                         }
                         IconButton(onClick = onOpenExternally) {
-                            Icon(Icons.Default.OpenInNew, "Открыть в другом приложении")
+                            Icon(Icons.Default.OpenInNew, stringResource(R.string.chat_otkryt_v_drugom_prilozhenii))
                         }
                     }
                 )
@@ -157,17 +159,17 @@ fun PdfPreviewDialog(
             ) {
                 when {
                     failed -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Не удалось показать документ")
+                        Text(stringResource(R.string.chat_ne_udalos_pokazat_dokument))
                         Spacer(Modifier.height(12.dp))
                         TextButton(onClick = onOpenExternally) {
-                            Text("Открыть другим приложением")
+                            Text(stringResource(R.string.chat_otkryt_drugim_prilozheniem))
                         }
                     }
 
                     pages == null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
                         Spacer(Modifier.height(12.dp))
-                        Text("Загружаем документ…", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.chat_zagruzhaem_dokument), style = MaterialTheme.typography.bodySmall)
                     }
 
                     else -> LazyColumn(

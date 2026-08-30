@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
+import com.aggin.carcost.presentation.common.displayName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,14 +39,22 @@ data class CarBotUiState(
     val modelDownloadProgress: Int = 0,
     val isModelReady: Boolean = false,        // true after LlmInference is initialized
     val isModelInitializing: Boolean = false, // true while engine loads into memory
-    val modelInitError: String? = null        // non-null when initialization failed
+    val modelInitError: String? = null,       // non-null when initialization failed
+    /**
+     * Команда, разобранная из фразы, но ещё не выполненная.
+     *
+     * Запись создаётся только после подтверждения. Фраза может прийти голосом,
+     * а распознавание ошибается: «две тысячи четыреста» легко становится другим
+     * числом, и молча созданная запись потом ищется по всей истории.
+     */
+    val pendingExpense: CarBotCommand.Command.AddExpense? = null
 )
 
 class CarBotViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getDatabase(application)
-    private val engine = CarBotEngine(db)
-    private val contextBuilder = CarContextBuilder()
+    private val engine = CarBotEngine(db, application)
+    private val contextBuilder = CarContextBuilder(application)
     private val modelManager = GemmaModelManager(application.filesDir)
     private var gemmaEngine: GemmaInferenceEngine? = null
 
@@ -72,6 +81,9 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
         )
     )
 
+    /** Команда, разобранная из фразы и ждущая подтверждения */
+    private val _pendingExpense = MutableStateFlow<CarBotCommand.Command.AddExpense?>(null)
+
     // Group 1: messages + cars list
     private val _chatBase = combine(
         _messages,
@@ -85,12 +97,13 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
         _inputText
     ) { selectedCarId, isProcessing, inputText -> Triple(selectedCarId, isProcessing, inputText) }
 
-    // Final combine of 3 flows — all model flags now reactive via _modelState
+    // Final combine — все флаги модели реактивны через _modelState
     val uiState: StateFlow<CarBotUiState> = combine(
         _chatBase,
         _inputBase,
-        _modelState
-    ) { (messages, cars), (selectedCarId, isProcessing, inputText), modelState ->
+        _modelState,
+        _pendingExpense
+    ) { (messages, cars), (selectedCarId, isProcessing, inputText), modelState, pending ->
         val effectiveCarId = selectedCarId
             ?: if (cars.size == 1) cars.first().id else null
         CarBotUiState(
@@ -104,7 +117,8 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
             modelDownloadProgress = modelState.progress,
             isModelReady = modelState.isReady,
             isModelInitializing = modelState.isInitializing,
-            modelInitError = modelState.initError
+            modelInitError = modelState.initError,
+            pendingExpense = pending
         )
     }.stateIn(
         scope = viewModelScope,
@@ -173,7 +187,14 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
                     return@launch
                 }
 
-                // 1. Rules-based first (fast, offline)
+                // 1. Команда? Тогда не отвечаем, а делаем — после подтверждения
+                val command = CarBotCommand.parse(text)
+                if (command != null) {
+                    handleCommand(command)
+                    return@launch
+                }
+
+                // 2. Rules-based first (fast, offline)
                 val rulesAnswer = withContext(Dispatchers.IO) {
                     engine.rulesBasedQuery(text, carId)
                 }
@@ -183,7 +204,7 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
                     return@launch
                 }
 
-                // 2. AI fallback
+                // 3. AI fallback
                 val gemma = gemmaEngine
                 if (gemma == null || !gemma.isReady) {
                     val hint = when {
@@ -194,7 +215,11 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
                         _modelState.value.isDownloaded ->
                             "⏳ AI-движок ещё не запустился. Подождите несколько секунд и попробуйте снова."
                         else ->
-                            "🤔 Не понял вопрос. Для умных ответов — скачайте AI-модель (кнопка ✨ AI вверху)."
+                            // Не зовём скачивать 1,2 ГБ на вопрос, ответ на
+                            // который приложение и так знает из своей базы:
+                            // сначала показываем, что бот умеет
+                            "🤔 Не понял вопрос. Напишите **что умеешь** — там список " +
+                                "того, о чём можно спросить и что можно поручить."
                     }
                     addBotMessage(hint)
                     return@launch
@@ -212,6 +237,98 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
                 _isProcessing.value = false
             }
         }
+    }
+
+    // ── Команды ───────────────────────────────────────────────────────────────
+
+
+    /** Экран, на который бот просит перейти. Читается экраном и сбрасывается */
+    private val _navigateTo = MutableStateFlow<CarBotCommand.Command.Target?>(null)
+    val navigateTo: StateFlow<CarBotCommand.Command.Target?> = _navigateTo
+
+    private suspend fun handleCommand(command: CarBotCommand.Command) {
+        when (command) {
+            is CarBotCommand.Command.Open -> {
+                _navigateTo.value = command.target
+                addBotMessage("Открываю → " + targetName(command.target))
+            }
+
+            is CarBotCommand.Command.AddExpense -> {
+                val carId = uiState.value.selectedCarId
+                if (carId == null) {
+                    addBotMessage("Записывать некуда: сначала выберите автомобиль.")
+                    return
+                }
+                _pendingExpense.value = command
+                addBotMessage(previewOf(command))
+            }
+        }
+    }
+
+    private fun targetName(target: CarBotCommand.Command.Target): String = when (target) {
+        CarBotCommand.Command.Target.ANALYTICS -> "аналитику"
+        CarBotCommand.Command.Target.EXPENSES -> "расходы"
+        CarBotCommand.Command.Target.MAINTENANCE -> "ТО"
+        CarBotCommand.Command.Target.DOCUMENTS -> "документы"
+        CarBotCommand.Command.Target.NAVIGATOR -> "навигатор"
+        CarBotCommand.Command.Target.BUDGET -> "бюджет"
+        CarBotCommand.Command.Target.TIMELINE -> "таймлайн ТО"
+    }
+
+    fun consumeNavigation() { _navigateTo.value = null }
+
+    /** Что именно будет записано — человек видит это до записи, а не после */
+    private fun previewOf(c: CarBotCommand.Command.AddExpense): String {
+        val app = getApplication<Application>()
+        val parts = mutableListOf<String>()
+        parts += c.category.displayName(app)
+        parts += "${c.amount.toInt()} ₽"
+        c.liters?.let { parts += "${it} л" }
+        c.odometer?.let { parts += "${it} км" }
+        return "Записать: **" + parts.joinToString(" · ") + "**?"
+    }
+
+    fun confirmPendingExpense() {
+        val command = _pendingExpense.value ?: return
+        val carId = uiState.value.selectedCarId ?: return
+        _pendingExpense.value = null
+
+        viewModelScope.launch {
+            try {
+                val app = getApplication<Application>()
+                val car = withContext(Dispatchers.IO) { db.carDao().getCarById(carId) }
+                val expense = com.aggin.carcost.data.local.database.entities.Expense(
+                    carId = carId,
+                    category = command.category,
+                    amount = command.amount,
+                    date = System.currentTimeMillis(),
+                    odometer = command.odometer ?: car?.currentOdometer ?: 0,
+                    fuelLiters = command.liters,
+                    title = null
+                )
+                withContext(Dispatchers.IO) {
+                    db.expenseDao().insertExpense(expense)
+                    // Пробег автомобиля — по наибольшему из записей, как и везде
+                    com.aggin.carcost.data.local.repository.CarRepository(db.carDao())
+                        .refreshOdometerFromExpenses(carId, db.expenseDao())
+                    // Отправка на сервер: без неё запись осталась бы только здесь
+                    runCatching {
+                        com.aggin.carcost.data.remote.repository.SupabaseExpenseRepository(
+                            com.aggin.carcost.data.remote.repository.SupabaseAuthRepository()
+                        ).insertExpense(expense)
+                    }
+                }
+                addBotMessage("Готово. Запись добавлена и уехала на сервер.")
+            } catch (e: Exception) {
+                addBotMessage("Не удалось записать: ${e.message}")
+            }
+        }
+    }
+
+    fun cancelPendingExpense() {
+        if (_pendingExpense.value == null) return
+        _pendingExpense.value = null
+        addBotMessage("Отменил, ничего не записал.")
     }
 
     fun sendSuggestion(suggestion: String) {

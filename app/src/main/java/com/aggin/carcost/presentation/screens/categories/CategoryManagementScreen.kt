@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.categories
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,10 +42,10 @@ fun CategoryManagementScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Управление тегами") },
+                title = { Text(stringResource(R.string.categories_upravlenie_tegami)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -54,7 +56,7 @@ fun CategoryManagementScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Добавить тег")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.categories_dobavit_teg))
             }
         }
     ) { paddingValues ->
@@ -81,13 +83,13 @@ fun CategoryManagementScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "У вас ещё нет тегов",
+                        stringResource(R.string.categories_u_vas_esche_net_tegov),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Нажмите кнопку +, чтобы добавить первый тег",
+                        stringResource(R.string.categories_nazhmite_knopku_chtoby_dobavit_pervyy_teg),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
@@ -136,9 +138,9 @@ fun CategoryManagementScreen(
     tagToDelete?.let { tag ->
         AlertDialog(
             onDismissRequest = { tagToDelete = null },
-            title = { Text("Удалить тег?") },
+            title = { Text(stringResource(R.string.categories_udalit_teg)) },
             text = {
-                Text("Вы уверены, что хотите удалить тег \"${tag.name}\"? Это действие нельзя отменить.")
+                Text(stringResource(R.string.categories_vy_uvereny_chto_hotite_udalit_teg_eto, tag.name))
             },
             confirmButton = {
                 TextButton(
@@ -147,12 +149,12 @@ fun CategoryManagementScreen(
                         tagToDelete = null
                     }
                 ) {
-                    Text("Удалить", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { tagToDelete = null }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -204,14 +206,14 @@ fun TagItem(
                 IconButton(onClick = onEdit) {
                     Icon(
                         Icons.Default.Edit,
-                        contentDescription = "Редактировать",
+                        contentDescription = stringResource(R.string.cardetail_redaktirovat),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Default.Delete,
-                        contentDescription = "Удалить",
+                        contentDescription = stringResource(R.string.action_delete),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -221,15 +223,16 @@ fun TagItem(
 }
 
 // Функция для правильного склонения слова "расход"
+@Composable
 fun getExpenseWord(count: Int): String {
     val preLastDigit = count % 100 / 10
     if (preLastDigit == 1) {
-        return "расходов"
+        return stringResource(R.string.categories_rashodov)
     }
     return when (count % 10) {
-        1 -> "расход"
-        2, 3, 4 -> "расхода"
-        else -> "расходов"
+        1 -> stringResource(R.string.categories_rashod)
+        2, 3, 4 -> stringResource(R.string.categories_rashoda)
+        else -> stringResource(R.string.categories_rashodov)
     }
 }
 
@@ -250,18 +253,18 @@ fun AddTagDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новый тег") },
+        title = { Text(stringResource(R.string.categories_novyy_teg)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Название") },
+                    label = { Text(stringResource(R.string.categories_nazvanie)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Цвет", fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.addcar_tsvet), fontWeight = FontWeight.Medium)
                 Spacer(modifier = Modifier.height(8.dp))
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -283,12 +286,12 @@ fun AddTagDialog(
                 onClick = { onConfirm(name, selectedColor) },
                 enabled = name.isNotBlank()
             ) {
-                Text("Добавить")
+                Text(stringResource(R.string.action_add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Отмена")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
@@ -312,18 +315,18 @@ fun EditTagDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Редактировать тег") },
+        title = { Text(stringResource(R.string.categories_redaktirovat_teg)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Название") },
+                    label = { Text(stringResource(R.string.categories_nazvanie)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Цвет", fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.addcar_tsvet), fontWeight = FontWeight.Medium)
                 Spacer(modifier = Modifier.height(8.dp))
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -345,12 +348,12 @@ fun EditTagDialog(
                 onClick = { onConfirm(name, selectedColor) },
                 enabled = name.isNotBlank()
             ) {
-                Text("Сохранить")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Отмена")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
@@ -376,7 +379,7 @@ fun ColorSelector(color: Color, isSelected: Boolean, onClick: () -> Unit) {
         if (isSelected) {
             Icon(
                 Icons.Default.Check,
-                contentDescription = "Выбрано",
+                contentDescription = stringResource(R.string.categories_vybrano),
                 tint = Color.White,
                 modifier = Modifier.size(24.dp)
             )

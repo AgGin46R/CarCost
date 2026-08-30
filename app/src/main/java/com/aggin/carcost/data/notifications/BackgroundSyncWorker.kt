@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.notifications
 
+import com.aggin.carcost.R
 import android.content.Context
 import android.util.Log
 import androidx.datastore.preferences.core.edit
@@ -151,7 +152,7 @@ class BackgroundSyncWorker(
                     val carName = "${car.brand} ${car.model}"
                     val sender = msgs.first().userEmail.substringBefore("@")
                     val body = if (msgs.size == 1) msgs.first().message
-                               else "${msgs.size} новых сообщений"
+                               else applicationContext.getString(R.string.notify_novyh_soobscheniy, msgs.size)
 
                     NotificationHelper.sendChatNotification(
                         context = context,
@@ -186,7 +187,7 @@ class BackgroundSyncWorker(
                     val carName = "${car.brand} ${car.model}"
                     val actorEmail = db.carMemberDao().getEmailByUserId(expenses.first().userId)
                     val exp = expenses.first()
-                    val categoryName = NotificationHelper.categoryDisplayName(exp.category)
+                    val categoryName = NotificationHelper.categoryDisplayName(applicationContext, exp.category)
 
                     if (expenses.size == 1) {
                         NotificationHelper.sendSharedExpenseNotification(
@@ -204,7 +205,7 @@ class BackgroundSyncWorker(
                             context = context,
                             notificationId = EXPENSE_BASE + abs(carId.hashCode() % 8_000),
                             carName = carName,
-                            categoryName = "${expenses.size} новых расходов",
+                            categoryName = applicationContext.getString(R.string.notify_novyh_rashodov, expenses.size),
                             amount = expenses.sumOf { it.amount },
                             actorEmail = actorEmail,
                             isUpdate = false,
@@ -235,7 +236,7 @@ class BackgroundSyncWorker(
                     val car = db.carDao().getCarById(carId) ?: return@forEach
                     val carName = "${car.brand} ${car.model}"
                     val actorEmail = db.carMemberDao().getEmailByUserId(reminders.first().userId)
-                    val typeName = NotificationHelper.reminderTypeDisplayName(reminders.first().type)
+                    val typeName = NotificationHelper.reminderTypeDisplayName(applicationContext, reminders.first().type)
 
                     NotificationHelper.sendSharedReminderNotification(
                         context = context,

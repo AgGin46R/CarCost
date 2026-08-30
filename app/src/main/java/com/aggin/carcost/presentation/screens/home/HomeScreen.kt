@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.home
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -49,12 +51,16 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val pullRefreshState = rememberPullToRefreshState()
 
+    // Читается здесь, а не внутри эффекта: stringResource — composable-функция,
+    // а тело LaunchedEffect выполняется уже в корутине, вне композиции
+    val retryLabel = stringResource(R.string.action_retry)
+
     // Показываем Snackbar при ошибке синхронизации
     LaunchedEffect(uiState.syncError) {
         uiState.syncError?.let { error ->
             val result = snackbarHostState.showSnackbar(
                 message = error,
-                actionLabel = "Повторить",
+                actionLabel = retryLabel,
                 duration = SnackbarDuration.Long
             )
             if (result == SnackbarResult.ActionPerformed) {
@@ -72,15 +78,15 @@ fun HomeScreen(
                 actions = {
                     // Навигатор
                     IconButton(onClick = { navController.navigateOnce(Screen.Navigator.route) }) {
-                        Icon(Icons.Default.Navigation, contentDescription = "Навигатор")
+                        Icon(Icons.Default.Navigation, contentDescription = stringResource(R.string.home_navigator))
                     }
                     // Поиск расходов
                     IconButton(onClick = { navController.navigateOnce(Screen.Search.route) }) {
-                        Icon(Icons.Default.Search, contentDescription = "Поиск расходов")
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.home_poisk_rashodov))
                     }
                     // Таймер парковки
                     IconButton(onClick = { navController.navigateOnce(Screen.ParkingTimer.route) }) {
-                        Icon(Icons.Default.LocalParking, contentDescription = "Таймер парковки")
+                        Icon(Icons.Default.LocalParking, contentDescription = stringResource(R.string.home_taymer_parkovki))
                     }
                     // CarBot
                     IconButton(onClick = { navController.navigateOnce(Screen.CarBot.route) }) {
@@ -88,12 +94,12 @@ fun HomeScreen(
                     }
                     // Дашборд ТО
                     IconButton(onClick = { navController.navigateOnce(Screen.MaintenanceDashboard.route) }) {
-                        Icon(Icons.Default.Build, contentDescription = "Дашборд ТО")
+                        Icon(Icons.Default.Build, contentDescription = stringResource(R.string.home_dashbord_to))
                     }
                     // Кнопка сравнения (только если авто >= 2)
                     if (uiState.cars.size >= 2) {
                         IconButton(onClick = { navController.navigateOnce(Screen.Compare.route) }) {
-                            Icon(Icons.Default.CompareArrows, contentDescription = "Сравнить авто")
+                            Icon(Icons.Default.CompareArrows, contentDescription = stringResource(R.string.home_sravnit_avto))
                         }
                     }
                     // Кнопка профиля
@@ -102,7 +108,7 @@ fun HomeScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Person,
-                            contentDescription = "Профиль"
+                            contentDescription = stringResource(R.string.home_profil)
                         )
                     }
                 },
@@ -117,7 +123,7 @@ fun HomeScreen(
                 onClick = { navController.navigateOnce(Screen.AddCar.route) },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Добавить автомобиль")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.home_dobavit_avtomobil))
             }
         }
     ) { paddingValues ->
@@ -201,15 +207,15 @@ private fun InvitationBanner(
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    "Вас пригласили в авто",
+                    stringResource(R.string.home_vas_priglasili_v_avto),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
                 Text(
                     "Роль: ${
                         when (invitation.role) {
-                            "DRIVER" -> "Водитель"
-                            "MECHANIC" -> "Механик"
+                            "DRIVER" -> stringResource(R.string.home_voditel)
+                            "MECHANIC" -> stringResource(R.string.home_mehanik)
                             else -> invitation.role
                         }
                     }",
@@ -217,8 +223,8 @@ private fun InvitationBanner(
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
             }
-            TextButton(onClick = onDismiss) { Text("Позже") }
-            Button(onClick = onAccept) { Text("Принять") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.home_pozzhe)) }
+            Button(onClick = onAccept) { Text(stringResource(R.string.home_prinyat)) }
         }
     }
 }
@@ -238,13 +244,13 @@ fun EmptyState(modifier: Modifier = Modifier) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Нет автомобилей",
+            text = stringResource(R.string.home_net_avtomobiley),
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Добавьте свой первый автомобиль",
+            text = stringResource(R.string.home_dobavte_svoy_pervyy_avtomobil),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
         )
@@ -359,7 +365,7 @@ fun CarCard(
                     if (car.photoUri != null) {
                         AsyncImage(
                             model = car.photoUri,
-                            contentDescription = "Фото автомобиля",
+                            contentDescription = stringResource(R.string.home_foto_avtomobilya),
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(RoundedCornerShape(8.dp)),
@@ -402,7 +408,7 @@ fun CarCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Chat,
-                                contentDescription = "Непрочитанные сообщения",
+                                contentDescription = stringResource(R.string.home_neprochitannye_soobscheniya),
                                 modifier = Modifier.size(20.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -418,22 +424,22 @@ fun CarCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 InfoChip(
-                    label = "Пробег",
-                    value = "${car.currentOdometer} км"
+                    label = stringResource(R.string.home_probeg),
+                    value = stringResource(R.string.home_km, car.currentOdometer)
                 )
                 InfoChip(
-                    label = "Топливо",
+                    label = stringResource(R.string.home_toplivo),
                     value = when(car.fuelType) {
-                        FuelType.GASOLINE -> "Бензин"
-                        FuelType.DIESEL -> "Дизель"
-                        FuelType.ELECTRIC -> "Электро"
-                        FuelType.HYBRID -> "Гибрид"
-                        FuelType.GAS -> "Газ"
-                        else -> "Другое"
+                        FuelType.GASOLINE -> stringResource(R.string.home_benzin)
+                        FuelType.DIESEL -> stringResource(R.string.home_dizel)
+                        FuelType.ELECTRIC -> stringResource(R.string.home_elektro)
+                        FuelType.HYBRID -> stringResource(R.string.home_gibrid)
+                        FuelType.GAS -> stringResource(R.string.home_gaz)
+                        else -> stringResource(R.string.home_drugoe)
                     }
                 )
                 InfoChip(
-                    label = "За 30 дней",
+                    label = stringResource(R.string.home_za_30_dney),
                     value = if (monthlyExpense != null && monthlyExpense > 0)
                         "${"%.0f".format(animatedAmount)} ₽"
                     else "—"
@@ -457,7 +463,7 @@ fun CarCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        if (isExpanded) "Скрыть напоминания" else "Напоминания о ТО (${reminders.size})"
+                        if (isExpanded) stringResource(R.string.home_skryt_napominaniya) else stringResource(R.string.home_napominaniya_o_to, reminders.size)
                     )
                 }
 
@@ -532,16 +538,16 @@ fun MaintenanceReminderCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(
-                        text = reminder.type.displayName,
+                        text = stringResource(reminder.type.displayNameRes),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = textColor
                     )
                     Text(
                         text = if (remainingKm > 0) {
-                            "через $remainingKm км"
+                            stringResource(R.string.home_cherez_km, remainingKm)
                         } else {
-                            "ПРОСРОЧЕНО на ${-remainingKm} км!"
+                            stringResource(R.string.home_prosrocheno_na_km, -remainingKm)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = textColor

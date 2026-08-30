@@ -310,7 +310,11 @@ class RealtimeSyncManager(private val context: Context) {
             }.onEach { change ->
                 try {
                     val dto = json.decodeFromJsonElement(CarDto.serializer(), change.record)
-                    db.carDao().upsertCar(dto.toCar())
+                    // Через репозиторий, а не напрямую в DAO: там пробег
+                    // сливается по наибольшему, иначе прилетевшее с сервера
+                    // старое значение опустит верное локальное
+                    com.aggin.carcost.data.local.repository.CarRepository(db.carDao())
+                        .saveFromServer(dto.toCar())
                     Log.d(TAG, "🚗 Car updated: ${dto.id}")
                 } catch (e: Exception) { Log.e(TAG, "Error handling car update", e) }
             }.catch { Log.w(TAG, "Car update flow error: ${it.message}") }.launchIn(chScope)
@@ -492,7 +496,7 @@ class RealtimeSyncManager(private val context: Context) {
         val car = db.carDao().getCarById(dto.carId) ?: return
         val carName = "${car.brand} ${car.model}"
         val actorEmail = db.carMemberDao().getEmailByUserId(dto.userId)
-        val categoryName = NotificationHelper.categoryDisplayName(dto.category)
+        val categoryName = NotificationHelper.categoryDisplayName(context, dto.category)
         val notifId = EXPENSE_NOTIF_BASE + (abs(dto.id.hashCode()) % NOTIF_RANGE)
 
         NotificationHelper.sendSharedExpenseNotification(
@@ -519,7 +523,7 @@ class RealtimeSyncManager(private val context: Context) {
         val car = db.carDao().getCarById(dto.carId) ?: return
         val carName = "${car.brand} ${car.model}"
         val actorEmail = db.carMemberDao().getEmailByUserId(dto.userId)
-        val typeName = NotificationHelper.reminderTypeDisplayName(dto.type)
+        val typeName = NotificationHelper.reminderTypeDisplayName(context, dto.type)
         val notifId = REMINDER_NOTIF_BASE + (abs(dto.id.hashCode()) % NOTIF_RANGE)
 
         NotificationHelper.sendSharedReminderNotification(

@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.navigator
 
+import com.aggin.carcost.R
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -72,13 +73,24 @@ data class PoiItem(
     val category: PoiCategory
 )
 
-enum class PoiCategory(val label: String, val query: String) {
-    GAS_STATION("Заправки", "АЗС"),
-    SERVICE("Сервис", "автосервис"),
-    PARKING("Парковки", "парковка"),
-    CAFE("Кафе", "кафе ресторан"),
-    BANK("Банкомат", "банкомат банк"),
-    SUPERMARKET("Магазин", "супермаркет")
+/**
+ * Виды мест для поиска рядом.
+ *
+ * Подпись — ключ ресурса: она видна человеку и переводится. Поисковый запрос
+ * остаётся русским литералом намеренно: он уходит в Яндекс.Карты, которые
+ * понимают русский по всему региону, а перевод запроса на казахский или
+ * белорусский сузил бы выдачу вместо того, чтобы её улучшить.
+ */
+enum class PoiCategory(
+    @androidx.annotation.StringRes val labelRes: Int,
+    val query: String
+) {
+    GAS_STATION(R.string.navigator_zapravki, "АЗС"),
+    SERVICE(R.string.cardetail_servis, "автосервис"),
+    PARKING(R.string.navigator_parkovki, "парковка"),
+    CAFE(R.string.navigator_kafe, "кафе ресторан"),
+    BANK(R.string.navigator_bankomat, "банкомат банк"),
+    SUPERMARKET(R.string.navigator_magazin, "супермаркет")
 }
 
 data class NavigatorUiState(
@@ -333,10 +345,10 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                         val geo = response.collection.children.firstOrNull()?.obj
                             ?.geometry?.firstOrNull()?.point
                         if (geo != null) setDestination(geo, item.name)
-                        else _uiState.update { it.copy(errorMessage = "Не удалось найти место") }
+                        else _uiState.update { it.copy(errorMessage = getApplication<Application>().getString(R.string.navigator_ne_udalos_nayti_mesto)) }
                     }
                     override fun onSearchError(error: Error) {
-                        _uiState.update { it.copy(errorMessage = "Не удалось найти место") }
+                        _uiState.update { it.copy(errorMessage = getApplication<Application>().getString(R.string.navigator_ne_udalos_nayti_mesto)) }
                     }
                 }
             )
@@ -347,7 +359,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     fun setDestinationFromMap(point: Point) {
         _uiState.update {
             it.copy(
-                query = "Определяется адрес…",
+                query = getApplication<Application>().getString(R.string.navigator_opredelyaetsya_adres),
                 suggestions = emptyList(),
                 isLoadingRoute = true,
                 mode = NavigatorMode.SEARCHING
@@ -434,9 +446,9 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 override fun onDrivingRoutesError(error: Error) {
                     val msg = if (error is NetworkError)
-                        "Нет сети для построения маршрута"
+                        getApplication<Application>().getString(R.string.navigator_net_seti_dlya_postroeniya_marshruta)
                     else
-                        "Ошибка построения маршрута"
+                        getApplication<Application>().getString(R.string.navigator_oshibka_postroeniya_marshruta)
                     _uiState.update { it.copy(isLoadingRoute = false, errorMessage = msg) }
                 }
             }
@@ -471,7 +483,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                     .filter { it in 2.0..30.0 }   // sanity filter
 
                 val avgConsumption = if (consumptions.isNotEmpty()) consumptions.average() else 10.0
-                val displayConsumption = "%.1f л/100км".format(avgConsumption)
+                val displayConsumption = getApplication<Application>().getString(R.string.cardetail_1f_l_100km).format(avgConsumption)
 
                 val cost = (distanceKm / 100.0 * avgConsumption) * pricePerLiter
                 _uiState.update {
@@ -491,7 +503,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         val carId = _uiState.value.selectedCarId
         val destName = _uiState.value.destinationName
 
-        speaker?.speak("Начинаем маршрут. $destName")
+        speaker?.speak(getApplication<Application>().getString(R.string.navigator_nachinaem_marshrut, destName))
 
         val intent = Intent(getApplication(), NavigationService::class.java).apply {
             action = NavigationService.ACTION_START
@@ -594,8 +606,8 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         if (key == announcedManeuver) return
         announcedManeuver = key
 
-        val street = maneuver.street?.let { " на $it" } ?: ""
-        speaker?.speak("Через ${maneuver.distanceLabel} ${maneuver.action.label.lowercase()}$street")
+        val street = maneuver.street?.let { getApplication<Application>().getString(R.string.navigator_voice_na, it) } ?: ""
+        speaker?.speak(getApplication<Application>().getString(R.string.navigator_voice_cherez, maneuver.distanceLabel, getApplication<Application>().getString(maneuver.action.labelRes).lowercase(), street))
     }
 
     private fun checkRouteDeviation(lat: Double, lon: Double) {
@@ -610,7 +622,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         val minDist = pts.minOf { pt -> haversineMeters(lat, lon, pt.latitude, pt.longitude) }
         if (minDist > DEVIATION_THRESHOLD_M) {
             val dest = _uiState.value.destinationPoint ?: return
-            speaker?.speak("Перестраиваю маршрут")
+            speaker?.speak(getApplication<Application>().getString(R.string.navigator_perestraivayu_marshrut))
             buildRoute(dest)
         }
     }
@@ -667,7 +679,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                     val items = response.collection.children.mapNotNull { child ->
                         val obj = child.obj ?: return@mapNotNull null
                         val point = obj.geometry.firstOrNull()?.point ?: return@mapNotNull null
-                        PoiItem(obj.name ?: category.label, "", point, activeCategory)
+                        PoiItem(obj.name ?: getApplication<Application>().getString(category.labelRes), "", point, activeCategory)
                     }
                     _uiState.update { it.copy(poiItems = items) }
                 }

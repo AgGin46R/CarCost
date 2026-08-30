@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.auth
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -38,7 +40,7 @@ fun ForgotPasswordScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Восстановление пароля") },
+                title = { Text(stringResource(R.string.auth_vosstanovlenie_parolya)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         // Внутри процесса «назад» возвращает на предыдущий шаг,
@@ -46,7 +48,7 @@ fun ForgotPasswordScreen(
                         if (uiState.step == RecoveryStep.EMAIL) navController.popBackStack()
                         else viewModel.back()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 }
             )
@@ -71,7 +73,7 @@ fun ForgotPasswordScreen(
 
             when (uiState.step) {
                 RecoveryStep.EMAIL -> {
-                    StepHint("Пришлём код на почту. Введите адрес, на который заведён аккаунт.")
+                    StepHint(stringResource(R.string.auth_prishlem_kod_na_pochtu_vvedite_adres_na))
                     OutlinedTextField(
                         value = uiState.email,
                         onValueChange = viewModel::updateEmail,
@@ -85,18 +87,18 @@ fun ForgotPasswordScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(16.dp))
-                    ActionButton("Отправить код", uiState.isLoading, viewModel::sendCode)
+                    ActionButton(stringResource(R.string.auth_otpravit_kod), uiState.isLoading, viewModel::sendCode)
                 }
 
                 RecoveryStep.CODE -> {
                     StepHint(
-                        "Код отправлен на ${uiState.email}, если такой аккаунт существует. " +
-                            "Проверьте папку «Спам» — письма от сервисов часто попадают туда."
+                        stringResource(R.string.auth_kod_otpravlen_na_esli_takoy_akkaunt, uiState.email) +
+                            stringResource(R.string.auth_proverte_papku_spam_pisma_ot_servisov)
                     )
                     OutlinedTextField(
                         value = uiState.code,
                         onValueChange = viewModel::updateCode,
-                        label = { Text("Код из письма") },
+                        label = { Text(stringResource(R.string.auth_kod_iz_pisma)) },
                         singleLine = true,
                         enabled = !uiState.isLoading,
                         keyboardOptions = KeyboardOptions(
@@ -106,19 +108,19 @@ fun ForgotPasswordScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(16.dp))
-                    ActionButton("Продолжить", uiState.isLoading, viewModel::verifyCode)
+                    ActionButton(stringResource(R.string.auth_prodolzhit), uiState.isLoading, viewModel::verifyCode)
                     TextButton(
                         onClick = viewModel::sendCode,
                         enabled = !uiState.isLoading
-                    ) { Text("Отправить код ещё раз") }
+                    ) { Text(stringResource(R.string.auth_otpravit_kod_esche_raz)) }
                 }
 
                 RecoveryStep.NEW_PASSWORD -> {
-                    StepHint("Код подошёл. Придумайте новый пароль.")
+                    StepHint(stringResource(R.string.auth_kod_podoshel_pridumayte_novyy_parol))
                     OutlinedTextField(
                         value = uiState.password,
                         onValueChange = viewModel::updatePassword,
-                        label = { Text("Новый пароль") },
+                        label = { Text(stringResource(R.string.auth_novyy_parol)) },
                         singleLine = true,
                         enabled = !uiState.isLoading,
                         visualTransformation = PasswordVisualTransformation(),
@@ -129,7 +131,7 @@ fun ForgotPasswordScreen(
                     OutlinedTextField(
                         value = uiState.passwordRepeat,
                         onValueChange = viewModel::updatePasswordRepeat,
-                        label = { Text("Ещё раз") },
+                        label = { Text(stringResource(R.string.auth_esche_raz)) },
                         singleLine = true,
                         enabled = !uiState.isLoading,
                         visualTransformation = PasswordVisualTransformation(),
@@ -140,20 +142,20 @@ fun ForgotPasswordScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(16.dp))
-                    ActionButton("Сохранить пароль", uiState.isLoading, viewModel::savePassword)
+                    ActionButton(stringResource(R.string.auth_sohranit_parol), uiState.isLoading, viewModel::savePassword)
                 }
 
                 // Молча закрыть экран нельзя: человек не поймёт, сменился пароль
                 // или что-то сорвалось, и полезет восстанавливать заново
                 RecoveryStep.DONE -> {
-                    StepHint("Пароль изменён. Войдите с новым паролем.")
+                    StepHint(stringResource(R.string.auth_parol_izmenen_voydite_s_novym_parolem))
                     Button(
                         onClick = { navController.popBackStack() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp)
                     ) {
-                        Text("Перейти ко входу", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.auth_pereyti_ko_vhodu), style = MaterialTheme.typography.titleSmall)
                     }
                 }
             }

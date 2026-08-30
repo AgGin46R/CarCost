@@ -23,6 +23,12 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(
+            com.aggin.carcost.data.local.settings.LocaleManager.wrap(newBase)
+        )
+    }
+
     /** Token extracted from carcost://invite?token=... deep link */
     var pendingInviteToken: String? = null
         private set

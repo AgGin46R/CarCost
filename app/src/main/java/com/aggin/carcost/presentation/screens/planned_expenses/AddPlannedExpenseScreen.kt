@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -47,10 +49,10 @@ fun AddPlannedExpenseScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Новый план покупки") },
+                title = { Text(stringResource(R.string.plannedexpenses_novyy_plan_pokupki)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -73,8 +75,8 @@ fun AddPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.title,
                 onValueChange = { viewModel.updateTitle(it) },
-                label = { Text("Название *") },
-                placeholder = { Text("Например: Замена амортизаторов") },
+                label = { Text(stringResource(R.string.plannedexpenses_nazvanie)) },
+                placeholder = { Text(stringResource(R.string.plannedexpenses_naprimer_zamena_amortizatorov)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = uiState.titleError != null
@@ -102,7 +104,7 @@ fun AddPlannedExpenseScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Категория *",
+                            text = stringResource(R.string.plannedexpenses_kategoriya),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -129,8 +131,8 @@ fun AddPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.description,
                 onValueChange = { viewModel.updateDescription(it) },
-                label = { Text("Описание") },
-                placeholder = { Text("Дополнительная информация") },
+                label = { Text(stringResource(R.string.cardetail_opisanie)) },
+                placeholder = { Text(stringResource(R.string.plannedexpenses_dopolnitelnaya_informatsiya)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 maxLines = 4
@@ -140,7 +142,7 @@ fun AddPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.estimatedAmount,
                 onValueChange = { viewModel.updateEstimatedAmount(it) },
-                label = { Text("Ориентировочная цена") },
+                label = { Text(stringResource(R.string.plannedexpenses_orientirovochnaya_tsena)) },
                 placeholder = { Text("0") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -163,7 +165,7 @@ fun AddPlannedExpenseScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Приоритет",
+                            text = stringResource(R.string.plannedexpenses_prioritet),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -189,7 +191,7 @@ fun AddPlannedExpenseScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Планируемая дата",
+                            text = stringResource(R.string.plannedexpenses_planiruemaya_data),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -198,7 +200,7 @@ fun AddPlannedExpenseScreen(
                             text = if (uiState.targetDate != null) {
                                 formatDate(uiState.targetDate!!)
                             } else {
-                                "Не указана"
+                                stringResource(R.string.plannedexpenses_ne_ukazana)
                             },
                             style = MaterialTheme.typography.bodyLarge
                         )
@@ -206,7 +208,7 @@ fun AddPlannedExpenseScreen(
                     Row {
                         if (uiState.targetDate != null) {
                             IconButton(onClick = { viewModel.updateTargetDate(null) }) {
-                                Icon(Icons.Default.Clear, "Очистить")
+                                Icon(Icons.Default.Clear, stringResource(R.string.documents_ochistit))
                             }
                         }
                         Icon(Icons.Default.CalendarToday, null)
@@ -218,11 +220,11 @@ fun AddPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.targetOdometer,
                 onValueChange = { viewModel.updateTargetOdometer(it) },
-                label = { Text("Планируемый пробег") },
+                label = { Text(stringResource(R.string.plannedexpenses_planiruemyy_probeg)) },
                 placeholder = { Text("0") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                trailingIcon = { Text("км", style = MaterialTheme.typography.bodyLarge) },
+                trailingIcon = { Text(stringResource(R.string.plannedexpenses_km), style = MaterialTheme.typography.bodyLarge) },
                 singleLine = true
             )
 
@@ -230,8 +232,8 @@ fun AddPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.notes,
                 onValueChange = { viewModel.updateNotes(it) },
-                label = { Text("Заметки") },
-                placeholder = { Text("Дополнительные заметки") },
+                label = { Text(stringResource(R.string.incidents_zametki)) },
+                placeholder = { Text(stringResource(R.string.plannedexpenses_dopolnitelnye_zametki)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3,
                 maxLines = 5
@@ -241,7 +243,7 @@ fun AddPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.shopUrl,
                 onValueChange = { viewModel.updateShopUrl(it) },
-                label = { Text("Ссылка на товар") },
+                label = { Text(stringResource(R.string.plannedexpenses_ssylka_na_tovar)) },
                 placeholder = { Text("https://...") },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.Link, null) },
@@ -250,7 +252,7 @@ fun AddPlannedExpenseScreen(
 
             // Повторение (Recurrence)
             Text(
-                "Повторение",
+                stringResource(R.string.plannedexpenses_povtorenie),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -259,7 +261,7 @@ fun AddPlannedExpenseScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                listOf(null to "Нет", "MONTHLY" to "Мес.", "WEEKLY" to "Нед.", "YEARLY" to "Год").forEach { (type, label) ->
+                listOf(null to stringResource(R.string.action_no), "MONTHLY" to stringResource(R.string.plannedexpenses_mes), "WEEKLY" to stringResource(R.string.plannedexpenses_ned), "YEARLY" to stringResource(R.string.plannedexpenses_god)).forEach { (type, label) ->
                     FilterChip(
                         selected = uiState.recurrenceType == type,
                         onClick = { viewModel.updateRecurrenceType(type) },
@@ -283,7 +285,7 @@ fun AddPlannedExpenseScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
-                Text(if (uiState.isSaving) "Сохранение..." else "Сохранить план")
+                Text(if (uiState.isSaving) stringResource(R.string.plannedexpenses_sohranenie) else stringResource(R.string.plannedexpenses_sohranit_plan))
             }
 
             if (uiState.errorMessage != null) {
@@ -339,7 +341,7 @@ fun AddPlannedExpenseScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         ) {

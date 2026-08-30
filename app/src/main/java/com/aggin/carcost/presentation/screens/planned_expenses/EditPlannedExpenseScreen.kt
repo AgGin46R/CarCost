@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -61,15 +63,15 @@ fun EditPlannedExpenseScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Редактировать план") },
+                title = { Text(stringResource(R.string.plannedexpenses_redaktirovat_plan)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.Delete, stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.error)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -103,7 +105,7 @@ fun EditPlannedExpenseScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Статус",
+                            text = stringResource(R.string.plannedexpenses_status),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -118,8 +120,8 @@ fun EditPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.title,
                 onValueChange = { viewModel.updateTitle(it) },
-                label = { Text("Название *") },
-                placeholder = { Text("Например: Замена амортизаторов") },
+                label = { Text(stringResource(R.string.plannedexpenses_nazvanie)) },
+                placeholder = { Text(stringResource(R.string.plannedexpenses_naprimer_zamena_amortizatorov)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = uiState.titleError != null
@@ -147,7 +149,7 @@ fun EditPlannedExpenseScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Категория *",
+                            text = stringResource(R.string.plannedexpenses_kategoriya),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -174,8 +176,8 @@ fun EditPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.description,
                 onValueChange = { viewModel.updateDescription(it) },
-                label = { Text("Описание") },
-                placeholder = { Text("Дополнительная информация") },
+                label = { Text(stringResource(R.string.cardetail_opisanie)) },
+                placeholder = { Text(stringResource(R.string.plannedexpenses_dopolnitelnaya_informatsiya)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 maxLines = 4
@@ -185,7 +187,7 @@ fun EditPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.estimatedAmount,
                 onValueChange = { viewModel.updateEstimatedAmount(it) },
-                label = { Text("Ориентировочная цена") },
+                label = { Text(stringResource(R.string.plannedexpenses_orientirovochnaya_tsena)) },
                 placeholder = { Text("0") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -198,7 +200,7 @@ fun EditPlannedExpenseScreen(
                 OutlinedTextField(
                     value = uiState.actualAmount,
                     onValueChange = { viewModel.updateActualAmount(it) },
-                    label = { Text("Фактическая цена") },
+                    label = { Text(stringResource(R.string.plannedexpenses_fakticheskaya_tsena)) },
                     placeholder = { Text("0") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -222,7 +224,7 @@ fun EditPlannedExpenseScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Приоритет",
+                            text = stringResource(R.string.plannedexpenses_prioritet),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -248,7 +250,7 @@ fun EditPlannedExpenseScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Планируемая дата",
+                            text = stringResource(R.string.plannedexpenses_planiruemaya_data),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -257,7 +259,7 @@ fun EditPlannedExpenseScreen(
                             text = if (uiState.targetDate != null) {
                                 formatDate(uiState.targetDate!!)
                             } else {
-                                "Не указана"
+                                stringResource(R.string.plannedexpenses_ne_ukazana)
                             },
                             style = MaterialTheme.typography.bodyLarge
                         )
@@ -265,7 +267,7 @@ fun EditPlannedExpenseScreen(
                     Row {
                         if (uiState.targetDate != null) {
                             IconButton(onClick = { viewModel.updateTargetDate(null) }) {
-                                Icon(Icons.Default.Clear, "Очистить")
+                                Icon(Icons.Default.Clear, stringResource(R.string.documents_ochistit))
                             }
                         }
                         Icon(Icons.Default.CalendarToday, null)
@@ -277,11 +279,11 @@ fun EditPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.targetOdometer,
                 onValueChange = { viewModel.updateTargetOdometer(it) },
-                label = { Text("Планируемый пробег") },
+                label = { Text(stringResource(R.string.plannedexpenses_planiruemyy_probeg)) },
                 placeholder = { Text("0") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                trailingIcon = { Text("км", style = MaterialTheme.typography.bodyLarge) },
+                trailingIcon = { Text(stringResource(R.string.plannedexpenses_km), style = MaterialTheme.typography.bodyLarge) },
                 singleLine = true
             )
 
@@ -289,8 +291,8 @@ fun EditPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.notes,
                 onValueChange = { viewModel.updateNotes(it) },
-                label = { Text("Заметки") },
-                placeholder = { Text("Дополнительные заметки") },
+                label = { Text(stringResource(R.string.incidents_zametki)) },
+                placeholder = { Text(stringResource(R.string.plannedexpenses_dopolnitelnye_zametki)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3,
                 maxLines = 5
@@ -300,7 +302,7 @@ fun EditPlannedExpenseScreen(
             OutlinedTextField(
                 value = uiState.shopUrl,
                 onValueChange = { viewModel.updateShopUrl(it) },
-                label = { Text("Ссылка на товар") },
+                label = { Text(stringResource(R.string.plannedexpenses_ssylka_na_tovar)) },
                 placeholder = { Text("https://...") },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.Link, null) },
@@ -320,7 +322,7 @@ fun EditPlannedExpenseScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
-                Text(if (uiState.isSaving) "Сохранение..." else "Сохранить изменения")
+                Text(if (uiState.isSaving) stringResource(R.string.plannedexpenses_sohranenie) else stringResource(R.string.editexp_sohranit_izmeneniya))
             }
 
             if (uiState.errorMessage != null) {
@@ -385,7 +387,7 @@ fun EditPlannedExpenseScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         ) {
@@ -396,8 +398,8 @@ fun EditPlannedExpenseScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Удалить план?") },
-            text = { Text("Это действие нельзя отменить.") },
+            title = { Text(stringResource(R.string.plannedexpenses_udalit_plan)) },
+            text = { Text(stringResource(R.string.cardetail_eto_deystvie_nelzya_otmenit)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -405,12 +407,12 @@ fun EditPlannedExpenseScreen(
                         showDeleteDialog = false
                     }
                 ) {
-                    Text("Удалить", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )

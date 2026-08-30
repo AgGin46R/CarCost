@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.carbot
 
+import android.content.Context
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
@@ -16,7 +17,7 @@ import kotlinx.coroutines.withContext
  * Rules-based CarBot engine. No external API — fully offline.
  * Matches Russian keywords and queries Room DB for answers.
  */
-class CarBotEngine(private val db: AppDatabase) {
+class CarBotEngine(private val db: AppDatabase, private val appContext: Context) {
 
     private val ruFmt = NumberFormat.getNumberInstance(Locale("ru", "RU")).apply {
         maximumFractionDigits = 0
@@ -25,48 +26,38 @@ class CarBotEngine(private val db: AppDatabase) {
     /**
      * Rules-based query. Returns null when no rule matches (caller can then use AI fallback).
      */
+    /**
+     * Разбирает вопрос и отвечает по локальной базе.
+     *
+     * @return null, если вопрос не понят — тогда вызывающий может обратиться
+     *   к языковой модели, если она загружена
+     */
     suspend fun rulesBasedQuery(text: String, carId: String?): String? {
-        val lower = text.lowercase(Locale("ru"))
         val car = if (carId != null) db.carDao().getCarById(carId) else null
+        val q = CarBotQuery.parse(text)
+        val lower = text.lowercase(Locale("ru"))
 
-        return when {
-            lower.containsAny("привет", "помощь", "что умеешь", "помоги", "help") ->
-                buildHelpText()
+        return when (q.intent) {
+            CarBotQuery.Intent.HELP -> buildHelpText()
 
-            lower.containsAny("масло", "oil", "замена масла") ->
-                answerOilChange(car)
+            CarBotQuery.Intent.SPENDING -> answerSpending(car, q.period, q.category)
 
-            lower.containsAny("страховк", "осаго", "каско", "полис") ->
-                answerInsurance(car)
+            CarBotQuery.Intent.FUEL_CONSUMPTION -> answerFuel(car)
 
-            lower.containsAny("трачу", "расходы", "потратил", "расход за", "сколько стоит") ->
-                answerSpending(car, lower)
+            // Про масло — отдельный ответ с остатком до замены; остальное ТО
+            // общим списком
+            CarBotQuery.Intent.MAINTENANCE ->
+                if (lower.contains("масл")) answerOilChange(car) else answerMaintenance(car)
 
-            lower.containsAny("средний расход", "расход топлив", "l/100", "л/100", "бензин", "заправ", "топлив") ->
-                answerFuel(car)
+            CarBotQuery.Intent.INSURANCE -> answerInsurance(car)
+            CarBotQuery.Intent.TRIPS -> answerTrips(car)
+            CarBotQuery.Intent.BUDGET -> answerBudget(car)
+            CarBotQuery.Intent.CAR_INFO -> answerCarInfo(car)
+            CarBotQuery.Intent.RECENT -> answerRecentExpenses(car)
+            CarBotQuery.Intent.PEAK_MONTH -> answerPeakMonth(car)
+            CarBotQuery.Intent.TOTAL -> answerTotal(car)
 
-            lower.containsAny("поездк", "маршрут", "км за", "километр", "дистанц") ->
-                answerTrips(car)
-
-            lower.containsAny("бюджет", "лимит", "превысил") ->
-                answerBudget(car)
-
-            lower.containsAny("ремонт", "техосмотр", " то ", "обслуживание", "следующее то") ->
-                answerMaintenance(car)
-
-            lower.containsAny("машин", "авто", "автомобил", "пробег") ->
-                answerCarInfo(car)
-
-            lower.containsAny("последние расходы", "последних", "история расходов") ->
-                answerRecentExpenses(car)
-
-            lower.containsAny("всего потратил", "общая сумма", "всего расходов", "итого") ->
-                answerTotal(car)
-
-            lower.containsAny("дорогой месяц", "самый дорогой", "пик расходов") ->
-                answerPeakMonth(car)
-
-            else -> null  // no rule matched → AI fallback
+            CarBotQuery.Intent.UNKNOWN -> null
         }
     }
 
@@ -94,9 +85,9 @@ class CarBotEngine(private val db: AppDatabase) {
             reminders.filter { it.isActive }.forEach { r ->
                 val kmLeft = r.nextChangeOdometer - car.currentOdometer
                 if (kmLeft <= 0) {
-                    alerts += "⚠️ **${r.type.displayName}** просрочено на ${ruFmt.format(-kmLeft)} км!"
+                    alerts += "⚠️ **${appContext.getString(r.type.displayNameRes)}** просрочено на ${ruFmt.format(-kmLeft)} км!"
                 } else if (kmLeft <= 500) {
-                    alerts += "🔶 **${r.type.displayName}** скоро: осталось ${ruFmt.format(kmLeft)} км."
+                    alerts += "🔶 **${appContext.getString(r.type.displayNameRes)}** скоро: осталось ${ruFmt.format(kmLeft)} км."
                 }
             }
         } catch (_: Exception) {}
@@ -128,7 +119,7 @@ class CarBotEngine(private val db: AppDatabase) {
                     .getTotalByCategoryAndPeriod(car.id, b.category, startDate, System.currentTimeMillis()) ?: 0.0
                 val pct = (spent / b.monthlyLimit * 100).toInt()
                 if (pct >= 80) {
-                    alerts += "💸 Бюджет **${b.category.displayName()}** потрачен на $pct%."
+                    alerts += "💸 Бюджет **${b.category.displayName(appContext)}** потрачен на $pct%."
                 }
             }
         } catch (_: Exception) {}
@@ -140,19 +131,31 @@ class CarBotEngine(private val db: AppDatabase) {
     // ── Конкретные ответы ──────────────────────────────────────────────────
 
     private fun buildHelpText(): String = """
-🤖 **Я могу ответить на:**
+🤖 **Спросите про деньги** — можно с месяцем и категорией:
 
-• 🛢 Когда менять масло?
-• 💰 Сколько я потратил в этом месяце?
-• ⛽ Средний расход топлива
-• 🔧 Следующее ТО
-• 📋 Последние расходы
-• 📊 Самый дорогой месяц
-• 🏎 Информация об автомобиле
-• 🛡 Статус страховки
-• 📍 Статистика поездок
-• 💳 Бюджет по категориям
-• 💵 Итоговые расходы за всё время
+• Сколько потратил в июле?
+• Сколько ушло на мойку за год?
+• Расходы на топливо в прошлом месяце
+• Самый дорогой месяц · Всего за всё время
+
+**Про машину:**
+
+• Когда менять масло? · Что с ТО?
+• Средний расход топлива
+• Статус страховки · Бюджет
+• Последние расходы · Поездки по GPS
+
+📝 **Скажите, что записать** — я создам запись, показав её перед сохранением:
+
+• Запиши заправку 2400, 42 литра
+• Добавь мойку 700
+• Внеси ремонт 15000, пробег 124500
+
+🧭 **Или попросите открыть экран:**
+
+• Покажи аналитику · Открой ТО · Покажи документы
+
+🎤 Кнопка микрофона рядом с полем — можно не набирать, а сказать.
     """.trimIndent()
 
     private suspend fun answerOilChange(car: Car?): String {
@@ -195,41 +198,48 @@ class CarBotEngine(private val db: AppDatabase) {
         return sb.toString().trimEnd()
     }
 
-    private suspend fun answerSpending(car: Car?, queryLower: String): String {
+    /**
+     * Сколько потрачено — за названный срок и по названной категории.
+     *
+     * Когда срок в вопросе не назван, берём текущий месяц, но говорим об этом
+     * в первой же строке ответа. Раньше подстановка была молчаливой, и на
+     * вопрос про июль приходил ответ про август без единого признака, что
+     * вопрос поняли иначе.
+     */
+    private suspend fun answerSpending(
+        car: Car?,
+        period: CarBotQuery.Period?,
+        category: ExpenseCategory?
+    ): String {
         if (car == null) return noCar()
+        val range = period ?: CarBotQuery.currentMonth()
 
-        val cal = Calendar.getInstance()
-        val (label, startDate, endDate) = when {
-            queryLower.containsAny("год", "year") -> {
-                val y = cal.get(Calendar.YEAR)
-                val start = Calendar.getInstance().apply { set(y, 0, 1, 0, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
-                val end = Calendar.getInstance().apply { set(y, 11, 31, 23, 59, 59); set(Calendar.MILLISECOND, 999) }.timeInMillis
-                Triple("в $y году", start, end)
-            }
-            queryLower.containsAny("прошлый месяц", "в прошлом", "прошлом месяц") -> {
-                cal.add(Calendar.MONTH, -1)
-                val start = Calendar.getInstance().apply { time = cal.time; set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
-                val end = Calendar.getInstance().apply { time = cal.time; set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH)); set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999) }.timeInMillis
-                Triple("в прошлом месяце", start, end)
-            }
-            else -> {
-                val start = Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
-                Triple("в этом месяце", start, System.currentTimeMillis())
-            }
+        val expenses = db.expenseDao()
+            .getExpensesInDateRangeSync(car.id, range.start, range.end)
+            .let { list -> if (category != null) list.filter { it.category == category } else list }
+
+        val total = expenses.sumOf { it.amount }
+        val what = category?.let { " на ${it.displayName(appContext)}" } ?: ""
+
+        if (expenses.isEmpty()) {
+            return "💰 Расходов$what ${range.label} нет — ни одной записи."
         }
 
-        val total = db.expenseDao().getTotalExpensesInDateRange(car.id, startDate, endDate).first() ?: 0.0
-        val expenses = db.expenseDao().getExpensesInDateRangeSync(car.id, startDate, endDate)
-        val byCategory = expenses.groupBy { it.category }
-            .mapValues { (_, v) -> v.sumOf { it.amount } }
-            .entries.sortedByDescending { it.value }
-
-        val sb = StringBuilder("💰 **Расходы $label на ${car.brand} ${car.model}:**\n\n")
+        val sb = StringBuilder("💰 **Расходы$what ${range.label} на ${car.brand} ${car.model}:**\n\n")
         sb.appendLine("Итого: **${ruFmt.format(total)} ₽** (${expenses.size} записей)")
-        if (byCategory.isNotEmpty()) {
-            sb.appendLine("\nПо категориям:")
-            byCategory.take(5).forEach { (cat, sum) ->
-                sb.appendLine("  ${cat.emoji()} ${cat.displayName()}: ${ruFmt.format(sum)} ₽")
+        sb.appendLine("Средний чек: ${ruFmt.format(total / expenses.size)} ₽")
+
+        // Разбивку по категориям показываем только когда категория не задана:
+        // иначе это была бы одна строка, повторяющая итог
+        if (category == null) {
+            val byCategory = expenses.groupBy { it.category }
+                .mapValues { (_, v) -> v.sumOf { it.amount } }
+                .entries.sortedByDescending { it.value }
+            if (byCategory.size > 1) {
+                sb.appendLine("\nПо категориям:")
+                byCategory.take(5).forEach { (cat, sum) ->
+                    sb.appendLine("  ${cat.emoji()} ${cat.displayName(appContext)}: ${ruFmt.format(sum)} ₽")
+                }
             }
         }
         return sb.toString().trimEnd()
@@ -316,7 +326,7 @@ ${if (avgSpeed != null) "Средняя скорость: ${"%.0f".format(avgSpe
                 pct >= 80 -> "⚠️"
                 else -> "✅"
             }
-            sb.appendLine("$status **${budget.category.displayName()}**: ${ruFmt.format(spent)} / ${ruFmt.format(budget.monthlyLimit)} ₽ ($pct%)")
+            sb.appendLine("$status **${budget.category.displayName(appContext)}**: ${ruFmt.format(spent)} / ${ruFmt.format(budget.monthlyLimit)} ₽ ($pct%)")
             sb.appendLine("   $bar")
         }
         return sb.toString().trimEnd()
@@ -339,7 +349,7 @@ ${if (avgSpeed != null) "Средняя скорость: ${"%.0f".format(avgSpe
                 kmLeft <= 500 -> "⚠️ Скоро (через ${ruFmt.format(kmLeft)} км)"
                 else -> "✅ Через ${ruFmt.format(kmLeft)} км"
             }
-            sb.appendLine("$status — **${r.type.displayName}**")
+            sb.appendLine("$status — **${appContext.getString(r.type.displayNameRes)}**")
         }
         return sb.toString().trimEnd()
     }
@@ -369,7 +379,7 @@ ${if (car.color != null) "Цвет: ${car.color}" else ""}
         val dateFmt = java.text.SimpleDateFormat("dd.MM", Locale.getDefault())
         val sb = StringBuilder("📋 **Последние расходы ${car.brand} ${car.model}:**\n\n")
         expenses.forEach { e ->
-            val title = e.title?.take(30) ?: e.category.displayName()
+            val title = e.title?.take(30) ?: e.category.displayName(appContext)
             sb.appendLine("• ${dateFmt.format(java.util.Date(e.date))} — **${ruFmt.format(e.amount)} ₽** $title")
         }
         return sb.toString().trimEnd()
@@ -389,7 +399,7 @@ ${if (car.color != null) "Цвет: ${car.color}" else ""}
         sb.appendLine("По категориям:")
         byCategory.forEach { (cat, sum) ->
             val pct = if (total > 0) (sum / total * 100).toInt() else 0
-            sb.appendLine("  ${cat.emoji()} ${cat.displayName()}: ${ruFmt.format(sum)} ₽ ($pct%)")
+            sb.appendLine("  ${cat.emoji()} ${cat.displayName(appContext)}: ${ruFmt.format(sum)} ₽ ($pct%)")
         }
         return sb.toString().trimEnd()
     }
@@ -399,7 +409,7 @@ ${if (car.color != null) "Цвет: ${car.color}" else ""}
         val all = db.expenseDao().getExpensesByCarIdSync(car.id)
         if (all.isEmpty()) return "📊 Расходов нет."
 
-        val monthFmt = java.text.SimpleDateFormat("MMMM yyyy", Locale("ru"))
+        val monthFmt = java.text.SimpleDateFormat("MMMM yyyy", Locale.getDefault())
         val byMonth = all.groupBy { e ->
             val c = Calendar.getInstance().apply { timeInMillis = e.date }
             Pair(c.get(Calendar.YEAR), c.get(Calendar.MONTH))

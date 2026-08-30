@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.search
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -67,7 +69,7 @@ fun SearchScreen(
                     OutlinedTextField(
                         value = uiState.query,
                         onValueChange = viewModel::onQueryChange,
-                        placeholder = { Text("Поиск по расходам...") },
+                        placeholder = { Text(stringResource(R.string.search_poisk_po_rashodam)) },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -76,7 +78,7 @@ fun SearchScreen(
                         trailingIcon = {
                             if (uiState.query.isNotEmpty()) {
                                 IconButton(onClick = viewModel::clearQuery) {
-                                    Icon(Icons.Default.Clear, "Очистить")
+                                    Icon(Icons.Default.Clear, stringResource(R.string.documents_ochistit))
                                 }
                             }
                         },
@@ -88,7 +90,7 @@ fun SearchScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -98,7 +100,7 @@ fun SearchScreen(
                                 Badge { Text(uiState.filter.activeCount.toString()) }
                             }
                         }) {
-                            Icon(Icons.Default.FilterList, "Фильтры")
+                            Icon(Icons.Default.FilterList, stringResource(R.string.search_filtry))
                         }
                     }
                 },
@@ -118,8 +120,8 @@ fun SearchScreen(
                 uiState.query.length < 2 && !uiState.filter.isActive && !uiState.hasSearched -> {
                     EmptyState(
                         icon = Icons.Default.Search,
-                        title = "Поиск по расходам",
-                        subtitle = "Введите минимум 2 символа или задайте фильтр",
+                        title = stringResource(R.string.search_poisk_po_rashodam_2),
+                        subtitle = stringResource(R.string.search_vvedite_minimum_2_simvola_ili_zadayte),
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
@@ -127,8 +129,8 @@ fun SearchScreen(
                 uiState.hasSearched && uiState.results.isEmpty() -> {
                     EmptyState(
                         icon = Icons.Default.Search,
-                        title = "Ничего не найдено",
-                        subtitle = "Попробуйте изменить запрос или проверьте написание",
+                        title = stringResource(R.string.search_nichego_ne_naydeno),
+                        subtitle = stringResource(R.string.search_poprobuyte_izmenit_zapros_ili_proverte),
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
@@ -147,9 +149,9 @@ fun SearchScreen(
                             val truncated = uiState.totalMatches > uiState.results.size
                             Text(
                                 if (truncated)
-                                    "Показаны первые ${uiState.results.size}, есть ещё"
+                                    stringResource(R.string.search_pokazany_pervye_est_esche, uiState.results.size)
                                 else
-                                    "Найдено: ${uiState.results.size}",
+                                    stringResource(R.string.search_naydeno, uiState.results.size),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
@@ -181,7 +183,7 @@ private fun SearchResultCard(
     onClick: () -> Unit
 ) {
     val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
-    val numberFormat = NumberFormat.getNumberInstance(Locale("ru")).apply {
+    val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
         maximumFractionDigits = 0
     }
 
@@ -260,4 +262,5 @@ private fun SearchResultCard(
 
 private fun categoryEmoji(category: ExpenseCategory) = category.emoji()
 
+@Composable
 private fun categoryDisplayName(category: ExpenseCategory) = category.displayName()

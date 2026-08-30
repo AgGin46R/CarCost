@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.search
 
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope

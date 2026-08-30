@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.documents
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.app.Application
 import android.content.Intent
@@ -67,10 +69,10 @@ fun DocumentsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Документы") },
+                title = { Text(stringResource(R.string.documents_dokumenty)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -86,7 +88,7 @@ fun DocumentsScreen(
                     else showAddPolicyDialog = true
                 }
             ) {
-                Icon(Icons.Default.Add, "Добавить")
+                Icon(Icons.Default.Add, stringResource(R.string.action_add))
             }
         }
     ) { padding ->
@@ -99,13 +101,13 @@ fun DocumentsScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Документы") },
+                    text = { Text(stringResource(R.string.documents_dokumenty)) },
                     icon = { Icon(Icons.Default.Folder, null, modifier = Modifier.size(18.dp)) }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Страховки") },
+                    text = { Text(stringResource(R.string.documents_strahovki)) },
                     icon = { Icon(Icons.Default.Security, null, modifier = Modifier.size(18.dp)) }
                 )
             }
@@ -125,9 +127,9 @@ fun DocumentsScreen(
                                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                                 )
                                 Spacer(Modifier.height(16.dp))
-                                Text("Нет документов", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.documents_net_dokumentov), style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    "Добавьте ПТС, СТС и другие документы",
+                                    stringResource(R.string.documents_dobavte_pts_sts_i_drugie_dokumenty),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
@@ -161,9 +163,9 @@ fun DocumentsScreen(
                                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                                 )
                                 Spacer(Modifier.height(16.dp))
-                                Text("Нет полисов", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.documents_net_polisov), style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    "Нажмите + чтобы добавить ОСАГО или КАСКО",
+                                    stringResource(R.string.documents_nazhmite_chtoby_dobavit_osago_ili_kasko),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
@@ -191,7 +193,7 @@ fun DocumentsScreen(
     // Диалог добавления документа
     if (showAddDocDialog) {
         DocumentFormDialog(
-            title = "Добавить документ",
+            title = stringResource(R.string.documents_dobavit_dokument),
             onDismiss = { showAddDocDialog = false },
             onSave = { type, title, fileUri, expiryDate, notes ->
                 viewModel.addDocument(carId, type, title, fileUri, expiryDate, notes)
@@ -203,7 +205,7 @@ fun DocumentsScreen(
     // Диалог редактирования документа
     editingDocument?.let { doc ->
         DocumentFormDialog(
-            title = "Редактировать документ",
+            title = stringResource(R.string.documents_redaktirovat_dokument),
             initialDocument = doc,
             onDismiss = { editingDocument = null },
             onSave = { type, title, fileUri, expiryDate, notes ->
@@ -274,7 +276,7 @@ fun DocumentCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(document.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    document.type.displayName,
+                    stringResource(document.type.displayNameRes),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     maxLines = 1,
@@ -284,9 +286,9 @@ fun DocumentCard(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         when {
-                            isExpired -> "Истёк: ${dateFormat.format(Date(expiry))}"
-                            expiresSoon -> "Истекает: ${dateFormat.format(Date(expiry))}"
-                            else -> "До: ${dateFormat.format(Date(expiry))}"
+                            isExpired -> stringResource(R.string.documents_istek, dateFormat.format(Date(expiry)))
+                            expiresSoon -> stringResource(R.string.documents_istekaet, dateFormat.format(Date(expiry)))
+                            else -> stringResource(R.string.documents_do, dateFormat.format(Date(expiry)))
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = when {
@@ -304,14 +306,14 @@ fun DocumentCard(
             }
             if (document.fileUri != null) {
                 IconButton(onClick = { openFile() }) {
-                    Icon(Icons.Default.OpenInNew, "Открыть файл", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.OpenInNew, stringResource(R.string.documents_otkryt_fayl), tint = MaterialTheme.colorScheme.primary)
                 }
             }
             IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, "Редактировать", tint = MaterialTheme.colorScheme.secondary)
+                Icon(Icons.Default.Edit, stringResource(R.string.cardetail_redaktirovat), tint = MaterialTheme.colorScheme.secondary)
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Delete, stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -357,10 +359,10 @@ fun DocumentFormDialog(
                     onExpandedChange = { typeExpanded = it }
                 ) {
                     OutlinedTextField(
-                        value = selectedType.displayName,
+                        value = stringResource(selectedType.displayNameRes),
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Тип документа") },
+                        label = { Text(stringResource(R.string.documents_tip_dokumenta)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth()
                     )
@@ -369,11 +371,12 @@ fun DocumentFormDialog(
                         onDismissRequest = { typeExpanded = false }
                     ) {
                         DocumentType.entries.forEach { type ->
+                            val typeName = stringResource(type.displayNameRes)
                             DropdownMenuItem(
-                                text = { Text(type.displayName) },
+                                text = { Text(typeName) },
                                 onClick = {
                                     selectedType = type
-                                    if (docTitle.isEmpty()) docTitle = type.displayName
+                                    if (docTitle.isEmpty()) docTitle = typeName
                                     typeExpanded = false
                                 }
                             )
@@ -384,7 +387,7 @@ fun DocumentFormDialog(
                 OutlinedTextField(
                     value = docTitle,
                     onValueChange = { docTitle = it },
-                    label = { Text("Название") },
+                    label = { Text(stringResource(R.string.categories_nazvanie)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -394,17 +397,17 @@ fun DocumentFormDialog(
                     value = expiryDate?.let { dateFormat.format(Date(it)) } ?: "",
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Дата истечения (необязательно)") },
+                    label = { Text(stringResource(R.string.documents_data_istecheniya_neobyazatelno)) },
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         Row {
                             if (expiryDate != null) {
                                 IconButton(onClick = { expiryDate = null }) {
-                                    Icon(Icons.Default.Clear, "Очистить")
+                                    Icon(Icons.Default.Clear, stringResource(R.string.documents_ochistit))
                                 }
                             }
                             IconButton(onClick = { showDatePicker = true }) {
-                                Icon(Icons.Default.CalendarMonth, "Выбрать дату")
+                                Icon(Icons.Default.CalendarMonth, stringResource(R.string.addcar_vybrat_datu))
                             }
                         }
                     }
@@ -425,9 +428,9 @@ fun DocumentFormDialog(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         when {
-                            fileUri != null && initialDocument?.fileUri != fileUri -> "Новый файл выбран"
-                            fileUri != null -> "Файл прикреплён · заменить"
-                            else -> "Прикрепить фото/скан"
+                            fileUri != null && initialDocument?.fileUri != fileUri -> stringResource(R.string.documents_novyy_fayl_vybran)
+                            fileUri != null -> stringResource(R.string.documents_fayl_prikreplen_zamenit)
+                            else -> stringResource(R.string.documents_prikrepit_foto_skan)
                         }
                     )
                 }
@@ -435,7 +438,7 @@ fun DocumentFormDialog(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Заметки (необязательно)") },
+                    label = { Text(stringResource(R.string.documents_zametki_neobyazatelno)) },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 2
                 )
@@ -450,11 +453,11 @@ fun DocumentFormDialog(
                 },
                 enabled = docTitle.isNotBlank()
             ) {
-                Text("Сохранить")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 
@@ -471,7 +474,7 @@ fun DocumentFormDialog(
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Отмена") }
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         ) {
             DatePicker(state = datePickerState)

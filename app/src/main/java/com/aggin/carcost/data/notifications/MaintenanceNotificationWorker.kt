@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.notifications
 
+import com.aggin.carcost.R
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -40,7 +41,7 @@ class MaintenanceNotificationWorker(
                     context = applicationContext,
                     notificationId = index + 1,
                     carName = carName,
-                    serviceType = reminder.type.displayName,
+                    serviceType = applicationContext.getString(reminder.type.displayNameRes),
                     kmLeft = kmLeft
                 )
                 return@forEachIndexed
@@ -54,14 +55,14 @@ class MaintenanceNotificationWorker(
 
             if (daysLeft <= NOTIFICATION_THRESHOLD_DAYS) {
                 val body = when {
-                    daysLeft < 0 -> "${reminder.type.displayName} — просрочено на ${-daysLeft} ${dayWord(-daysLeft)}"
-                    daysLeft == 0L -> "${reminder.type.displayName} — сегодня"
-                    else -> "${reminder.type.displayName} — через $daysLeft ${dayWord(daysLeft)}"
+                    daysLeft < 0 -> applicationContext.getString(R.string.notify_prosrocheno_na, applicationContext.getString(reminder.type.displayNameRes), -daysLeft, dayWord(-daysLeft))
+                    daysLeft == 0L -> applicationContext.getString(R.string.notify_segodnya, applicationContext.getString(reminder.type.displayNameRes))
+                    else -> applicationContext.getString(R.string.notify_cherez, applicationContext.getString(reminder.type.displayNameRes), daysLeft, dayWord(daysLeft))
                 }
                 NotificationHelper.sendGenericNotification(
                     context = applicationContext,
                     notificationId = DATE_NOTIFICATION_ID_BASE + index,
-                    title = "ТО по сроку: $carName",
+                    title = applicationContext.getString(R.string.notify_to_po_sroku, carName),
                     body = body,
                     carId = reminder.carId,
                     navType = NotificationHelper.NAV_TYPE_CAR
@@ -73,8 +74,8 @@ class MaintenanceNotificationWorker(
     }
 
     private fun dayWord(days: Long): String = when {
-        days % 10 == 1L && days % 100 != 11L -> "день"
-        days % 10 in 2..4 && days % 100 !in 12..14 -> "дня"
-        else -> "дней"
+        days % 10 == 1L && days % 100 != 11L -> applicationContext.getString(R.string.notify_den)
+        days % 10 in 2..4 && days % 100 !in 12..14 -> applicationContext.getString(R.string.notify_dnya)
+        else -> applicationContext.getString(R.string.notify_dney)
     }
 }

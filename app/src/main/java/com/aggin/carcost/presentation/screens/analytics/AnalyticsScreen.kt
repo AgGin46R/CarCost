@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.analytics
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -87,10 +89,10 @@ fun EnhancedAnalyticsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Аналитика") },
+                title = { Text(stringResource(R.string.cardetail_analitika)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -102,7 +104,7 @@ fun EnhancedAnalyticsScreen(
                                 .createRoute(avgL100 = avgL100)
                         )
                     }) {
-                        Icon(Icons.Default.Calculate, "Калькулятор топлива")
+                        Icon(Icons.Default.Calculate, stringResource(R.string.analytics_kalkulyator_topliva))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -130,14 +132,14 @@ fun EnhancedAnalyticsScreen(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        "В расходах смешаны разные валюты",
+                        stringResource(R.string.analytics_v_rashodah_smeshany_raznye_valyuty),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Text(
-                        "Итоги ниже складывают их как одинаковые числа, поэтому " +
-                            "им доверять нельзя. Валюту записи можно поправить при " +
-                            "её изменении.",
+                        stringResource(R.string.analytics_itogi_nizhe_skladyvayut_ih_kak_odinakovye) +
+                            stringResource(R.string.analytics_im_doveryat_nelzya_valyutu_zapisi_mozhno) +
+                            stringResource(R.string.analytics_ee_izmenenii),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
@@ -160,8 +162,8 @@ fun EnhancedAnalyticsScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 EmptyState(
                     icon = Icons.Default.Analytics,
-                    title = "Нет данных для аналитики",
-                    subtitle = "Добавьте расходы, чтобы увидеть статистику и графики"
+                    title = stringResource(R.string.analytics_net_dannyh_dlya_analitiki),
+                    subtitle = stringResource(R.string.analytics_dobavte_rashody_chtoby_uvidet_statistiku)
                 )
             }
         } else {
@@ -253,7 +255,7 @@ fun GpsTripStatsCard(stats: GpsTripStats) {
                 Icon(Icons.Default.Map, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "GPS-поездки",
+                    stringResource(R.string.analytics_gps_poezdki),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -265,25 +267,25 @@ fun GpsTripStatsCard(stats: GpsTripStats) {
             ) {
                 GpsStat(
                     icon = Icons.Default.Route,
-                    label = "Всего поездок",
+                    label = stringResource(R.string.analytics_vsego_poezdok),
                     value = "${stats.totalTrips}"
                 )
                 GpsStat(
                     icon = Icons.Default.Straighten,
-                    label = "Общий пробег",
-                    value = "%.1f км".format(stats.totalDistanceKm)
+                    label = stringResource(R.string.analytics_obschiy_probeg),
+                    value = stringResource(R.string.analytics_1f_km).format(stats.totalDistanceKm)
                 )
                 GpsStat(
                     icon = Icons.Default.Timeline,
                     // «Средняя» — средняя что? Значение в километрах, речь о длине поездки
-                    label = "Ср. поездка",
-                    value = "%.1f км".format(stats.avgTripDistanceKm)
+                    label = stringResource(R.string.analytics_sr_poezdka),
+                    value = stringResource(R.string.analytics_1f_km).format(stats.avgTripDistanceKm)
                 )
                 if (stats.avgSpeedKmh != null) {
                     GpsStat(
                         icon = Icons.Default.Speed,
-                        label = "Ср. скорость",
-                        value = "%.0f км/ч".format(stats.avgSpeedKmh)
+                        label = stringResource(R.string.analytics_sr_skorost),
+                        value = stringResource(R.string.analytics_0f_km_ch).format(stats.avgSpeedKmh)
                     )
                 }
             }
@@ -297,12 +299,12 @@ fun GpsTripStatsCard(stats: GpsTripStats) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "🏆 Самая длинная поездка",
+                        stringResource(R.string.analytics_samaya_dlinnaya_poezdka),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Text(
-                        "%.1f км".format(stats.longestTripKm),
+                        stringResource(R.string.analytics_1f_km).format(stats.longestTripKm),
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -338,7 +340,7 @@ fun YearComparisonCard(yc: YearComparison) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
-                Text("Год к году", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.analytics_god_k_godu), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(12.dp))
             Row(
@@ -395,7 +397,7 @@ fun TopExpenseMonthsCard(topMonths: List<TopMonth>) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.EmojiEvents, null, tint = Color(0xFFFFC107))
                 Spacer(Modifier.width(8.dp))
-                Text("Топ месяцев по расходам", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.analytics_top_mesyatsev_po_rashodam), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(12.dp))
             topMonths.forEachIndexed { index, tm ->
@@ -435,10 +437,10 @@ fun CategoryTrendsCard(trends: List<CategoryTrend>) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Insights, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
-                Text("Тренды по категориям", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.analytics_trendy_po_kategoriyam), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Text(
-                "Изменения за последние 3 месяца",
+                stringResource(R.string.analytics_izmeneniya_za_poslednie_3_mesyatsa),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -492,7 +494,7 @@ private fun CategoryTrendRow(trend: CategoryTrend) {
             )
             Spacer(Modifier.width(2.dp))
             Text(
-                if (isNew) "новое"
+                if (isNew) stringResource(R.string.analytics_novoe)
                 else "${if (isUp) "+" else ""}${"%.0f".format(trend.changePercent)}%",
                 fontSize = 12.sp,
                 color = color,
@@ -537,7 +539,7 @@ fun CarSummaryCard(uiState: AnalyticsUiState) {
                 )
                 if (uiState.expenses.isNotEmpty()) {
                     Text(
-                        "${uiState.expenses.size} записей • итого ${currencyFormat(uiState.totalExpenses)}",
+                        stringResource(R.string.analytics_zapisey_itogo, uiState.expenses.size, currencyFormat(uiState.totalExpenses)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -560,7 +562,7 @@ fun MonthComparisonCard(uiState: AnalyticsUiState) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Этот месяц vs прошлый",
+                stringResource(R.string.analytics_etot_mesyats_vs_proshlyy),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -571,7 +573,7 @@ fun MonthComparisonCard(uiState: AnalyticsUiState) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Текущий месяц", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.analytics_tekuschiy_mesyats), style = MaterialTheme.typography.bodySmall)
                     Text(
                         currencyFormat(uiState.currentMonthExpenses),
                         style = MaterialTheme.typography.titleLarge,
@@ -593,7 +595,7 @@ fun MonthComparisonCard(uiState: AnalyticsUiState) {
                         )
                     }
                     Text(
-                        "Прошлый: ${currencyFormat(uiState.previousMonthExpenses)}",
+                        stringResource(R.string.analytics_proshlyy, currencyFormat(uiState.previousMonthExpenses)),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -607,22 +609,22 @@ fun MainStatisticsCard(uiState: AnalyticsUiState) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Статистика расходов",
+                stringResource(R.string.analytics_statistika_rashodov),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(16.dp))
-            StatRow("Всего потрачено", currencyFormat(uiState.totalExpenses, 2), Icons.Default.AccountBalanceWallet)
+            StatRow(stringResource(R.string.analytics_vsego_potracheno), currencyFormat(uiState.totalExpenses, 2), Icons.Default.AccountBalanceWallet)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            StatRow("В среднем в месяц", currencyFormat(uiState.averageExpensePerMonth), Icons.Default.CalendarMonth)
+            StatRow(stringResource(R.string.analytics_v_srednem_v_mesyats), currencyFormat(uiState.averageExpensePerMonth), Icons.Default.CalendarMonth)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            StatRow("В среднем в день", currencyFormat(uiState.averageExpensePerDay), Icons.Default.Today)
+            StatRow(stringResource(R.string.analytics_v_srednem_v_den), currencyFormat(uiState.averageExpensePerDay), Icons.Default.Today)
             if (uiState.averageExpensePerKm > 0) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                StatRow("На 1 км", currencyFormat(uiState.averageExpensePerKm, 2), Icons.Default.Speed)
+                StatRow(stringResource(R.string.analytics_na_1_km), currencyFormat(uiState.averageExpensePerKm, 2), Icons.Default.Speed)
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            StatRow("Записей расходов", "${uiState.expenses.size}", Icons.Default.Receipt)
+            StatRow(stringResource(R.string.analytics_zapisey_rashodov), "${uiState.expenses.size}", Icons.Default.Receipt)
         }
     }
 }
@@ -647,7 +649,7 @@ fun StatRow(label: String, value: String, icon: androidx.compose.ui.graphics.vec
 fun PieChartCard(categoryExpenses: List<CategoryExpense>) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Расходы по категориям", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.analytics_rashody_po_kategoriyam), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(16.dp))
             PieChart(categoryExpenses)
             Spacer(Modifier.height(16.dp))
@@ -702,7 +704,7 @@ fun CategoryLegendItem(category: CategoryExpense) {
         Column(horizontalAlignment = Alignment.End) {
             Text(currencyFormat(category.amount), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             Text(
-                "${category.count} шт. • ${"%.1f".format(category.percentage)}%",
+                stringResource(R.string.analytics_sht, category.count, "%.1f".format(category.percentage)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -714,7 +716,7 @@ fun CategoryLegendItem(category: CategoryExpense) {
 fun MonthlyChartCard(monthlyExpenses: List<MonthlyExpense>) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Расходы по месяцам", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.analytics_rashody_po_mesyatsam), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(16.dp))
             if (monthlyExpenses.isNotEmpty()) {
                 val chartEntryModel = entryModelOf(
@@ -736,7 +738,7 @@ fun MonthlyChartCard(monthlyExpenses: List<MonthlyExpense>) {
                 if (peak != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Пик: ${peak.month} ${peak.year} — ${currencyFormat(peak.amount)}",
+                        stringResource(R.string.analytics_pik, peak.month, peak.year, currencyFormat(peak.amount)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -756,7 +758,7 @@ fun FuelStatisticsCard(fuelStats: FuelStatistics) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.LocalGasStation, null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
                 Spacer(Modifier.width(8.dp))
-                Text("Статистика по топливу", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.analytics_statistika_po_toplivu), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(16.dp))
 
@@ -768,18 +770,18 @@ fun FuelStatisticsCard(fuelStats: FuelStatistics) {
             // электричестве покажет расход бензина 1,5 л/100 км — и это не
             // достижение двигателя. Сравнивать можно только стоимость километра.
             fuelStats.costPerKm?.let { perKm ->
-                FuelStatRow("Стоимость километра", currencyFormat(perKm, decimals = 2))
+                FuelStatRow(stringResource(R.string.analytics_stoimost_kilometra), currencyFormat(perKm, decimals = 2))
                 fuelStats.electricCostShare?.let { share ->
                     FuelStatRow(
-                        "Из них на электричество",
+                        stringResource(R.string.analytics_iz_nih_na_elektrichestvo),
                         "%.0f %%".format(share * 100)
                     )
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Text(
-                    "Расходы ниже показаны по отдельности. У машины с двумя " +
-                        "источниками они зависят от доли поездок на электричестве, " +
-                        "поэтому сравнивать их с обычной машиной нельзя.",
+                    stringResource(R.string.analytics_rashody_nizhe_pokazany_po_otdelnosti_u) +
+                        stringResource(R.string.analytics_istochnikami_oni_zavisyat_ot_doli_poezdok) +
+                        stringResource(R.string.analytics_poetomu_sravnivat_ih_s_obychnoy_mashinoy),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                 )
@@ -790,41 +792,41 @@ fun FuelStatisticsCard(fuelStats: FuelStatistics) {
             // честного числа нет, и показывать выдуманное хуже, чем объяснить почему
             if (fuelStats.totalLiters > 0) {
                 FuelStatRow(
-                    "Средний расход",
+                    stringResource(R.string.analytics_sredniy_rashod),
                     fuelStats.averageConsumption
-                        ?.let { "%.2f л/100км".format(it) }
-                        ?: "нужны 2 заправки до полного"
+                        ?.let { stringResource(R.string.analytics_2f_l_100km).format(it) }
+                        ?: stringResource(R.string.analytics_nuzhny_2_zapravki_do_polnogo)
                 )
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                FuelStatRow("Всего заправлено", "%.1f л".format(fuelStats.totalLiters))
+                FuelStatRow(stringResource(R.string.analytics_vsego_zapravleno), stringResource(R.string.analytics_1f_l).format(fuelStats.totalLiters))
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                FuelStatRow("Потрачено на топливо", currencyFormat(fuelStats.totalCost))
+                FuelStatRow(stringResource(R.string.analytics_potracheno_na_toplivo), currencyFormat(fuelStats.totalCost))
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                FuelStatRow("Средняя цена за литр", currencyFormat(fuelStats.averagePricePerLiter))
+                FuelStatRow(stringResource(R.string.analytics_srednyaya_tsena_za_litr), currencyFormat(fuelStats.averagePricePerLiter))
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             }
 
             if (fuelStats.totalKwh > 0) {
                 FuelStatRow(
-                    "Расход электричества",
+                    stringResource(R.string.analytics_rashod_elektrichestva),
                     fuelStats.averageEnergyConsumption
-                        ?.let { "%.1f кВт·ч/100км".format(it) }
-                        ?: "нужны 2 зарядки до 100%"
+                        ?.let { stringResource(R.string.analytics_1f_kvt_ch_100km).format(it) }
+                        ?: stringResource(R.string.analytics_nuzhny_2_zaryadki_do_100)
                 )
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                FuelStatRow("Всего заряжено", "%.1f кВт·ч".format(fuelStats.totalKwh))
+                FuelStatRow(stringResource(R.string.analytics_vsego_zaryazheno), stringResource(R.string.cardetail_1f_kvt_ch).format(fuelStats.totalKwh))
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                FuelStatRow("Потрачено на зарядку", currencyFormat(fuelStats.energyCost))
+                FuelStatRow(stringResource(R.string.analytics_potracheno_na_zaryadku), currencyFormat(fuelStats.energyCost))
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             }
             if (fuelStats.averageConsumption != null) {
-                FuelStatRow("Пробег в расчёте", "${fuelStats.kmDriven} км")
+                FuelStatRow(stringResource(R.string.analytics_probeg_v_raschete), stringResource(R.string.home_km, fuelStats.kmDriven))
             }
 
             if (fuelStats.consumptionHistory.size >= 2) {
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "Динамика расхода (л/100км)",
+                    stringResource(R.string.analytics_dinamika_rashoda_l_100km),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                 )
@@ -871,29 +873,29 @@ fun ForecastCard(forecast: ExpenseForecast) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.QueryStats, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                 Spacer(Modifier.width(8.dp))
-                Text("Прогноз расходов", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.analytics_prognoz_rashodov), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(4.dp))
             Text(
                 // Раньше здесь стояло «На основе последних 3 месяцев» независимо
                 // от того, сколько месяцев на самом деле было в расчёте
-                "По ${forecast.basedOnMonths} завершённым месяцам — текущий ещё не кончился",
+                stringResource(R.string.analytics_po_zavershennym_mesyatsam_tekuschiy_esche, forecast.basedOnMonths),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
             )
             Spacer(Modifier.height(12.dp))
-            FuelStatRow("Следующий месяц", "~ ${currencyFormat(forecast.nextMonthEstimate)}")
+            FuelStatRow(stringResource(R.string.analytics_sleduyuschiy_mesyats), "~ ${currencyFormat(forecast.nextMonthEstimate)}")
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Прогноз на год", "~ ${currencyFormat(forecast.nextYearEstimate)}")
+            FuelStatRow(stringResource(R.string.analytics_prognoz_na_god), "~ ${currencyFormat(forecast.nextYearEstimate)}")
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            FuelStatRow("Средний месячный", currencyFormat(forecast.averageMonthly))
+            FuelStatRow(stringResource(R.string.analytics_sredniy_mesyachnyy), currencyFormat(forecast.averageMonthly))
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Тренд", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.analytics_trend), style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val trendIcon = when (forecast.trend) {
                         "increasing" -> Icons.Default.TrendingUp
@@ -909,9 +911,9 @@ fun ForecastCard(forecast: ExpenseForecast) {
                     Spacer(Modifier.width(4.dp))
                     Text(
                         when (forecast.trend) {
-                            "increasing" -> "Растут"
-                            "decreasing" -> "Снижаются"
-                            else -> "Стабильно"
+                            "increasing" -> stringResource(R.string.analytics_rastut)
+                            "decreasing" -> stringResource(R.string.analytics_snizhayutsya)
+                            else -> stringResource(R.string.analytics_stabilno)
                         },
                         fontWeight = FontWeight.Bold,
                         color = trendColor
@@ -943,7 +945,7 @@ fun ContributionsCard(
                 Icon(Icons.Default.Groups, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Кто сколько заплатил",
+                    stringResource(R.string.analytics_kto_skolko_zaplatil),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -952,8 +954,8 @@ fun ContributionsCard(
 
             contributions.forEach { c ->
                 val label = when {
-                    c.userId == null -> "Автор неизвестен"
-                    else -> names[c.userId] ?: "Участник"
+                    c.userId == null -> stringResource(R.string.analytics_avtor_neizvesten)
+                    else -> names[c.userId] ?: stringResource(R.string.analytics_uchastnik)
                 }
 
                 Row(
@@ -983,9 +985,9 @@ fun ContributionsCard(
                     if (kotlin.math.abs(deviation) >= 1.0) {
                         Text(
                             text = if (deviation > 0)
-                                "на ${currencyFormat(deviation)} больше поровну"
+                                stringResource(R.string.analytics_na_bolshe_porovnu, currencyFormat(deviation))
                             else
-                                "на ${currencyFormat(-deviation)} меньше поровну",
+                                stringResource(R.string.analytics_na_menshe_porovnu, currencyFormat(-deviation)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 2.dp)
@@ -999,8 +1001,8 @@ fun ContributionsCard(
             if (contributions.any { it.userId == null }) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Записи без автора сделаны до того, как приложение начало " +
-                        "запоминать, кто платил.",
+                    stringResource(R.string.analytics_zapisi_bez_avtora_sdelany_do_togo_kak) +
+                        stringResource(R.string.analytics_zapominat_kto_platil),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1030,7 +1032,7 @@ fun ForecastPendingCard() {
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Прогноз расходов",
+                    stringResource(R.string.analytics_prognoz_rashodov),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1038,8 +1040,8 @@ fun ForecastPendingCard() {
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "Появится, когда наберутся два полных месяца учёта. " +
-                    "Считать по неполному месяцу нечестно — цифра получится случайной.",
+                stringResource(R.string.analytics_poyavitsya_kogda_naberutsya_dva_polnyh) +
+                    stringResource(R.string.analytics_schitat_po_nepolnomu_mesyatsu_nechestno),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             )
@@ -1067,7 +1069,7 @@ fun AnomalyCard(anomalies: List<com.aggin.carcost.presentation.screens.analytics
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Аномалии в расходах",
+                    stringResource(R.string.analytics_anomalii_v_rashodah),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onErrorContainer
@@ -1075,7 +1077,7 @@ fun AnomalyCard(anomalies: List<com.aggin.carcost.presentation.screens.analytics
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "Значительные изменения по сравнению со средним за 3 месяца",
+                stringResource(R.string.analytics_znachitelnye_izmeneniya_po_sravneniyu_so),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
             )
@@ -1127,6 +1129,7 @@ fun AnomalyCard(anomalies: List<com.aggin.carcost.presentation.screens.analytics
 
 fun getCategoryColor(category: ExpenseCategory): Color = category.color()
 
+@Composable
 fun getCategoryName(category: ExpenseCategory): String = category.displayName()
 
 @Composable
@@ -1137,7 +1140,7 @@ fun OdometerChartCard(history: List<OdometerPoint>) {
                 Icon(Icons.Default.Speed, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "История пробега",
+                    stringResource(R.string.analytics_istoriya_probega),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -1163,7 +1166,7 @@ fun OdometerChartCard(history: List<OdometerPoint>) {
             val growth = last - first
             if (growth > 0) {
                 Text(
-                    "Прирост за период: +$growth км",
+                    stringResource(R.string.analytics_prirost_za_period_km, growth),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

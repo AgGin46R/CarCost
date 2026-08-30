@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.components
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,15 +46,15 @@ fun JoinByCodeDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.VpnKey, contentDescription = null) },
-        title = { Text("Присоединиться по коду") },
+        title = { Text(stringResource(R.string.components_prisoedinitsya_po_kodu)) },
         text = {
             Column {
-                Text("Введите код, который прислал владелец автомобиля.")
+                Text(stringResource(R.string.components_vvedite_kod_kotoryy_prislal_vladelets))
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = code,
                     onValueChange = { if (it.length <= 12) code = it.uppercase() },
-                    label = { Text("Код приглашения") },
+                    label = { Text(stringResource(R.string.components_kod_priglasheniya)) },
                     placeholder = { Text("K7M2-P9XQ") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -63,10 +65,10 @@ fun JoinByCodeDialog(
             TextButton(
                 enabled = cleaned.length >= 6,
                 onClick = { onSubmit(cleaned) }
-            ) { Text("Присоединиться") }
+            ) { Text(stringResource(R.string.components_prisoedinitsya)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

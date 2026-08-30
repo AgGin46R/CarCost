@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.notifications
 
+import com.aggin.carcost.R
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -71,9 +72,9 @@ class FirstRecordNudgeWorker(
         NotificationHelper.sendGenericNotification(
             context = applicationContext,
             notificationId = NOTIFICATION_ID,
-            title = "Запишите первую заправку",
-            body = "Приложение посчитает расход на сотню и стоимость километра — " +
-                "для этого хватит двух заправок до полного бака.",
+            title = applicationContext.getString(R.string.notify_zapishite_pervuyu_zapravku),
+            body = applicationContext.getString(R.string.notify_prilozhenie_poschitaet_rashod_na_sotnyu_i) +
+                applicationContext.getString(R.string.notify_dlya_etogo_hvatit_dvuh_zapravok_do),
             carId = cars.first().id,
             navType = NotificationHelper.NAV_TYPE_ADD_FUEL
         )

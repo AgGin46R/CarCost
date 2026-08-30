@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.goals
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -119,7 +121,7 @@ fun GoalsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Цели накопления") },
+                title = { Text(stringResource(R.string.cardetail_tseli_nakopleniya)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
@@ -139,9 +141,9 @@ fun GoalsScreen(
                     Icon(Icons.Default.Savings, null, Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(16.dp))
-                    Text("Нет целей накопления", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.goals_net_tseley_nakopleniya), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
-                    Text("Создайте цель, например\n\"Новые шины\" или \"Ремонт\"",
+                    Text(stringResource(R.string.goals_sozdayte_tsel_naprimer_n_novye_shiny_ili),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
@@ -177,12 +179,12 @@ private fun GoalCard(
         var amountText by rememberSaveable { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            title = { Text("Добавить средства") },
+            title = { Text(stringResource(R.string.goals_dobavit_sredstva)) },
             text = {
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it },
-                    label = { Text("Сумма (₽)") },
+                    label = { Text(stringResource(R.string.goals_summa)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -191,10 +193,10 @@ private fun GoalCard(
                 TextButton(onClick = {
                     amountText.replace(',', '.').toDoubleOrNull()?.let { onAdd(it) }
                     showAddDialog = false
-                }) { Text("Добавить") }
+                }) { Text(stringResource(R.string.action_add)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("Отмена") }
+                TextButton(onClick = { showAddDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -240,7 +242,7 @@ private fun GoalCard(
             ) {
                 Text("${goal.currentAmount.toInt()} ₽", fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary)
-                Text("из ${goal.targetAmount.toInt()} ₽",
+                Text(stringResource(R.string.goals_iz, goal.targetAmount.toInt()),
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
 
@@ -260,7 +262,7 @@ private fun GoalCard(
                 ) {
                     Icon(Icons.Default.Add, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Пополнить")
+                    Text(stringResource(R.string.goals_popolnit))
                 }
             }
         }
@@ -277,19 +279,19 @@ private fun AddGoalDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая цель") },
+        title = { Text(stringResource(R.string.goals_novaya_tsel)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Название цели") },
+                    label = { Text(stringResource(R.string.goals_nazvanie_tseli)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = targetText,
                     onValueChange = { targetText = it },
-                    label = { Text("Целевая сумма (₽)") },
+                    label = { Text(stringResource(R.string.goals_tselevaya_summa)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -301,10 +303,10 @@ private fun AddGoalDialog(
                 if (title.isNotBlank() && target != null && target > 0) {
                     onConfirm(title, target)
                 }
-            }) { Text("Создать") }
+            }) { Text(stringResource(R.string.goals_sozdat)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

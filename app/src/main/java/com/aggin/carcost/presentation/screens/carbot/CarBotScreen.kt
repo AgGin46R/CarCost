@@ -1,5 +1,8 @@
 package com.aggin.carcost.presentation.screens.carbot
 
+import androidx.compose.material.icons.filled.Mic
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,17 +29,23 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 
+/**
+ * Подсказки под полем ввода.
+ *
+ * Первые две — команды, а не вопросы: именно умение записывать и открывать
+ * экраны отличает бота от справки, и узнать об этом человеку больше неоткуда.
+ */
 private val suggestions = listOf(
-    "💰 Расходы за месяц",
-    "🔧 Когда масло?",
+    "📝 Запиши заправку 2400",
+    "🧭 Покажи аналитику",
+    "💰 Сколько потратил в этом месяце",
     "⛽ Средний расход",
-    "📋 Последние расходы",
+    "🔧 Когда масло?",
+    "🧼 Сколько ушло на мойку за год",
     "📊 Самый дорогой месяц",
-    "💵 Всего потратил",
-    "📍 Поездки GPS",
-    "💳 Бюджет",
     "🛡 Страховка",
-    "🚗 Инфо об авто"
+    "💳 Бюджет",
+    "🚗 Что умеешь?"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +57,56 @@ fun CarBotScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     var showAiSetupDialog by rememberSaveable { mutableStateOf(false) }
+
+    // ── Голосовой ввод ──────────────────────────────────────────────────────
+    // Распознанная фраза не отправляется сама: она подставляется в поле, где
+    // её видно и можно поправить. Распознавание ошибается в числах, а числа
+    // здесь превращаются в записи о деньгах.
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val spoken = result.data
+            ?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        if (!spoken.isNullOrBlank()) viewModel.updateInput(spoken)
+    }
+
+    fun startVoiceInput() {
+        val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            )
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Говорите")
+        }
+        // Распознавания может не быть вовсе — на таком устройстве кнопка должна
+        // объяснить, а не уронить экран
+        runCatching { voiceLauncher.launch(intent) }.onFailure {
+            android.widget.Toast.makeText(
+                context, "Распознавание речи недоступно на этом устройстве",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    // ── Переходы по команде бота ────────────────────────────────────────────
+    val navigateTo by viewModel.navigateTo.collectAsState()
+    LaunchedEffect(navigateTo) {
+        val target = navigateTo ?: return@LaunchedEffect
+        val carId = viewModel.uiState.value.selectedCarId
+        val route = when (target) {
+            CarBotCommand.Command.Target.ANALYTICS -> carId?.let { "analytics/$it" }
+            CarBotCommand.Command.Target.EXPENSES -> carId?.let { "car_detail/$it" }
+            CarBotCommand.Command.Target.MAINTENANCE -> "maintenance_dashboard"
+            CarBotCommand.Command.Target.DOCUMENTS -> carId?.let { "documents/$it" }
+            CarBotCommand.Command.Target.NAVIGATOR -> "navigator"
+            CarBotCommand.Command.Target.BUDGET -> carId?.let { "budget/$it" }
+            CarBotCommand.Command.Target.TIMELINE -> carId?.let { "service_timeline/$it" }
+        }
+        viewModel.consumeNavigation()
+        if (route != null) navController.navigate(route)
+    }
 
     // Auto-scroll to bottom when new message arrives
     LaunchedEffect(uiState.messages.size) {
@@ -269,6 +328,37 @@ fun CarBotScreen(navController: NavController) {
                 }
             }
 
+            // Команда разобрана, но ещё не выполнена. Показываем, что именно
+            // будет записано, до записи, а не после: фраза могла прийти
+            // голосом, а распознавание ошибается в числах
+            uiState.pendingExpense?.let { pending ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Записать расход?",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        TextButton(onClick = { viewModel.cancelPendingExpense() }) {
+                            Text("Отмена")
+                        }
+                        Button(onClick = { viewModel.confirmPendingExpense() }) {
+                            Text("Записать")
+                        }
+                    }
+                }
+            }
+
             HorizontalDivider()
 
             Row(
@@ -283,11 +373,26 @@ fun CarBotScreen(navController: NavController) {
                     value = uiState.inputText,
                     onValueChange = { viewModel.updateInput(it) },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Спросите что-нибудь…", fontSize = 14.sp) },
+                    placeholder = { Text("Спросите или скажите…", fontSize = 14.sp) },
                     maxLines = 3,
                     shape = RoundedCornerShape(24.dp),
                     textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                 )
+
+                // Голос — единственный пригодный ввод за рулём, а заправка
+                // случается именно там. Распознавание системное: ничего
+                // скачивать не нужно, язык берётся текущий.
+                IconButton(
+                    onClick = { startVoiceInput() },
+                    enabled = !uiState.isProcessing,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Mic,
+                        contentDescription = "Сказать голосом",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 IconButton(
                     onClick = { viewModel.sendMessage(uiState.inputText) },
                     enabled = uiState.inputText.isNotBlank() && !uiState.isProcessing,

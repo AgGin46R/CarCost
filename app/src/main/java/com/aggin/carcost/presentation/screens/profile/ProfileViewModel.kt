@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.profile
 
+import com.aggin.carcost.R
 import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
@@ -103,8 +104,15 @@ sealed interface AccountDeletionState {
         val backupSaved: Boolean,
         val typed: String = ""
     ) : AccountDeletionState {
-        val canDelete: Boolean
-            get() = typed.trim().equals(AccountDeletionState.CONFIRM_WORD, ignoreCase = true)
+        /**
+         * Сверяем со словом на том языке, на котором его показали: набирает
+         * человек ровно то, что видит на экране.
+         */
+        fun canDelete(context: android.content.Context): Boolean =
+            typed.trim().equals(
+                context.getString(AccountDeletionState.CONFIRM_WORD_RES),
+                ignoreCase = true
+            )
     }
 
     object InProgress : AccountDeletionState
@@ -112,8 +120,13 @@ sealed interface AccountDeletionState {
     data class Failed(val message: String) : AccountDeletionState
 
     companion object {
-        /** Слово, которое нужно набрать руками — защита от случайного нажатия */
-        const val CONFIRM_WORD = "УДАЛИТЬ"
+        /**
+         * Слово, которое нужно набрать руками — защита от случайного нажатия.
+         *
+         * Хранится ключ, а не текст: на другом языке человек будет набирать
+         * своё слово, и сверять надо с тем, что ему показали.
+         */
+        val CONFIRM_WORD_RES = R.string.profile_udalit
     }
 }
 
@@ -318,7 +331,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         } catch (e: Exception) {
             e.printStackTrace()
             _uiState.value = _uiState.value.copy(
-                errorMessage = "Ошибка создания файла: ${e.message}"
+                errorMessage = getApplication<Application>().getString(R.string.profile_oshibka_sozdaniya_fayla, e.message)
             )
             null
         }
@@ -327,12 +340,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     // ✅ Функция для сжатия изображения
     private suspend fun compressImage(uri: Uri): ByteArray = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw Exception("Не удалось открыть файл")
+            ?: throw Exception(getApplication<Application>().getString(R.string.chat_ne_udalos_otkryt_fayl))
 
         // Читаем изображение
         val bitmap = BitmapFactory.decodeStream(inputStream)
         inputStream.close()
-        if (bitmap == null) throw IllegalStateException("Не удалось декодировать изображение. Попробуйте выбрать другой формат (JPEG/PNG)")
+        if (bitmap == null) throw IllegalStateException(getApplication<Application>().getString(R.string.profile_ne_udalos_dekodirovat_izobrazhenie))
 
         // Определяем размер для сжатия (макс 1024px по большей стороне, не апскейлируем)
         val maxSize = 1024
@@ -371,7 +384,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     withContext(Dispatchers.Main) {
                         _uiState.value = _uiState.value.copy(
                             isUploadingPhoto = false,
-                            errorMessage = "Пользователь не найден"
+                            errorMessage = getApplication<Application>().getString(R.string.profile_polzovatel_ne_nayden)
                         )
                     }
                     return@launch
@@ -420,7 +433,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
                         isUploadingPhoto = false,
-                        errorMessage = "Ошибка загрузки фото: ${e.localizedMessage}"
+                        errorMessage = getApplication<Application>().getString(R.string.chat_oshibka_zagruzki_foto, e.localizedMessage)
                     )
                 }
             }
@@ -439,7 +452,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     withContext(Dispatchers.Main) {
                         _uiState.value = _uiState.value.copy(
                             isUploadingPhoto = false,
-                            errorMessage = "Пользователь не найден"
+                            errorMessage = getApplication<Application>().getString(R.string.profile_polzovatel_ne_nayden)
                         )
                     }
                     return@launch
@@ -476,7 +489,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
                         isUploadingPhoto = false,
-                        errorMessage = "Ошибка удаления фото: ${e.localizedMessage}"
+                        errorMessage = getApplication<Application>().getString(R.string.profile_oshibka_udaleniya_foto, e.localizedMessage)
                     )
                 }
             }
@@ -547,8 +560,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 val result = supabaseAuth.updateProfile(displayName = newName)
                 if (result.isFailure) {
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = "Не удалось сохранить имя: " +
-                            (result.exceptionOrNull()?.message ?: "нет связи с сервером")
+                        errorMessage = getApplication<Application>().getString(R.string.profile_ne_udalos_sohranit_imya) +
+                            (result.exceptionOrNull()?.message ?: getApplication<Application>().getString(R.string.profile_net_svyazi_s_serverom))
                     )
                     return@launch
                 }
@@ -563,7 +576,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "Ошибка обновления профиля: ${e.message}"
+                    errorMessage = getApplication<Application>().getString(R.string.profile_oshibka_obnovleniya_profilya, e.message)
                 )
             }
         }
@@ -588,7 +601,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             val email = supabaseAuth.getCurrentUserEmail()
             if (email.isNullOrBlank()) {
                 _uiState.update {
-                    it.copy(passwordChangeState = PasswordChangeState.Error("Не удалось определить email аккаунта"))
+                    it.copy(passwordChangeState = PasswordChangeState.Error(getApplication<Application>().getString(R.string.profile_ne_udalos_opredelit_email_akkaunta)))
                 }
                 return@launch
             }
@@ -597,7 +610,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             if (reauth.isFailure) {
                 android.util.Log.w("ProfileViewModel", "Re-auth before password change failed")
                 _uiState.update {
-                    it.copy(passwordChangeState = PasswordChangeState.Error("Текущий пароль неверен"))
+                    it.copy(passwordChangeState = PasswordChangeState.Error(getApplication<Application>().getString(R.string.profile_tekuschiy_parol_neveren)))
                 }
                 return@launch
             }
@@ -609,7 +622,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 } else {
                     it.copy(
                         passwordChangeState = PasswordChangeState.Error(
-                            "Не удалось сменить пароль: ${result.exceptionOrNull()?.message ?: "неизвестная ошибка"}"
+                            getApplication<Application>().getString(R.string.profile_ne_udalos_smenit_parol, result.exceptionOrNull()?.message ?: "неизвестная ошибка")
                         )
                     )
                 }
@@ -645,7 +658,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 val jwt = com.aggin.carcost.supabase.auth.currentAccessTokenOrNull()
                 if (jwt == null) {
                     _uiState.update {
-                        it.copy(isLinkingVk = false, vkLinkMessage = "Сессия истекла — войдите заново")
+                        it.copy(isLinkingVk = false, vkLinkMessage = getApplication<Application>().getString(R.string.profile_sessiya_istekla_voydite_zanovo))
                     }
                     return@launch
                 }
@@ -657,20 +670,20 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                                 isLinkingVk = false,
                                 vkLink = supabaseAuth.getVkLink(),
                                 isVkLinkKnown = true,
-                                vkLinkMessage = "ВКонтакте привязан"
+                                vkLinkMessage = getApplication<Application>().getString(R.string.profile_vkontakte_privyazan)
                             )
                         }
                     }
                     is VkLinkResult.VkTakenByOtherAccount -> _uiState.update {
                         it.copy(
                             isLinkingVk = false,
-                            vkLinkMessage = "Этот аккаунт ВКонтакте уже привязан к другому профилю CarCost"
+                            vkLinkMessage = getApplication<Application>().getString(R.string.profile_etot_akkaunt_vkontakte_uzhe_privyazan_k)
                         )
                     }
                     is VkLinkResult.AccountAlreadyLinked -> _uiState.update {
                         it.copy(
                             isLinkingVk = false,
-                            vkLinkMessage = "К этому профилю уже привязан другой аккаунт ВКонтакте"
+                            vkLinkMessage = getApplication<Application>().getString(R.string.profile_k_etomu_profilyu_uzhe_privyazan_drugoy)
                         )
                     }
                     is VkLinkResult.Failure -> _uiState.update {
@@ -680,7 +693,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: Exception) {
                 android.util.Log.e("ProfileViewModel", "linkVk failed", e)
                 _uiState.update {
-                    it.copy(isLinkingVk = false, vkLinkMessage = e.message ?: "Не удалось привязать ВКонтакте")
+                    it.copy(isLinkingVk = false, vkLinkMessage = e.message ?: getApplication<Application>().getString(R.string.profile_ne_udalos_privyazat_vkontakte))
                 }
             }
         }
@@ -697,9 +710,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             val result = supabaseAuth.unlinkVk()
             _uiState.update {
                 if (result.isSuccess) {
-                    it.copy(vkLink = null, isVkLinkKnown = true, vkLinkMessage = "ВКонтакте отвязан")
+                    it.copy(vkLink = null, isVkLinkKnown = true, vkLinkMessage = getApplication<Application>().getString(R.string.profile_vkontakte_otvyazan))
                 } else {
-                    it.copy(vkLinkMessage = "Не удалось отвязать: ${result.exceptionOrNull()?.message}")
+                    it.copy(vkLinkMessage = getApplication<Application>().getString(R.string.profile_ne_udalos_otvyazat, result.exceptionOrNull()?.message))
                 }
             }
         }
@@ -752,7 +765,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     if (syncResult.isFailure) {
                         android.util.Log.w(
                             "ProfileViewModel",
-                            "Pre-logout sync failed — выход остановлен",
+                            getApplication<Application>().getString(R.string.profile_pre_logout_sync_failed_vyhod_ostanovlen),
                             syncResult.exceptionOrNull()
                         )
                         // Ничего не трогаем: ни сессию, ни базу. Решение за пользователем.
@@ -824,7 +837,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 withContext(Dispatchers.Main) { shareBackup(context, file) }
             } catch (e: Exception) {
                 android.util.Log.e("ProfileViewModel", "backup failed", e)
-                _uiState.update { it.copy(errorMessage = "Не удалось создать резервную копию") }
+                _uiState.update { it.copy(errorMessage = getApplication<Application>().getString(R.string.profile_ne_udalos_sozdat_rezervnuyu_kopiyu)) }
             } finally {
                 _uiState.update { it.copy(isCreatingBackup = false) }
             }
@@ -839,15 +852,15 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                 type = "application/json"
                 putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                putExtra(android.content.Intent.EXTRA_SUBJECT, "Резервная копия CarCost")
+                putExtra(android.content.Intent.EXTRA_SUBJECT, getApplication<Application>().getString(R.string.profile_rezervnaya_kopiya_carcost))
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(
-                android.content.Intent.createChooser(intent, "Куда сохранить копию")
+                android.content.Intent.createChooser(intent, getApplication<Application>().getString(R.string.profile_kuda_sohranit_kopiyu))
             )
         } catch (e: Exception) {
             android.util.Log.e("ProfileViewModel", "share backup failed", e)
-            _uiState.update { it.copy(errorMessage = "Не удалось отправить файл") }
+            _uiState.update { it.copy(errorMessage = getApplication<Application>().getString(R.string.profile_ne_udalos_otpravit_fayl)) }
         }
     }
 
@@ -868,7 +881,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     _uiState.update {
                         it.copy(
                             deletion = AccountDeletionState.Failed(
-                                "Не удалось получить данные об аккаунте. Проверьте связь и попробуйте снова"
+                                getApplication<Application>().getString(R.string.profile_ne_udalos_poluchit_dannye_ob_akkaunte)
                             )
                         )
                     }
@@ -909,7 +922,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     it.copy(
                         deletion = current.copy(
                             isCreating = false,
-                            backupError = "Не удалось создать копию"
+                            backupError = getApplication<Application>().getString(R.string.profile_ne_udalos_sozdat_kopiyu)
                         )
                     )
                 }
@@ -957,7 +970,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun deleteAccount(navController: NavController) {
         com.aggin.carcost.data.analytics.Analytics.accountDeleted()
         val current = _uiState.value.deletion
-        if (current !is AccountDeletionState.Confirm || !current.canDelete) return
+        if (current !is AccountDeletionState.Confirm || !current.canDelete(getApplication())) return
 
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(deletion = AccountDeletionState.InProgress) }
@@ -967,7 +980,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update {
                     it.copy(
                         deletion = AccountDeletionState.Failed(
-                            "Сессия истекла. Войдите заново и повторите удаление"
+                            getApplication<Application>().getString(R.string.profile_sessiya_istekla_voydite_zanovo_i)
                         )
                     )
                 }
@@ -994,7 +1007,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     _uiState.update {
                         it.copy(
                             deletion = AccountDeletionState.Failed(
-                                e.message ?: "Не удалось удалить аккаунт"
+                                e.message ?: getApplication<Application>().getString(R.string.profile_ne_udalos_udalit_akkaunt)
                             )
                         )
                     }

@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.scannerservice
 
+import com.aggin.carcost.R
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -61,7 +62,7 @@ class ReceiptScannerService(private val context: Context) {
                     if (continuation.isActive) {
                         continuation.resume(
                             ReceiptData(
-                                text = "Ошибка распознавания: ${e.message}",
+                                text = context.getString(R.string.scanner_oshibka_raspoznavaniya, e.message),
                                 photoUri = imageUri.toString()
                             )
                         )
@@ -71,7 +72,7 @@ class ReceiptScannerService(private val context: Context) {
             continuation.invokeOnCancellation { task.addOnCanceledListener { } }
         } catch (e: Exception) {
             if (continuation.isActive) {
-                continuation.resume(ReceiptData(text = "Ошибка: ${e.message}"))
+                continuation.resume(ReceiptData(text = context.getString(R.string.scanner_oshibka, e.message)))
             }
         }
         }
@@ -93,14 +94,14 @@ class ReceiptScannerService(private val context: Context) {
                 }
                 .addOnFailureListener { e ->
                     if (continuation.isActive) {
-                        continuation.resume(ReceiptData(text = "Ошибка распознавания: ${e.message}"))
+                        continuation.resume(ReceiptData(text = context.getString(R.string.scanner_oshibka_raspoznavaniya, e.message)))
                     }
                 }
 
             continuation.invokeOnCancellation { task.addOnCanceledListener { } }
         } catch (e: Exception) {
             if (continuation.isActive) {
-                continuation.resume(ReceiptData(text = "Ошибка: ${e.message}"))
+                continuation.resume(ReceiptData(text = context.getString(R.string.scanner_oshibka, e.message)))
             }
         }
     }
@@ -244,6 +245,14 @@ class ReceiptScannerService(private val context: Context) {
     //  usually printed at the top).
     // ---------------------------------------------------------------------------
 
+    /**
+     * Названия сетей АЗС для распознавания чека.
+     *
+     * Не ресурсы и не переводятся: это образцы, с которыми сверяется текст,
+     * распознанный с бумажного чека. Чек напечатан по-русски независимо от
+     * языка интерфейса, и перевод этого списка просто выключил бы определение
+     * заправки.
+     */
     private val knownStations = listOf(
         "Лукойл", "LUKOIL",
         "Газпромнефть", "Газпром",
@@ -281,7 +290,7 @@ class ReceiptScannerService(private val context: Context) {
         val azsPattern = Regex("""АЗС\s+(?:№\s*\d+|[«"'"]?([А-ЯЁA-Z][А-ЯЁа-яёA-Za-z\s]{2,20})[»"'"]?)""")
         azsPattern.find(text)?.let { match ->
             val captured = match.groupValues[1].trim()
-            if (captured.isNotBlank()) return "АЗС $captured"
+            if (captured.isNotBlank()) return context.getString(R.string.scanner_azs, captured)
             return match.value.trim().take(30)
         }
 

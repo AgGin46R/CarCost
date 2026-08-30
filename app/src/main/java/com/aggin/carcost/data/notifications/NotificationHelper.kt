@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import com.aggin.carcost.presentation.common.displayName
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.aggin.carcost.MainActivity
@@ -25,33 +26,27 @@ object NotificationHelper {
     const val NAV_TYPE_UPDATE = "update"
 
     // ── Channels ────────────────────────────────────────────────────────────────
+    // Только идентификаторы каналов остаются константами: они уходят в систему
+    // и меняться не должны никогда. Названия и описания — ресурсы, они читаются
+    // при создании канала, где контекст уже есть.
     const val CHANNEL_ID = "maintenance_reminders"
-    private const val CHANNEL_NAME = "Напоминания о ТО"
-    private const val CHANNEL_DESCRIPTION = "Уведомления о предстоящем техническом обслуживании"
-
     const val CHANNEL_SOCIAL_ID = "shared_activity"
-    private const val CHANNEL_SOCIAL_NAME = "Активность участников"
-    private const val CHANNEL_SOCIAL_DESCRIPTION =
-        "Уведомления о расходах и ТО, добавленных другими участниками автомобиля"
-
     const val CHANNEL_UPDATE_ID = "app_updates"
-    private const val CHANNEL_UPDATE_NAME = "Обновления приложения"
-    private const val CHANNEL_UPDATE_DESCRIPTION = "Уведомления о новых версиях CarCost"
     const val NOTIF_ID_UPDATE = 99_000
 
     fun createChannel(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
-                .apply { description = CHANNEL_DESCRIPTION }
+            NotificationChannel(CHANNEL_ID, context.getString(R.string.profile_napominaniya_o_to), NotificationManager.IMPORTANCE_DEFAULT)
+                .apply { description = context.getString(R.string.notify_uvedomleniya_o_predstoyaschem) }
         )
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_SOCIAL_ID, CHANNEL_SOCIAL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
-                .apply { description = CHANNEL_SOCIAL_DESCRIPTION }
+            NotificationChannel(CHANNEL_SOCIAL_ID, context.getString(R.string.notify_aktivnost_uchastnikov), NotificationManager.IMPORTANCE_DEFAULT)
+                .apply { description = context.getString(R.string.notify_uvedomleniya_o_rashodah_i_to_dobavlennyh) }
         )
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_UPDATE_ID, CHANNEL_UPDATE_NAME, NotificationManager.IMPORTANCE_HIGH)
-                .apply { description = CHANNEL_UPDATE_DESCRIPTION }
+            NotificationChannel(CHANNEL_UPDATE_ID, context.getString(R.string.notify_obnovleniya_prilozheniya), NotificationManager.IMPORTANCE_HIGH)
+                .apply { description = context.getString(R.string.notify_uvedomleniya_o_novyh_versiyah_carcost) }
         )
     }
 
@@ -66,11 +61,11 @@ object NotificationHelper {
     ) {
         val body = if (tankCapacity != null) {
             val pct = (estimatedLiters / tankCapacity * 100).toInt()
-            "Топливо на исходе — около $pct% бака (~${estimatedLiters.toInt()} л)"
+            context.getString(R.string.notify_toplivo_na_ishode_okolo_baka_l, pct, estimatedLiters.toInt())
         } else {
-            "Топливо на исходе — около ${estimatedLiters.toInt()} л"
+            context.getString(R.string.notify_toplivo_na_ishode_okolo_l, estimatedLiters.toInt())
         }
-        notify(context, CHANNEL_ID, notificationId, "Заправьте автомобиль: $carName", body)
+        notify(context, CHANNEL_ID, notificationId, context.getString(R.string.notify_zapravte_avtomobil, carName), body)
     }
 
     fun sendMaintenanceNotification(
@@ -81,11 +76,11 @@ object NotificationHelper {
         kmLeft: Int
     ) {
         val body = when {
-            kmLeft <= 0 -> "$serviceType — пора делать"
-            kmLeft <= 100 -> "$serviceType — осталось $kmLeft км"
-            else -> "$serviceType — через $kmLeft км"
+            kmLeft <= 0 -> context.getString(R.string.notify_pora_delat, serviceType)
+            kmLeft <= 100 -> context.getString(R.string.notify_ostalos_km, serviceType, kmLeft)
+            else -> context.getString(R.string.notify_cherez_km, serviceType, kmLeft)
         }
-        notify(context, CHANNEL_ID, notificationId, "Техобслуживание: $carName", body)
+        notify(context, CHANNEL_ID, notificationId, context.getString(R.string.notify_tehobsluzhivanie, carName), body)
     }
 
     // ── Бюджет ────────────────────────────────────────────────────────────────
@@ -97,8 +92,8 @@ object NotificationHelper {
         categoryName: String,
         usedPercent: Int
     ) {
-        val title = "Бюджет почти исчерпан: $carName"
-        val body = "$categoryName — использовано $usedPercent% месячного лимита"
+        val title = context.getString(R.string.notify_byudzhet_pochti_ischerpan, carName)
+        val body = context.getString(R.string.notify_ispolzovano_mesyachnogo_limita, categoryName, usedPercent)
         notify(context, CHANNEL_ID, notificationId, title, body)
     }
 
@@ -128,8 +123,8 @@ object NotificationHelper {
         isUpdate: Boolean,
         carId: String? = null
     ) {
-        val actor = actorEmail?.substringBefore("@") ?: "Участник"
-        val action = if (isUpdate) "изменил(а) расход" else "добавил(а) расход"
+        val actor = actorEmail?.substringBefore("@") ?: context.getString(R.string.analytics_uchastnik)
+        val action = if (isUpdate) context.getString(R.string.notify_izmenil_a_rashod) else context.getString(R.string.notify_dobavil_a_rashod)
         val title = "$actor $action • $carName"
         val body = "$categoryName — ${"%.0f".format(amount)} ₽"
         val intent = carId?.let { makeNavIntent(context, NAV_TYPE_CAR, it, notificationId) }
@@ -147,8 +142,8 @@ object NotificationHelper {
         isUpdate: Boolean,
         carId: String? = null
     ) {
-        val actor = actorEmail?.substringBefore("@") ?: "Участник"
-        val action = if (isUpdate) "обновил(а) напоминание" else "добавил(а) напоминание ТО"
+        val actor = actorEmail?.substringBefore("@") ?: context.getString(R.string.analytics_uchastnik)
+        val action = if (isUpdate) context.getString(R.string.notify_obnovil_a_napominanie) else context.getString(R.string.notify_dobavil_a_napominanie_to)
         val title = "$actor $action • $carName"
         val intent = carId?.let { makeNavIntent(context, NAV_TYPE_CAR, it, notificationId) }
         notify(context, CHANNEL_SOCIAL_ID, notificationId, title, reminderTypeName, intent)
@@ -163,8 +158,8 @@ object NotificationHelper {
     ) {
         notify(
             context, CHANNEL_SOCIAL_ID, notificationId,
-            "Вас пригласили в автомобиль",
-            "Новое приглашение: $carName. Откройте приложение, чтобы принять."
+            context.getString(R.string.notify_vas_priglasili_v_avtomobil),
+            context.getString(R.string.notify_novoe_priglashenie_otkroyte_prilozhenie, carName)
         )
     }
 
@@ -186,12 +181,12 @@ object NotificationHelper {
         val body = if (releaseNotes.isNotBlank())
             releaseNotes.take(120)
         else
-            "Нажмите, чтобы установить обновление."
+            context.getString(R.string.notify_nazhmite_chtoby_ustanovit_obnovlenie)
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notification = NotificationCompat.Builder(context, CHANNEL_UPDATE_ID)
             .setSmallIcon(R.drawable.ic_notification_wrench)
-            .setContentTitle("Доступно обновление CarCost $versionName 🎉")
+            .setContentTitle(context.getString(R.string.notify_dostupno_obnovlenie_carcost, versionName))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -262,21 +257,24 @@ object NotificationHelper {
 
     // ── Display name helpers ─────────────────────────────────────────────────
 
-    fun categoryDisplayName(category: String): String =
-        com.aggin.carcost.presentation.common.categoryDisplayName(category)
+    fun categoryDisplayName(context: Context, category: String): String =
+        com.aggin.carcost.presentation.common.categoryDisplayName(context, category)
 
-    fun reminderTypeDisplayName(type: String): String = when (type.uppercase()) {
-        "OIL_CHANGE"           -> "Замена масла"
-        "OIL_FILTER"           -> "Масляный фильтр"
-        "AIR_FILTER"           -> "Воздушный фильтр"
-        "CABIN_FILTER"         -> "Салонный фильтр"
-        "FUEL_FILTER"          -> "Топливный фильтр"
-        "SPARK_PLUGS"          -> "Свечи зажигания"
-        "BRAKE_PADS"           -> "Тормозные колодки"
-        "TIMING_BELT"          -> "Ремень ГРМ"
-        "TRANSMISSION_FLUID"   -> "Трансмиссионное масло"
-        "COOLANT"              -> "Охлаждающая жидкость"
-        "BRAKE_FLUID"          -> "Тормозная жидкость"
-        else                   -> "Техобслуживание"
+    /**
+     * Название работы по строковому коду из уведомления.
+     *
+     * Своей таблицы больше нет: она дублировала справочник в Labels.kt, и
+     * двенадцать одинаковых подписей пришлось бы переводить дважды, а потом
+     * следить, чтобы они не разошлись.
+     */
+    fun reminderTypeDisplayName(context: Context, type: String): String {
+        val serviceType = runCatching {
+            com.aggin.carcost.data.local.database.entities.ServiceType.valueOf(type.uppercase())
+        }.getOrNull()
+        return if (serviceType != null) {
+            serviceType.displayName(context)
+        } else {
+            context.getString(R.string.notify_tehobsluzhivanie_2)
+        }
     }
 }

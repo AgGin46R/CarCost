@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.parking
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -43,10 +45,10 @@ fun ParkingTimerScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Таймер парковки") },
+                title = { Text(stringResource(R.string.home_taymer_parkovki)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -83,7 +85,7 @@ fun ParkingTimerScreen(navController: NavController) {
                     color = if (minutes < 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    "до истечения парковки",
+                    stringResource(R.string.parking_do_istecheniya_parkovki),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -96,12 +98,12 @@ fun ParkingTimerScreen(navController: NavController) {
                             endTime = newEnd
                             ParkingTimerManager.startTimer(context, ((newEnd - System.currentTimeMillis()) / 60000).toInt())
                         }
-                    }) { Text("-15 мин") }
+                    }) { Text(stringResource(R.string.parking_15_min)) }
                     OutlinedButton(onClick = {
                         val newEnd = endTime + 15 * 60 * 1000L
                         endTime = newEnd
                         ParkingTimerManager.startTimer(context, ((newEnd - System.currentTimeMillis()) / 60000).toInt())
-                    }) { Text("+15 мин") }
+                    }) { Text(stringResource(R.string.parking_15_min_2)) }
                 }
                 Button(
                     onClick = {
@@ -113,16 +115,16 @@ fun ParkingTimerScreen(navController: NavController) {
                 ) {
                     Icon(Icons.Default.Stop, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Остановить")
+                    Text(stringResource(R.string.gpstrip_ostanovit))
                 }
             } else {
                 // Duration picker
                 Text(
-                    "Выберите время парковки",
+                    stringResource(R.string.parking_vyberite_vremya_parkovki),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    "$durationMinutes мин",
+                    stringResource(R.string.gpstrip_min_2, durationMinutes),
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -132,7 +134,7 @@ fun ParkingTimerScreen(navController: NavController) {
                         FilterChip(
                             selected = durationMinutes == mins,
                             onClick = { durationMinutes = mins },
-                            label = { Text("${mins}м") }
+                            label = { Text(stringResource(R.string.parking_m, mins)) }
                         )
                     }
                 }
@@ -149,7 +151,7 @@ fun ParkingTimerScreen(navController: NavController) {
                 ) {
                     Icon(Icons.Default.Timer, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Запустить таймер")
+                    Text(stringResource(R.string.parking_zapustit_taymer))
                 }
             }
         }

@@ -1,5 +1,7 @@
 package com.aggin.carcost.data.local.database.entities
 
+import androidx.annotation.StringRes
+import com.aggin.carcost.R
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -37,12 +39,13 @@ data class CarIncident(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-enum class IncidentType(val displayName: String, val emoji: String) {
-    ACCIDENT("ДТП", "🚗"),
-    SCRATCH("Царапина/Вмятина", "🔧"),
-    THEFT("Угон/Кража", "🔓"),
-    VANDALISM("Вандализм", "⚠️"),
-    FLOOD("Затопление", "💧"),
-    FIRE("Пожар", "🔥"),
-    OTHER("Другое", "📋")
+/** Виды происшествий. Подпись — ключ ресурса, как и у остальных справочников */
+enum class IncidentType(@StringRes val displayNameRes: Int, val emoji: String) {
+    ACCIDENT(R.string.incident_accident, "🚗"),
+    SCRATCH(R.string.incident_scratch, "🔧"),
+    THEFT(R.string.incident_theft, "🔓"),
+    VANDALISM(R.string.incident_vandalism, "⚠️"),
+    FLOOD(R.string.incident_flood, "💧"),
+    FIRE(R.string.incident_fire, "🔥"),
+    OTHER(R.string.incident_other, "📋")
 }

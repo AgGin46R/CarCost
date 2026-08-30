@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.map
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
@@ -107,10 +109,10 @@ fun MapScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Карта расходов") },
+                title = { Text(stringResource(R.string.map_karta_rashodov)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Назад")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -134,7 +136,7 @@ fun MapScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "Требуется доступ к геолокации",
+                        text = stringResource(R.string.map_trebuetsya_dostup_k_geolokatsii),
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -146,7 +148,7 @@ fun MapScreen(
                             )
                         )
                     }) {
-                        Text("Предоставить доступ")
+                        Text(stringResource(R.string.map_predostavit_dostup))
                     }
                 }
             } else {
@@ -175,7 +177,7 @@ fun MapScreen(
                             FilterChip(
                                 selected = uiState.selectedCategories.isEmpty(),
                                 onClick = { viewModel.clearFilter() },
-                                label = { Text("Все") },
+                                label = { Text(stringResource(R.string.map_vse)) },
                                 leadingIcon = { Icon(Icons.Default.FilterAlt, null, Modifier.size(14.dp)) }
                             )
                             uiState.availableCategories.sortedBy { it.name }.forEach { cat ->
@@ -196,9 +198,9 @@ fun MapScreen(
                     ) {
                         Text(
                             text = if (uiState.selectedCategories.isEmpty())
-                                "Точек на карте: ${uiState.expenses.size}"
+                                stringResource(R.string.map_tochek_na_karte, uiState.expenses.size)
                             else
-                                "Отфильтровано: ${uiState.expenses.size} из ${uiState.allExpenses.size}",
+                                stringResource(R.string.map_otfiltrovano_iz, uiState.expenses.size, uiState.allExpenses.size),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                             style = MaterialTheme.typography.bodyMedium
                         )

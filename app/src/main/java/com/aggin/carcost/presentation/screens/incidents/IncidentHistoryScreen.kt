@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.incidents
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.net.Uri
 import android.os.Build
@@ -52,10 +54,10 @@ fun IncidentHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("История инцидентов") },
+                title = { Text(stringResource(R.string.cardetail_istoriya_intsidentov)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Назад")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -66,7 +68,7 @@ fun IncidentHistoryScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { viewModel.showAddDialog() }) {
-                Icon(Icons.Default.Add, "Добавить инцидент")
+                Icon(Icons.Default.Add, stringResource(R.string.incidents_dobavit_intsident))
             }
         }
     ) { paddingValues ->
@@ -81,12 +83,12 @@ fun IncidentHistoryScreen(
                     Text("🛡️", style = MaterialTheme.typography.displayMedium)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        "Нет инцидентов",
+                        stringResource(R.string.incidents_net_intsidentov),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Записывайте ДТП и повреждения — пригодится при продаже и в спорах со страховой",
+                        stringResource(R.string.incidents_zapisyvayte_dtp_i_povrezhdeniya),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -134,16 +136,16 @@ fun IncidentHistoryScreen(
     uiState.showDeleteDialog?.let { incident ->
         AlertDialog(
             onDismissRequest = { viewModel.hideDeleteConfirm() },
-            title = { Text("Удалить инцидент?") },
-            text = { Text("Это действие нельзя отменить.") },
+            title = { Text(stringResource(R.string.incidents_udalit_intsident)) },
+            text = { Text(stringResource(R.string.cardetail_eto_deystvie_nelzya_otmenit)) },
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.deleteIncident(incident) },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Удалить") }
+                ) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.hideDeleteConfirm() }) { Text("Отмена") }
+                TextButton(onClick = { viewModel.hideDeleteConfirm() }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -172,7 +174,7 @@ private fun IncidentCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
-                            incident.type.displayName,
+                            stringResource(incident.type.displayNameRes),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Medium
                         )
@@ -185,10 +187,10 @@ private fun IncidentCard(
                 }
                 Row {
                     IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, "Редактировать", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Edit, stringResource(R.string.cardetail_redaktirovat), modifier = Modifier.size(18.dp))
                     }
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, "Удалить", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.Delete, stringResource(R.string.action_delete), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -206,13 +208,13 @@ private fun IncidentCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (incident.damageAmount != null) {
                         Column {
-                            Text("Ущерб", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.incidents_uscherb), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("%.0f ₽".format(incident.damageAmount), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error)
                         }
                     }
                     if (incident.repairCost != null) {
                         Column {
-                            Text("Ремонт", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.incidents_remont), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("%.0f ₽".format(incident.repairCost), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         }
                     }
@@ -221,14 +223,14 @@ private fun IncidentCard(
 
             if (incident.insuranceClaimNumber != null) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Номер выплаты: ${incident.insuranceClaimNumber}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.incidents_nomer_vyplaty, incident.insuranceClaimNumber), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             if (incident.photoUri != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 AsyncImage(
                     model = incident.photoUri,
-                    contentDescription = "Фото инцидента",
+                    contentDescription = stringResource(R.string.incidents_foto_intsidenta),
                     modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
@@ -269,7 +271,7 @@ private fun IncidentFormDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (uiState.editingIncident != null) "Редактировать инцидент" else "Добавить инцидент") },
+        title = { Text(if (uiState.editingIncident != null) stringResource(R.string.incidents_redaktirovat_intsident) else stringResource(R.string.incidents_dobavit_intsident)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -283,24 +285,24 @@ private fun IncidentFormDialog(
                 OutlinedTextField(
                     value = dateFormat.format(Date(uiState.formDate)),
                     onValueChange = {},
-                    label = { Text("Дата *") },
+                    label = { Text(stringResource(R.string.incidents_data)) },
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarToday, "Выбрать дату")
+                            Icon(Icons.Default.CalendarToday, stringResource(R.string.addcar_vybrat_datu))
                         }
                     }
                 )
 
                 // Тип инцидента
-                Text("Тип инцидента", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.incidents_tip_intsidenta), style = MaterialTheme.typography.bodyMedium)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(IncidentType.values()) { type ->
                         FilterChip(
                             selected = uiState.formType == type,
                             onClick = { onUpdateType(type) },
-                            label = { Text("${type.emoji} ${type.displayName}") }
+                            label = { Text("${type.emoji} ${stringResource(type.displayNameRes)}") }
                         )
                     }
                 }
@@ -309,8 +311,8 @@ private fun IncidentFormDialog(
                 OutlinedTextField(
                     value = uiState.formDescription,
                     onValueChange = onUpdateDescription,
-                    label = { Text("Описание *") },
-                    placeholder = { Text("Что произошло?") },
+                    label = { Text(stringResource(R.string.incidents_opisanie)) },
+                    placeholder = { Text(stringResource(R.string.incidents_chto_proizoshlo)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     enabled = !uiState.isSaving
@@ -320,8 +322,8 @@ private fun IncidentFormDialog(
                 OutlinedTextField(
                     value = uiState.formLocation,
                     onValueChange = onUpdateLocation,
-                    label = { Text("Место") },
-                    placeholder = { Text("ул. Ленина, 5") },
+                    label = { Text(stringResource(R.string.cardetail_mesto)) },
+                    placeholder = { Text(stringResource(R.string.incidents_ul_lenina_5)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     enabled = !uiState.isSaving
@@ -331,7 +333,7 @@ private fun IncidentFormDialog(
                     OutlinedTextField(
                         value = uiState.formDamageAmount,
                         onValueChange = onUpdateDamageAmount,
-                        label = { Text("Ущерб (₽)") },
+                        label = { Text(stringResource(R.string.incidents_uscherb_2)) },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -340,7 +342,7 @@ private fun IncidentFormDialog(
                     OutlinedTextField(
                         value = uiState.formRepairCost,
                         onValueChange = onUpdateRepairCost,
-                        label = { Text("Ремонт (₽)") },
+                        label = { Text(stringResource(R.string.incidents_remont_2)) },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -351,18 +353,18 @@ private fun IncidentFormDialog(
                 OutlinedTextField(
                     value = uiState.formRepairDate?.let { dateFormat.format(Date(it)) } ?: "",
                     onValueChange = {},
-                    label = { Text("Дата ремонта") },
+                    label = { Text(stringResource(R.string.incidents_data_remonta)) },
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         Row {
                             if (uiState.formRepairDate != null) {
                                 IconButton(onClick = { onUpdateRepairDate(null) }) {
-                                    Icon(Icons.Default.Clear, "Очистить")
+                                    Icon(Icons.Default.Clear, stringResource(R.string.documents_ochistit))
                                 }
                             }
                             IconButton(onClick = { showRepairDatePicker = true }) {
-                                Icon(Icons.Default.CalendarToday, "Выбрать дату")
+                                Icon(Icons.Default.CalendarToday, stringResource(R.string.addcar_vybrat_datu))
                             }
                         }
                     }
@@ -371,7 +373,7 @@ private fun IncidentFormDialog(
                 OutlinedTextField(
                     value = uiState.formInsuranceClaim,
                     onValueChange = onUpdateInsuranceClaim,
-                    label = { Text("Номер страховой выплаты") },
+                    label = { Text(stringResource(R.string.incidents_nomer_strahovoy_vyplaty)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     enabled = !uiState.isSaving
@@ -380,7 +382,7 @@ private fun IncidentFormDialog(
                 OutlinedTextField(
                     value = uiState.formNotes,
                     onValueChange = onUpdateNotes,
-                    label = { Text("Заметки") },
+                    label = { Text(stringResource(R.string.incidents_zametki)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     enabled = !uiState.isSaving
@@ -390,7 +392,7 @@ private fun IncidentFormDialog(
                 if (uiState.formPhotoUri != null) {
                     AsyncImage(
                         model = uiState.formPhotoUri,
-                        contentDescription = "Фото",
+                        contentDescription = stringResource(R.string.chat_foto),
                         modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(8.dp)),
                         contentScale = ContentScale.Crop
                     )
@@ -409,11 +411,11 @@ private fun IncidentFormDialog(
                     if (uiState.isUploadingPhoto) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Загрузка...")
+                        Text(stringResource(R.string.cardetail_zagruzka))
                     } else {
                         Icon(Icons.Default.CameraAlt, null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (uiState.formPhotoUri != null) "Заменить фото" else "Прикрепить фото")
+                        Text(if (uiState.formPhotoUri != null) stringResource(R.string.incidents_zamenit_foto) else stringResource(R.string.incidents_prikrepit_foto))
                     }
                 }
             }
@@ -423,12 +425,12 @@ private fun IncidentFormDialog(
                 if (uiState.isSaving) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                 } else {
-                    Text("Сохранить")
+                    Text(stringResource(R.string.action_save))
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 
@@ -442,7 +444,7 @@ private fun IncidentFormDialog(
                     showDatePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.action_cancel)) } }
         ) { DatePicker(state = state) }
     }
 
@@ -456,7 +458,7 @@ private fun IncidentFormDialog(
                     showRepairDatePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showRepairDatePicker = false }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { showRepairDatePicker = false }) { Text(stringResource(R.string.action_cancel)) } }
         ) { DatePicker(state = state) }
     }
 }

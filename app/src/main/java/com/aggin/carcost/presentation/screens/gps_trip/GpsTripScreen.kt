@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.gps_trip
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.app.Application
 import android.content.BroadcastReceiver
@@ -172,7 +174,7 @@ fun GpsTripScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Поездки по GPS") },
+                title = { Text(stringResource(R.string.cardetail_poezdki_po_gps)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
@@ -231,13 +233,13 @@ fun GpsTripScreen(
                             )
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "Нет доступа к геолокации",
+                                    stringResource(R.string.gpstrip_net_dostupa_k_geolokatsii),
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                                 Text(
-                                    "Нажмите Старт, чтобы разрешить доступ",
+                                    stringResource(R.string.gpstrip_nazhmite_start_chtoby_razreshit_dostup),
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
                                 )
@@ -250,7 +252,7 @@ fun GpsTripScreen(
             if (uiState.trips.isNotEmpty()) {
                 item {
                     Text(
-                        "История поездок",
+                        stringResource(R.string.gpstrip_istoriya_poezdok),
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         modifier = Modifier.padding(top = 8.dp)
@@ -268,8 +270,8 @@ fun GpsTripScreen(
                 item {
                     EmptyState(
                         icon = Icons.Default.Route,
-                        title = "Поездки не отслеживались",
-                        subtitle = "Нажмите «Старт», чтобы начать запись первой поездки"
+                        title = stringResource(R.string.gpstrip_poezdki_ne_otslezhivalis),
+                        subtitle = stringResource(R.string.gpstrip_nazhmite_start_chtoby_nachat_zapis_pervoy)
                     )
                 }
             }
@@ -316,19 +318,19 @@ private fun TripControlCard(
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "%.2f км".format(currentDistance),
+                    stringResource(R.string.gpstrip_2f_km).format(currentDistance),
                     fontSize = 36.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text("Запись идёт...", color = Color(0xFFEF5350), fontSize = 14.sp)
+                Text(stringResource(R.string.gpstrip_zapis_idet), color = Color(0xFFEF5350), fontSize = 14.sp)
             } else {
                 Icon(Icons.Default.Map, null, Modifier.size(56.dp),
                     tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(12.dp))
-                Text("Запись пробега по GPS",
+                Text(stringResource(R.string.gpstrip_zapis_probega_po_gps),
                     fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                Text("Нажмите «Старт», чтобы начать запись",
+                Text(stringResource(R.string.gpstrip_nazhmite_start_chtoby_nachat_zapis),
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
 
@@ -346,7 +348,7 @@ private fun TripControlCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (isRecording) "Остановить" else "Старт",
+                    if (isRecording) stringResource(R.string.gpstrip_ostanovit) else stringResource(R.string.gpstrip_start),
                     fontSize = 16.sp, fontWeight = FontWeight.Bold
                 )
             }
@@ -385,7 +387,7 @@ private fun TripCard(
 
             Column(Modifier.weight(1f)) {
                 Text(
-                    "%.1f км".format(trip.distanceKm),
+                    stringResource(R.string.analytics_1f_km).format(trip.distanceKm),
                     fontWeight = FontWeight.Bold, fontSize = 16.sp
                 )
                 Text(
@@ -397,9 +399,9 @@ private fun TripCard(
                         buildString {
                             val h = durationMin / 60
                             val m = durationMin % 60
-                            if (h > 0) append("${h}ч ")
-                            append("${m}мин")
-                            trip.avgSpeedKmh?.let { append(" • %.0f км/ч".format(it)) }
+                            if (h > 0) append(stringResource(R.string.gpstrip_ch, h))
+                            append(stringResource(R.string.gpstrip_min, m))
+                            trip.avgSpeedKmh?.let { append(stringResource(R.string.gpstrip_0f_km_ch).format(it)) }
                         },
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -407,11 +409,11 @@ private fun TripCard(
             }
 
             IconButton(onClick = onShowMap) {
-                Icon(Icons.Default.Map, contentDescription = "Показать маршрут",
+                Icon(Icons.Default.Map, contentDescription = stringResource(R.string.gpstrip_pokazat_marshrut),
                     tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Удалить поездку",
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.gpstrip_udalit_poezdku),
                     tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
             }
         }
@@ -442,7 +444,7 @@ private fun TripStatsCard(trips: List<GpsTrip>) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Статистика за месяц",
+                stringResource(R.string.gpstrip_statistika_za_mesyats),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -452,10 +454,10 @@ private fun TripStatsCard(trips: List<GpsTrip>) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                TripStatItem("%.1f км".format(totalKmMonth), "Всего за месяц")
-                TripStatItem("%.1f км".format(avgKm), "Средняя")
-                TripStatItem("%.1f км".format(longestKm), "Длиннейшая")
-                TripStatItem("$activeDays дн.", "Активных")
+                TripStatItem(stringResource(R.string.analytics_1f_km).format(totalKmMonth), stringResource(R.string.gpstrip_vsego_za_mesyats))
+                TripStatItem(stringResource(R.string.analytics_1f_km).format(avgKm), stringResource(R.string.gpstrip_srednyaya))
+                TripStatItem(stringResource(R.string.analytics_1f_km).format(longestKm), stringResource(R.string.gpstrip_dlinneyshaya))
+                TripStatItem(stringResource(R.string.gpstrip_dn, activeDays), stringResource(R.string.gpstrip_aktivnyh))
             }
         }
     }

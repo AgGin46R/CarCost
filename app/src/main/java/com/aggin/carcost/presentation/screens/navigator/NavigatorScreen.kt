@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.navigator
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -368,7 +370,7 @@ fun NavigatorScreen(
                 Spacer(Modifier.height(8.dp))
                 AssistChip(
                     onClick = {},
-                    label = { Text(poi.category.label) },
+                    label = { Text(stringResource(poi.category.labelRes)) },
                     enabled = false
                 )
 
@@ -383,7 +385,7 @@ fun NavigatorScreen(
                     ) {
                         Icon(Icons.Default.Navigation, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Маршрут")
+                        Text(stringResource(R.string.navigator_marshrut))
                     }
                     OutlinedButton(
                         onClick = {
@@ -399,7 +401,7 @@ fun NavigatorScreen(
                     ) {
                         Icon(Icons.Default.StarBorder, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("В избранное")
+                        Text(stringResource(R.string.navigator_v_izbrannoe))
                     }
                 }
             }
@@ -409,23 +411,23 @@ fun NavigatorScreen(
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
-            title = { Text("Сохранить место") },
+            title = { Text(stringResource(R.string.navigator_sohranit_mesto)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = saveName,
                         onValueChange = { saveName = it },
-                        label = { Text("Название") },
+                        label = { Text(stringResource(R.string.categories_nazvanie)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text("Тип:", style = MaterialTheme.typography.labelMedium,
+                    Text(stringResource(R.string.navigator_tip), style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
-                            FavoritePlaceType.HOME  to "🏠 Дом",
-                            FavoritePlaceType.WORK  to "💼 Работа",
-                            FavoritePlaceType.OTHER to "⭐ Другое"
+                            FavoritePlaceType.HOME  to stringResource(R.string.navigator_dom),
+                            FavoritePlaceType.WORK  to stringResource(R.string.navigator_rabota),
+                            FavoritePlaceType.OTHER to stringResource(R.string.navigator_drugoe)
                         ).forEach { (type, label) ->
                             FilterChip(
                                 selected = saveType == type,
@@ -452,10 +454,10 @@ fun NavigatorScreen(
                         showSaveDialog = false
                     },
                     enabled = saveName.isNotBlank()
-                ) { Text("Сохранить") }
+                ) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showSaveDialog = false }) { Text("Отмена") }
+                TextButton(onClick = { showSaveDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -501,7 +503,7 @@ fun NavigatorScreen(
 
                     Spacer(Modifier.height(14.dp))
                     Text(
-                        text = "Вы на месте",
+                        text = stringResource(R.string.navigator_vy_na_meste),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -518,17 +520,17 @@ fun NavigatorScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         ArrivalStat(
                             value = uiState.routeDistanceKm?.let { "%.1f".format(it) } ?: "—",
-                            label = "км пути",
+                            label = stringResource(R.string.navigator_km_puti),
                             modifier = Modifier.weight(1f)
                         )
                         ArrivalStat(
                             value = uiState.routeTimeMin?.let { formatDuration(it) } ?: "—",
-                            label = "в дороге",
+                            label = stringResource(R.string.navigator_v_doroge),
                             modifier = Modifier.weight(1f)
                         )
                         ArrivalStat(
                             value = uiState.fuelCostEstimate?.let { "%.0f".format(it) } ?: "—",
-                            label = "на топливо",
+                            label = stringResource(R.string.navigator_na_toplivo),
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -547,7 +549,7 @@ fun NavigatorScreen(
                     ) {
                         Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Записать расход")
+                        Text(stringResource(R.string.navigator_zapisat_rashod))
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -561,14 +563,14 @@ fun NavigatorScreen(
                     ) {
                         Icon(Icons.Default.Timer, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Таймер парковки")
+                        Text(stringResource(R.string.home_taymer_parkovki))
                     }
 
                     Spacer(Modifier.height(4.dp))
                     TextButton(onClick = {
                         showArrivalDialog = false
                         viewModel.clearDestination()
-                    }) { Text("Закрыть") }
+                    }) { Text(stringResource(R.string.action_close)) }
                 }
             }
         }
@@ -698,7 +700,7 @@ fun NavigatorScreen(
                     .padding(12.dp),
                 onClick = { navController.popBackStack() }
             ) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад",
+                Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back),
                     modifier = Modifier.size(20.dp))
             }
         }
@@ -733,7 +735,7 @@ fun NavigatorScreen(
                         Box(Modifier.weight(1f)) {
                             if (uiState.query.isEmpty()) {
                                 Text(
-                                    "Куда едем?",
+                                    stringResource(R.string.navigator_kuda_edem),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.bodyLarge
                                 )
@@ -753,7 +755,7 @@ fun NavigatorScreen(
                                 onClick = { viewModel.clearDestination() },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = "Очистить",
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.documents_ochistit),
                                     modifier = Modifier.size(16.dp))
                             }
                         }
@@ -850,7 +852,7 @@ fun NavigatorScreen(
                         ) {
                             Icon(
                                 maneuverIcon(maneuver?.action),
-                                contentDescription = maneuver?.action?.label,
+                                contentDescription = maneuver?.action?.let { stringResource(it.labelRes) },
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(34.dp)
                             )
@@ -870,8 +872,8 @@ fun NavigatorScreen(
                             )
                             Text(
                                 text = maneuver?.let { m ->
-                                    m.street?.let { "${m.action.label.lowercase()} на $it" }
-                                        ?: m.action.label
+                                    m.street?.let { stringResource(R.string.navigator_na, stringResource(m.action.labelRes).lowercase(), it) }
+                                        ?: stringResource(m.action.labelRes)
                                 } ?: uiState.destinationName.take(40),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.titleMedium,
@@ -899,7 +901,7 @@ fun NavigatorScreen(
                             )
                             Spacer(Modifier.width(9.dp))
                             Text(
-                                text = "затем прямо",
+                                text = stringResource(R.string.navigator_zatem_pryamo),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -942,7 +944,7 @@ fun NavigatorScreen(
                         )
                     )
                     Text(
-                        text = "км/ч",
+                        text = stringResource(R.string.navigator_km_ch),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -973,7 +975,7 @@ fun NavigatorScreen(
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
-                    Icons.Default.MyLocation, contentDescription = "Вернуться к позиции",
+                    Icons.Default.MyLocation, contentDescription = stringResource(R.string.navigator_vernutsya_k_pozitsii),
                     tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp)
                 )
             }
@@ -1003,7 +1005,7 @@ fun NavigatorScreen(
                     Animation(Animation.Type.SMOOTH, 0.5f), null
                 )
             }) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Моё местоположение",
+                Icon(Icons.Default.MyLocation, contentDescription = stringResource(R.string.navigator_moe_mestopolozhenie),
                     modifier = Modifier.size(20.dp))
             }
         }
@@ -1028,7 +1030,7 @@ fun NavigatorScreen(
                     FilterChip(
                         selected = uiState.activePoiCategory == cat,
                         onClick = { viewModel.searchPoi(cat) },
-                        label = { Text(cat.label, style = MaterialTheme.typography.labelMedium) },
+                        label = { Text(stringResource(cat.labelRes), style = MaterialTheme.typography.labelMedium) },
                         leadingIcon = {
                             Text(when (cat) {
                                 PoiCategory.GAS_STATION  -> "⛽"
@@ -1069,7 +1071,7 @@ fun NavigatorScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Избранные места",
+                        stringResource(R.string.navigator_izbrannye_mesta),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1079,10 +1081,10 @@ fun NavigatorScreen(
                         val hasHome = uiState.favorites.any { it.type == FavoritePlaceType.HOME }
                         val hasWork = uiState.favorites.any { it.type == FavoritePlaceType.WORK }
                         if (!hasHome) item {
-                            FavoriteChip(icon = "🏠", label = "Дом", onClick = {})
+                            FavoriteChip(icon = "🏠", label = stringResource(R.string.navigator_dom_2), onClick = {})
                         }
                         if (!hasWork) item {
-                            FavoriteChip(icon = "💼", label = "Работа", onClick = {})
+                            FavoriteChip(icon = "💼", label = stringResource(R.string.cardetail_rabota), onClick = {})
                         }
                         items(uiState.favorites) { place ->
                             FavoriteChip(
@@ -1106,7 +1108,7 @@ fun NavigatorScreen(
                     if (stats != null && (stats.todayKm > 0 || stats.weekKm > 0 || stats.monthKm > 0)) {
                         HorizontalDivider(modifier = Modifier.padding(top = 14.dp, bottom = 10.dp))
                         Text(
-                            "Мои поездки",
+                            stringResource(R.string.navigator_moi_poezdki),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1117,17 +1119,17 @@ fun NavigatorScreen(
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
                             TripStatChip(
-                                label = "Сегодня",
+                                label = stringResource(R.string.chat_segodnya),
                                 km = stats.todayKm,
                                 count = stats.todayCount
                             )
                             TripStatChip(
-                                label = "7 дней",
+                                label = stringResource(R.string.navigator_7_dney),
                                 km = stats.weekKm,
                                 count = stats.weekCount
                             )
                             TripStatChip(
-                                label = "30 дней",
+                                label = stringResource(R.string.navigator_30_dney),
                                 km = stats.monthKm,
                                 count = null
                             )
@@ -1237,7 +1239,7 @@ private fun NavigationBottomBar(
                     )
                 )
                 Text(
-                    text = "в пути",
+                    text = stringResource(R.string.navigator_v_puti),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1254,7 +1256,7 @@ private fun NavigationBottomBar(
 
             Column {
                 Text(
-                    text = if (distanceKm != null) "%.1f км".format(distanceKm) else "--",
+                    text = if (distanceKm != null) stringResource(R.string.analytics_1f_km).format(distanceKm) else "--",
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium.copy(
@@ -1262,7 +1264,7 @@ private fun NavigationBottomBar(
                     )
                 )
                 Text(
-                    text = if (etaString.isNotBlank()) "прибытие $etaString" else "прибытие --:--",
+                    text = if (etaString.isNotBlank()) stringResource(R.string.navigator_pribytie, etaString) else stringResource(R.string.navigator_pribytie_2),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1281,7 +1283,7 @@ private fun NavigationBottomBar(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Завершить поездку",
+                        contentDescription = stringResource(R.string.navigator_zavershit_poezdku),
                         tint = MaterialTheme.colorScheme.onError,
                         modifier = Modifier.size(20.dp)
                     )
@@ -1291,13 +1293,14 @@ private fun NavigationBottomBar(
     }
 }
 
+@Composable
 private fun formatDuration(minutes: Int): String {
     return if (minutes >= 60) {
         val h = minutes / 60
         val m = minutes % 60
-        if (m == 0) "${h} ч" else "${h} ч ${m} мин"
+        if (m == 0) stringResource(R.string.navigator_ch, h) else stringResource(R.string.navigator_ch_min, h, m)
     } else {
-        "$minutes мин"
+        stringResource(R.string.gpstrip_min_2, minutes)
     }
 }
 
@@ -1354,12 +1357,12 @@ private fun RouteInfoCard(
                 )
                 // Save to favorites
                 IconButton(onClick = onSave, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Bookmark, contentDescription = "Сохранить",
+                    Icon(Icons.Default.Bookmark, contentDescription = stringResource(R.string.action_save),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp))
                 }
                 IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Закрыть",
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close),
                         modifier = Modifier.size(18.dp))
                 }
             }
@@ -1394,12 +1397,12 @@ private fun RouteInfoCard(
                                 Text(
                                     text = when {
                                         street != null && diff > 0 ->
-                                            "через $street · +${formatDuration(diff)}"
-                                        street != null -> "через $street"
+                                            stringResource(R.string.navigator_cherez, street, formatDuration(diff))
+                                        street != null -> stringResource(R.string.navigator_cherez_2, street)
                                         // Улицу определить не удалось — остаётся
                                         // хотя бы разница во времени
-                                        diff > 0 -> "дольше на ${formatDuration(diff)}"
-                                        else -> "быстрый"
+                                        diff > 0 -> stringResource(R.string.navigator_dolshe_na, formatDuration(diff))
+                                        else -> stringResource(R.string.navigator_bystryy)
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     maxLines = 1
@@ -1424,20 +1427,20 @@ private fun RouteInfoCard(
                     timeMin?.let { t ->
                         RouteStatItem(
                             value = formatDuration(t),
-                            label = "время",
+                            label = stringResource(R.string.navigator_vremya),
                             highlight = true
                         )
                     }
                     if (etaString.isNotBlank()) {
-                        RouteStatItem(value = etaString, label = "прибытие")
+                        RouteStatItem(value = etaString, label = stringResource(R.string.navigator_pribytie_3))
                     }
                     distanceKm?.let { d ->
-                        RouteStatItem(value = "%.1f км".format(d), label = "расстояние")
+                        RouteStatItem(value = stringResource(R.string.analytics_1f_km).format(d), label = stringResource(R.string.navigator_rasstoyanie))
                     }
                     fuelCost?.let { c ->
                         RouteStatItem(
                             value = "~${c.roundToInt()} ₽",
-                            label = fuelConsumptionDisplay ?: "топливо"
+                            label = fuelConsumptionDisplay ?: stringResource(R.string.navigator_toplivo)
                         )
                     }
                 }
@@ -1456,7 +1459,7 @@ private fun RouteInfoCard(
                     Icon(Icons.Default.Navigation, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Поехали!",
+                        stringResource(R.string.navigator_poehali),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -1537,13 +1540,13 @@ private fun FavoriteChip(icon: String, label: String, onClick: () -> Unit) {
 private fun TripStatChip(label: String, km: Double, count: Int?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = if (km >= 100) "%.0f км".format(km) else "%.1f км".format(km),
+            text = if (km >= 100) stringResource(R.string.navigator_0f_km).format(km) else stringResource(R.string.analytics_1f_km).format(km),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = if (count != null) "$label · $count поезд." else label,
+            text = if (count != null) stringResource(R.string.navigator_poezd, label, count) else label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

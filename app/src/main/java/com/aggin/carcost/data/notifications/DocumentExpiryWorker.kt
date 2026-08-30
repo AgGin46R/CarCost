@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.notifications
 
+import com.aggin.carcost.R
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -31,13 +32,13 @@ class DocumentExpiryWorker(
             expiring.forEachIndexed { i, document ->
                 val car = carDao.getCarById(document.carId) ?: return@forEachIndexed
                 val carName = "${car.brand} ${car.model}"
-                val typeLabel = document.type.displayName
+                val typeLabel = applicationContext.getString(document.type.displayNameRes)
                 val docTitle = if (document.title.isNotBlank()) document.title else typeLabel
-                val body = "$docTitle истекает через $days ${dayWord(days)}"
+                val body = applicationContext.getString(R.string.notify_istekaet_cherez, docTitle, days, dayWord(days))
                 NotificationHelper.sendGenericNotification(
                     context = applicationContext,
                     notificationId = 6000 + i + days * 10,
-                    title = "Документ: $carName",
+                    title = applicationContext.getString(R.string.notify_dokument, carName),
                     body = body,
                     carId = document.carId,
                     navType = NotificationHelper.NAV_TYPE_CAR
@@ -49,8 +50,8 @@ class DocumentExpiryWorker(
     }
 
     private fun dayWord(days: Int): String = when {
-        days == 1 -> "день"
-        days in 2..4 -> "дня"
-        else -> "дней"
+        days == 1 -> applicationContext.getString(R.string.notify_den)
+        days in 2..4 -> applicationContext.getString(R.string.notify_dnya)
+        else -> applicationContext.getString(R.string.notify_dney)
     }
 }

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.export
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -49,15 +51,15 @@ fun ExportScreen(
         AlertDialog(
             onDismissRequest = { viewModel.cancelRestore() },
             icon = { Icon(Icons.Default.Restore, contentDescription = null) },
-            title = { Text("Восстановить данные?") },
+            title = { Text(stringResource(R.string.export_vosstanovit_dannye)) },
             text = {
                 Column {
-                    Text("В файле: ${backup.summary}.")
+                    Text(stringResource(R.string.export_v_fayle, backup.summary(LocalContext.current)))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Записи с совпадающими идентификаторами будут перезаписаны, " +
-                            "остальные добавлены. Повторное восстановление того же файла " +
-                            "дублей не создаёт.",
+                        stringResource(R.string.export_zapisi_s_sovpadayuschimi_identifikatorami) +
+                            stringResource(R.string.export_ostalnye_dobavleny_povtornoe) +
+                            stringResource(R.string.export_dubley_ne_sozdaet),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -67,13 +69,13 @@ fun ExportScreen(
                 TextButton(
                     enabled = !uiState.isRestoring,
                     onClick = { viewModel.confirmRestore() }
-                ) { Text(if (uiState.isRestoring) "Восстанавливаем…" else "Восстановить") }
+                ) { Text(if (uiState.isRestoring) stringResource(R.string.export_vosstanavlivaem) else stringResource(R.string.export_vosstanovit)) }
             },
             dismissButton = {
                 TextButton(
                     enabled = !uiState.isRestoring,
                     onClick = { viewModel.cancelRestore() }
-                ) { Text("Отмена") }
+                ) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -98,10 +100,10 @@ fun ExportScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Экспорт данных") },
+                title = { Text(stringResource(R.string.cardetail_eksport_dannyh)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -124,7 +126,7 @@ fun ExportScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Text(
-                            text = "Экспорт данных для автомобиля",
+                            text = stringResource(R.string.export_eksport_dannyh_dlya_avtomobilya),
                             style = MaterialTheme.typography.headlineSmall
                         )
                         Text(
@@ -132,7 +134,7 @@ fun ExportScreen(
                             style = MaterialTheme.typography.titleLarge
                         )
                         Text(
-                            text = "Выберите формат и период для экспорта отчёта.",
+                            text = stringResource(R.string.export_vyberite_format_i_period_dlya_eksporta),
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center
                         )
@@ -157,14 +159,14 @@ fun ExportScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         ExportButton(
-                            text = "Экспорт в PDF",
+                            text = stringResource(R.string.export_eksport_v_pdf),
                             icon = Icons.Default.PictureAsPdf,
                             onClick = { viewModel.exportToPdf() },
                             enabled = !uiState.isExporting
                         )
 
                         ExportButton(
-                            text = "Экспорт в CSV",
+                            text = stringResource(R.string.export_eksport_v_csv),
                             icon = Icons.Default.TableRows,
                             onClick = { viewModel.exportToCsv() },
                             enabled = !uiState.isExporting
@@ -173,7 +175,7 @@ fun ExportScreen(
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                         ExportButton(
-                            text = "Резервная копия (все авто)",
+                            text = stringResource(R.string.export_rezervnaya_kopiya_vse_avto),
                             icon = Icons.Default.BackupTable,
                             onClick = { viewModel.exportBackup() },
                             enabled = !uiState.isExporting,
@@ -184,7 +186,7 @@ fun ExportScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         ExportButton(
-                            text = "Восстановить из копии",
+                            text = stringResource(R.string.export_vosstanovit_iz_kopii),
                             icon = Icons.Default.Restore,
                             onClick = { restoreLauncher.launch(arrayOf("application/json", "*/*")) },
                             enabled = !uiState.isExporting && !uiState.isRestoring,
@@ -193,9 +195,9 @@ fun ExportScreen(
                         )
 
                         Text(
-                            text = "В копию входят автомобили, расходы, ТО, планы, документы, " +
-                                "страховки, инциденты, бюджеты, цели и замеры жидкостей. " +
-                                "Старые CSV-копии восстановить нельзя.",
+                            text = stringResource(R.string.export_v_kopiyu_vhodyat_avtomobili_rashody_to) +
+                                stringResource(R.string.export_strahovki_intsidenty_byudzhety_tseli_i) +
+                                stringResource(R.string.export_starye_csv_kopii_vosstanovit_nelzya),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 8.dp)
@@ -205,7 +207,7 @@ fun ExportScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                             CircularProgressIndicator()
                             Text(
-                                text = "Создание файла...",
+                                text = stringResource(R.string.export_sozdanie_fayla),
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(top = 8.dp)
                             )
@@ -213,7 +215,7 @@ fun ExportScreen(
                     }
                 }
                 else -> {
-                    Text("Не удалось загрузить данные об автомобиле.")
+                    Text(stringResource(R.string.export_ne_udalos_zagruzit_dannye_ob_avtomobile))
                 }
             }
         }
@@ -243,10 +245,10 @@ private fun PeriodFilterCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Фильтр по периоду", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.export_filtr_po_periodu), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (startDate != null || endDate != null) {
                     TextButton(onClick = onClear, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Text("Сбросить", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.action_reset), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -256,13 +258,13 @@ private fun PeriodFilterCard(
                     onClick = { showStartPicker = true },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(startDate?.let { "С: ${fmt.format(Date(it))}" } ?: "Начало", style = MaterialTheme.typography.labelSmall)
+                    Text(startDate?.let { stringResource(R.string.export_s, fmt.format(Date(it))) } ?: stringResource(R.string.export_nachalo), style = MaterialTheme.typography.labelSmall)
                 }
                 OutlinedButton(
                     onClick = { showEndPicker = true },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(endDate?.let { "По: ${fmt.format(Date(it))}" } ?: "Конец", style = MaterialTheme.typography.labelSmall)
+                    Text(endDate?.let { stringResource(R.string.export_po, fmt.format(Date(it))) } ?: stringResource(R.string.export_konets), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -278,7 +280,7 @@ private fun PeriodFilterCard(
                     showStartPicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showStartPicker = false }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { showStartPicker = false }) { Text(stringResource(R.string.action_cancel)) } }
         ) { DatePicker(state = state) }
     }
 
@@ -294,7 +296,7 @@ private fun PeriodFilterCard(
                     showEndPicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showEndPicker = false }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { showEndPicker = false }) { Text(stringResource(R.string.action_cancel)) } }
         ) { DatePicker(state = state) }
     }
 }
@@ -316,9 +318,9 @@ private fun CategoryFilterCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Категории", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.components_kategorii), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 TextButton(onClick = onSelectAll, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                    Text(if (allSelected) "Снять все" else "Все", style = MaterialTheme.typography.labelSmall)
+                    Text(if (allSelected) stringResource(R.string.export_snyat_vse) else stringResource(R.string.map_vse), style = MaterialTheme.typography.labelSmall)
                 }
             }
             Spacer(Modifier.height(8.dp))

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -15,10 +17,10 @@ import com.aggin.carcost.data.local.database.entities.*
 @Composable
 fun PriorityBadge(priority: PlannedExpensePriority) {
     val (color, text) = when (priority) {
-        PlannedExpensePriority.LOW -> MaterialTheme.colorScheme.surfaceVariant to "Низкий"
-        PlannedExpensePriority.MEDIUM -> MaterialTheme.colorScheme.tertiary to "Средний"
-        PlannedExpensePriority.HIGH -> MaterialTheme.colorScheme.primary to "Высокий"
-        PlannedExpensePriority.URGENT -> MaterialTheme.colorScheme.error to "Срочно"
+        PlannedExpensePriority.LOW -> MaterialTheme.colorScheme.surfaceVariant to stringResource(R.string.plannedexpenses_nizkiy)
+        PlannedExpensePriority.MEDIUM -> MaterialTheme.colorScheme.tertiary to stringResource(R.string.plannedexpenses_sredniy)
+        PlannedExpensePriority.HIGH -> MaterialTheme.colorScheme.primary to stringResource(R.string.plannedexpenses_vysokiy)
+        PlannedExpensePriority.URGENT -> MaterialTheme.colorScheme.error to stringResource(R.string.plannedexpenses_srochno)
     }
 
     Surface(
@@ -40,22 +42,22 @@ fun StatusBadge(status: PlannedExpenseStatus) {
     val (icon, text, color) = when (status) {
         PlannedExpenseStatus.PLANNED -> Triple(
             Icons.Default.Schedule,
-            "Запланировано",
+            stringResource(R.string.plannedexpenses_zaplanirovano),
             MaterialTheme.colorScheme.primary
         )
         PlannedExpenseStatus.IN_PROGRESS -> Triple(
             Icons.Default.Autorenew,
-            "В процессе",
+            stringResource(R.string.plannedexpenses_v_protsesse),
             MaterialTheme.colorScheme.tertiary
         )
         PlannedExpenseStatus.COMPLETED -> Triple(
             Icons.Default.CheckCircle,
-            "Выполнено",
+            stringResource(R.string.plannedexpenses_vypolneno),
             MaterialTheme.colorScheme.surfaceVariant
         )
         PlannedExpenseStatus.CANCELLED -> Triple(
             Icons.Default.Cancel,
-            "Отменено",
+            stringResource(R.string.plannedexpenses_otmeneno),
             MaterialTheme.colorScheme.error
         )
     }
@@ -85,7 +87,7 @@ fun CategoryPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Выберите категорию") },
+        title = { Text(stringResource(R.string.plannedexpenses_vyberite_kategoriyu)) },
         text = {
             Column {
                 ExpenseCategory.entries.forEach { category ->
@@ -115,7 +117,7 @@ fun CategoryPickerDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Закрыть")
+                Text(stringResource(R.string.action_close))
             }
         }
     )
@@ -130,7 +132,7 @@ fun PriorityPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Выберите приоритет") },
+        title = { Text(stringResource(R.string.plannedexpenses_vyberite_prioritet)) },
         text = {
             Column {
                 PlannedExpensePriority.entries.forEach { priority ->
@@ -153,7 +155,7 @@ fun PriorityPickerDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Закрыть")
+                Text(stringResource(R.string.action_close))
             }
         }
     )
@@ -168,7 +170,7 @@ fun StatusPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Выберите статус") },
+        title = { Text(stringResource(R.string.plannedexpenses_vyberite_status)) },
         text = {
             Column {
                 PlannedExpenseStatus.entries.forEach { status ->
@@ -191,7 +193,7 @@ fun StatusPickerDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Закрыть")
+                Text(stringResource(R.string.action_close))
             }
         }
     )

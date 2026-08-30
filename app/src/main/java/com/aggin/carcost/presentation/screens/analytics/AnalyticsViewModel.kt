@@ -491,7 +491,7 @@ class EnhancedAnalyticsViewModel(
 
             val direction = if (changePct > 0) "вырос" else "снизился"
             val pctFormatted = "%.0f".format(kotlin.math.abs(changePct))
-            val categoryName = category.displayName()
+            val categoryName = category.displayName(getApplication())
             anomalies.add(
                 ExpenseAnomaly(
                     category = category,
@@ -680,7 +680,7 @@ class EnhancedAnalyticsViewModel(
     }
 
     private fun calculateOdometerHistory(expenses: List<Expense>): List<OdometerPoint> {
-        val fmt = SimpleDateFormat("MMM yy", Locale("ru"))
+        val fmt = SimpleDateFormat("MMM yy", Locale.getDefault())
         return expenses
             .filter { it.odometer > 0 }
             .sortedBy { it.date }

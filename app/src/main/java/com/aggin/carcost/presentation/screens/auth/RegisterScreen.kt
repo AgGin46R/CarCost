@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.auth
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -50,10 +51,10 @@ fun RegisterScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Регистрация") },
+                title = { Text(stringResource(R.string.auth_registratsiya)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Назад")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -107,7 +108,7 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = uiState.displayName,
                 onValueChange = { viewModel.updateDisplayName(it) },
-                label = { Text("Имя") },
+                label = { Text(stringResource(R.string.auth_imya)) },
                 leadingIcon = {
                     Icon(Icons.Default.Person, null)
                 },
@@ -138,7 +139,7 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = uiState.password,
                 onValueChange = { viewModel.updatePassword(it) },
-                label = { Text("Пароль") },
+                label = { Text(stringResource(R.string.auth_parol)) },
                 leadingIcon = {
                     Icon(Icons.Default.Lock, null)
                 },
@@ -163,7 +164,7 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = uiState.confirmPassword,
                 onValueChange = { viewModel.updateConfirmPassword(it) },
-                label = { Text("Подтвердите пароль") },
+                label = { Text(stringResource(R.string.auth_podtverdite_parol)) },
                 leadingIcon = {
                     Icon(Icons.Default.Lock, null)
                 },
@@ -216,11 +217,11 @@ fun RegisterScreen(
                 )
                 Column(modifier = Modifier.padding(top = 12.dp)) {
                     Text(
-                        text = "Я согласен на обработку моих персональных данных",
+                        text = stringResource(R.string.auth_ya_soglasen_na_obrabotku_moih_personalnyh),
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "Политика конфиденциальности",
+                        text = stringResource(R.string.auth_politika_konfidentsialnosti),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
@@ -251,7 +252,7 @@ fun RegisterScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text("Зарегистрироваться", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.auth_zaregistrirovatsya), style = MaterialTheme.typography.titleMedium)
                 }
             }
 
@@ -273,7 +274,7 @@ fun RegisterScreen(
                     tint = Color.Unspecified
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Зарегистрироваться через VK", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.auth_zaregistrirovatsya_cherez_vk), style = MaterialTheme.typography.titleSmall)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -283,7 +284,7 @@ fun RegisterScreen(
                 onClick = { navController.popBackStack() },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Уже есть аккаунт? Войти")
+                Text(stringResource(R.string.auth_uzhe_est_akkaunt_voyti))
             }
         }
     }

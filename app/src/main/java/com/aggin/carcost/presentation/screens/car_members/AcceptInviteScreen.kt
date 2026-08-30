@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.car_members
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -61,7 +63,7 @@ class AcceptInviteViewModel(
                 if (inviteResult.isSuccess) com.aggin.carcost.data.analytics.Analytics.inviteAccepted()
                 if (inviteResult.isFailure) {
                     _state.value = AcceptInviteState.Error(
-                        inviteResult.exceptionOrNull()?.message ?: "Не удалось принять приглашение"
+                        inviteResult.exceptionOrNull()?.message ?: getApplication<Application>().getString(R.string.carmembers_ne_udalos_prinyat_priglashenie)
                     )
                     return@launch
                 }
@@ -110,7 +112,7 @@ class AcceptInviteViewModel(
 
             } catch (e: Exception) {
                 android.util.Log.e("AcceptInvite", "Unexpected crash", e)
-                _state.value = AcceptInviteState.Error(e.message ?: "Неизвестная ошибка")
+                _state.value = AcceptInviteState.Error(e.message ?: getApplication<Application>().getString(R.string.carmembers_neizvestnaya_oshibka))
             }
         }
     }
@@ -146,7 +148,7 @@ fun AcceptInviteScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator()
                     Spacer(Modifier.height(16.dp))
-                    Text("Принимаем приглашение...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.carmembers_prinimaem_priglashenie), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -162,13 +164,13 @@ fun AcceptInviteScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        "Вы присоединились",
+                        stringResource(R.string.carmembers_vy_prisoedinilis),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        "Теперь у вас есть доступ к этому автомобилю.",
+                        stringResource(R.string.carmembers_teper_u_vas_est_dostup_k_etomu_avtomobilyu),
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -181,7 +183,7 @@ fun AcceptInviteScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Перейти к автомобилям", fontSize = 16.sp)
+                        Text(stringResource(R.string.carmembers_pereyti_k_avtomobilyam), fontSize = 16.sp)
                     }
                 }
             }
@@ -198,7 +200,7 @@ fun AcceptInviteScreen(
                         tint = MaterialTheme.colorScheme.error
                     )
                     Text(
-                        "Не удалось принять приглашение",
+                        stringResource(R.string.carmembers_ne_udalos_prinyat_priglashenie),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
@@ -213,7 +215,7 @@ fun AcceptInviteScreen(
                         onClick = { navController.popBackStack() },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Назад")
+                        Text(stringResource(R.string.action_back))
                     }
                 }
             }

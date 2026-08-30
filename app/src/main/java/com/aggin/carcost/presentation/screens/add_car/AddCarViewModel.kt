@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.add_car
 
+import com.aggin.carcost.R
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -155,7 +156,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.value = _uiState.value.copy(
                         isUploadingPhoto = false,
                         showError = true,
-                        errorMessage = "Не удалось загрузить фото: ${e.localizedMessage}"
+                        errorMessage = getApplication<Application>().getString(R.string.addcar_ne_udalos_zagruzit_foto, e.localizedMessage)
                     )
                 }
             }
@@ -164,10 +165,10 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
     private suspend fun compressImage(uri: Uri): ByteArray = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw IllegalStateException("Не удалось открыть изображение")
+            ?: throw IllegalStateException(getApplication<Application>().getString(R.string.addcar_ne_udalos_otkryt_izobrazhenie))
         val bitmap = BitmapFactory.decodeStream(inputStream)
         inputStream.close()
-        if (bitmap == null) throw IllegalStateException("Не удалось декодировать изображение. Попробуйте выбрать другой формат (JPEG/PNG)")
+        if (bitmap == null) throw IllegalStateException(getApplication<Application>().getString(R.string.profile_ne_udalos_dekodirovat_izobrazhenie))
         val maxSize = 1024
         val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height, 1f)
         val width = (bitmap.width * ratio).toInt()
@@ -185,23 +186,23 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
 
         // Валидация
         if (state.brand.isBlank()) {
-            _uiState.value = state.copy(showError = true, errorMessage = "Введите марку")
+            _uiState.value = state.copy(showError = true, errorMessage = getApplication<Application>().getString(R.string.addcar_vvedite_marku))
             return
         }
         if (state.model.isBlank()) {
-            _uiState.value = state.copy(showError = true, errorMessage = "Введите модель")
+            _uiState.value = state.copy(showError = true, errorMessage = getApplication<Application>().getString(R.string.addcar_vvedite_model))
             return
         }
         if (state.year.isBlank() || state.year.toIntOrNull() == null) {
-            _uiState.value = state.copy(showError = true, errorMessage = "Введите корректный год")
+            _uiState.value = state.copy(showError = true, errorMessage = getApplication<Application>().getString(R.string.addcar_vvedite_korrektnyy_god))
             return
         }
         if (state.licensePlate.isBlank()) {
-            _uiState.value = state.copy(showError = true, errorMessage = "Введите номер")
+            _uiState.value = state.copy(showError = true, errorMessage = getApplication<Application>().getString(R.string.addcar_vvedite_nomer))
             return
         }
         if (state.currentOdometer.isBlank() || state.currentOdometer.toIntOrNull() == null) {
-            _uiState.value = state.copy(showError = true, errorMessage = "Введите пробег")
+            _uiState.value = state.copy(showError = true, errorMessage = getApplication<Application>().getString(R.string.addcar_vvedite_probeg))
             return
         }
 
@@ -216,7 +217,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.value = state.copy(
                         isSaving = false,
                         showError = true,
-                        errorMessage = "Пользователь не авторизован"
+                        errorMessage = getApplication<Application>().getString(R.string.addcar_polzovatel_ne_avtorizovan)
                     )
                     return@launch
                 }
@@ -272,7 +273,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                         _uiState.value = state.copy(
                             isSaving = false,
                             showError = true,
-                            errorMessage = "Машина сохранена локально, но не синхронизирована: ${error.message}"
+                            errorMessage = getApplication<Application>().getString(R.string.addcar_mashina_sohranena_lokalno_no_ne, error.message)
                         )
                         return@launch
                     }
@@ -289,7 +290,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.value = state.copy(
                     isSaving = false,
                     showError = true,
-                    errorMessage = "Ошибка сохранения: ${e.message}"
+                    errorMessage = getApplication<Application>().getString(R.string.addcar_oshibka_sohraneniya, e.message)
                 )
             }
         }

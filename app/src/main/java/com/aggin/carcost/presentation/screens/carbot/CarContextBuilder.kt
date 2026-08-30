@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.carbot
 
+import android.content.Context
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import kotlinx.coroutines.flow.firstOrNull
@@ -12,9 +13,9 @@ import com.aggin.carcost.presentation.common.displayName
  * Builds a concise system prompt for the Gemma model from Room data.
  * Includes: cars, last 15 expenses, upcoming reminders, insurance policies.
  */
-class CarContextBuilder {
+class CarContextBuilder(private val appContext: Context) {
 
-    private val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale("ru"))
+    private val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
     private val today get() = dateFormat.format(Date())
 
     suspend fun buildPrompt(carId: String?, db: AppDatabase): String {
@@ -71,7 +72,7 @@ class CarContextBuilder {
                         kmLeft < 500 -> "через $kmLeft км (скоро)"
                         else         -> "через $kmLeft км"
                     }
-                    sb.appendLine("• ${r.type.displayName}: $status")
+                    sb.appendLine("• ${appContext.getString(r.type.displayNameRes)}: $status")
                 }
                 sb.appendLine()
             }
@@ -96,5 +97,5 @@ class CarContextBuilder {
         return sb.toString()
     }
 
-    private fun categoryName(category: ExpenseCategory) = category.displayName()
+    private fun categoryName(category: ExpenseCategory) = category.displayName(appContext)
 }

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.insurance
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -94,10 +96,10 @@ fun InsurancePoliciesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Страховые полисы") },
+                title = { Text(stringResource(R.string.insurance_strahovye_polisy)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -108,7 +110,7 @@ fun InsurancePoliciesScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, "Добавить полис")
+                Icon(Icons.Default.Add, stringResource(R.string.insurance_dobavit_polis))
             }
         }
     ) { padding ->
@@ -124,9 +126,9 @@ fun InsurancePoliciesScreen(
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                     )
                     Spacer(Modifier.height(16.dp))
-                    Text("Нет полисов", style = MaterialTheme.typography.titleMedium,
+                    Text(stringResource(R.string.documents_net_polisov), style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    Text("Нажмите «+», чтобы добавить полис", style = MaterialTheme.typography.bodySmall,
+                    Text(stringResource(R.string.insurance_nazhmite_chtoby_dobavit_polis), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                 }
             }
@@ -168,9 +170,9 @@ fun InsurancePolicyCard(policy: InsurancePolicy, onDelete: () -> Unit) {
     } else 1f
 
     val typeLabel = when (policy.type) {
-        "OSAGO" -> "ОСАГО"
-        "KASKO" -> "КАСКО"
-        else -> "Другое"
+        "OSAGO" -> stringResource(R.string.insurance_osago)
+        "KASKO" -> stringResource(R.string.insurance_kasko)
+        else -> stringResource(R.string.home_drugoe)
     }
     val statusColor = when {
         isExpired -> MaterialTheme.colorScheme.error
@@ -194,7 +196,7 @@ fun InsurancePolicyCard(policy: InsurancePolicy, onDelete: () -> Unit) {
                     )
                     if (policy.policyNumber.isNotBlank()) {
                         Text(
-                            "Полис: ${policy.policyNumber}",
+                            stringResource(R.string.insurance_polis, policy.policyNumber),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -222,7 +224,7 @@ fun InsurancePolicyCard(policy: InsurancePolicy, onDelete: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    if (isExpired) "Истёк" else "Ещё $daysLeft дн.",
+                    if (isExpired) stringResource(R.string.insurance_istek) else stringResource(R.string.insurance_esche_dn, daysLeft),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                     color = statusColor
@@ -236,7 +238,7 @@ fun InsurancePolicyCard(policy: InsurancePolicy, onDelete: () -> Unit) {
             if (policy.cost > 0) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Стоимость: %.2f ₽".format(policy.cost),
+                    stringResource(R.string.insurance_stoimost_2f).format(policy.cost),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -251,7 +253,7 @@ fun AddInsurancePolicyDialog(
     onDismiss: () -> Unit,
     onConfirm: (type: String, company: String, number: String, start: Long, end: Long, cost: Double, notes: String?) -> Unit
 ) {
-    val types = listOf("OSAGO" to "ОСАГО", "KASKO" to "КАСКО", "OTHER" to "Другое")
+    val types = listOf("OSAGO" to stringResource(R.string.insurance_osago), "KASKO" to stringResource(R.string.insurance_kasko), "OTHER" to stringResource(R.string.home_drugoe))
     var selectedType by remember { mutableStateOf("OSAGO") }
     var company by rememberSaveable { mutableStateOf("") }
     var policyNumber by rememberSaveable { mutableStateOf("") }
@@ -268,7 +270,7 @@ fun AddInsurancePolicyDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Добавить полис") },
+        title = { Text(stringResource(R.string.insurance_dobavit_polis)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Тип полиса
@@ -283,33 +285,33 @@ fun AddInsurancePolicyDialog(
                 }
                 OutlinedTextField(
                     value = company, onValueChange = { company = it },
-                    label = { Text("Страховая компания") }, singleLine = true,
+                    label = { Text(stringResource(R.string.insurance_strahovaya_kompaniya)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = policyNumber, onValueChange = { policyNumber = it },
-                    label = { Text("Номер полиса") }, singleLine = true,
+                    label = { Text(stringResource(R.string.insurance_nomer_polisa)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DateField(
                         digits = startDigits, onDigitsChange = { startDigits = it },
-                        label = "Начало", modifier = Modifier.weight(1f)
+                        label = stringResource(R.string.export_nachalo), modifier = Modifier.weight(1f)
                     )
                     DateField(
                         digits = endDigits, onDigitsChange = { endDigits = it },
-                        label = "Конец", modifier = Modifier.weight(1f)
+                        label = stringResource(R.string.export_konets), modifier = Modifier.weight(1f)
                     )
                 }
                 OutlinedTextField(
                     value = costStr, onValueChange = { costStr = it },
-                    label = { Text("Стоимость (₽)") }, singleLine = true,
+                    label = { Text(stringResource(R.string.insurance_stoimost)) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = notes, onValueChange = { notes = it },
-                    label = { Text("Заметки") }, singleLine = false,
+                    label = { Text(stringResource(R.string.incidents_zametki)) }, singleLine = false,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -324,10 +326,10 @@ fun AddInsurancePolicyDialog(
                     val cost = costStr.toDoubleOrNull() ?: 0.0
                     onConfirm(selectedType, company, policyNumber, startMillis!!, endMillis!!, cost, notes)
                 }
-            ) { Text("Добавить") }
+            ) { Text(stringResource(R.string.action_add)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.edit_expense
 
+import com.aggin.carcost.R
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -125,7 +126,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                     )
                 } else {
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = "Расход не найден",
+                        errorMessage = getApplication<Application>().getString(R.string.editexp_rashod_ne_nayden),
                         isLoading = false
                     )
                 }
@@ -140,7 +141,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
 
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "Ошибка загрузки: ${e.message}",
+                    errorMessage = getApplication<Application>().getString(R.string.editexp_oshibka_zagruzki, e.message),
                     isLoading = false
                 )
             }
@@ -250,16 +251,16 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
 
         if (amount == null || amount <= 0) {
             _uiState.value = state.copy(
-                amountError = "Введите корректную сумму",
-                errorMessage = "Проверьте введённые данные"
+                amountError = getApplication<Application>().getString(R.string.editexp_vvedite_korrektnuyu_summu),
+                errorMessage = getApplication<Application>().getString(R.string.editexp_proverte_vvedennye_dannye)
             )
             hasError = true
         }
 
         if (odometer == null || odometer < 0) {
             _uiState.value = _uiState.value.copy(
-                odometerError = "Введите корректный пробег",
-                errorMessage = "Проверьте введённые данные"
+                odometerError = getApplication<Application>().getString(R.string.editexp_vvedite_korrektnyy_probeg),
+                errorMessage = getApplication<Application>().getString(R.string.editexp_proverte_vvedennye_dannye)
             )
             hasError = true
         }
@@ -277,7 +278,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                 if (base == null) {
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
-                        errorMessage = "Не удалось прочитать запись. Откройте расход заново"
+                        errorMessage = getApplication<Application>().getString(R.string.editexp_ne_udalos_prochitat_zapis_otkroyte_rashod)
                     )
                     return@launch
                 }
@@ -317,9 +318,19 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
                 Log.d("EditExpense", "✅ Expense updated locally")
 
                 // Пробег автомобиля — по наибольшему из его записей. Правка
-                // расхода его раньше не двигала вовсе.
-                com.aggin.carcost.data.local.repository.CarRepository(database.carDao())
-                    .refreshOdometerFromExpenses(updatedExpense.carId, database.expenseDao())
+                // расхода его раньше не двигала вовсе. Новое значение сразу
+                // уходит на сервер, иначе загрузка вернёт прежнее.
+                val carRepo = com.aggin.carcost.data.local.repository.CarRepository(database.carDao())
+                if (carRepo.refreshOdometerFromExpenses(updatedExpense.carId, database.expenseDao())) {
+                    runCatching {
+                        carRepo.getCarById(updatedExpense.carId)?.let { car ->
+                            com.aggin.carcost.data.remote.repository.SupabaseCarRepository(supabaseAuth)
+                                .updateCar(car)
+                        }
+                    }.onFailure { error ->
+                        Log.w("EditExpense", "Пробег не уехал на сервер: ${error.message}")
+                    }
+                }
 
                 // ✅ 2. ДОБАВЛЕНО: Обновляем теги
                 try {
@@ -467,7 +478,7 @@ class EditExpenseViewModel(application: Application) : AndroidViewModel(applicat
             } catch (e: Exception) {
                 Log.e("EditExpense", "❌ Error saving expense", e)
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "Ошибка сохранения: ${e.message}",
+                    errorMessage = getApplication<Application>().getString(R.string.addcar_oshibka_sohraneniya, e.message),
                     isSaving = false
                 )
             }

@@ -312,8 +312,16 @@ class SyncRepository(
 
             // 4. Пробег автомобиля — по наибольшему из записей. Запись
             // совладельца пробег на карточке раньше не двигала.
+            //
+            // Считается после загрузки расходов и потому переживает то, что
+            // автомобили синхронизируются раньше них: на сервере в этот момент
+            // может лежать прежний пробег, но локально он пересчитается заново.
             localDb?.let { db ->
-                localCarRepo.refreshOdometerFromExpenses(car.id, db.expenseDao())
+                if (localCarRepo.refreshOdometerFromExpenses(car.id, db.expenseDao())) {
+                    localCarRepo.getCarById(car.id)?.let { updated ->
+                        supabaseCarRepo.updateCar(updated).trackPush("пробег")
+                    }
+                }
             }
         }
     }

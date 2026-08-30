@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.navigator
 
+import androidx.annotation.StringRes
+import com.aggin.carcost.R
 import com.yandex.mapkit.directions.driving.DrivingRoute
 import com.yandex.mapkit.geometry.Point
 import kotlin.math.asin
@@ -46,16 +48,16 @@ data class Maneuver(
  * Полный перечень MapKit подробнее, но за рулём разница между «резко направо» и
  * «направо» на глаз не считывается, а лишние варианты только усложняют значок.
  */
-enum class ManeuverAction(val label: String) {
-    STRAIGHT("Прямо"),
-    LEFT("Налево"),
-    SLIGHT_LEFT("Левее"),
-    HARD_LEFT("Резко налево"),
-    RIGHT("Направо"),
-    SLIGHT_RIGHT("Правее"),
-    HARD_RIGHT("Резко направо"),
-    U_TURN("Разворот"),
-    FINISH("Прибытие")
+enum class ManeuverAction(@StringRes val labelRes: Int) {
+    STRAIGHT(R.string.maneuver_straight),
+    LEFT(R.string.maneuver_left),
+    SLIGHT_LEFT(R.string.maneuver_slight_left),
+    HARD_LEFT(R.string.maneuver_hard_left),
+    RIGHT(R.string.maneuver_right),
+    SLIGHT_RIGHT(R.string.maneuver_slight_right),
+    HARD_RIGHT(R.string.maneuver_hard_right),
+    U_TURN(R.string.maneuver_u_turn),
+    FINISH(R.string.maneuver_finish)
 }
 
 /**

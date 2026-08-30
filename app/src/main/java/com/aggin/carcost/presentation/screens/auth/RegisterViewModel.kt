@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.auth
 
+import com.aggin.carcost.R
 import android.app.Application
 import android.content.Context
 import android.util.Log
@@ -67,32 +68,32 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
         // Валидация
         if (state.displayName.isBlank()) {
-            _uiState.value = state.copy(errorMessage = "Введите имя")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_imya))
             return
         }
 
         if (state.email.isBlank()) {
-            _uiState.value = state.copy(errorMessage = "Введите email")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_email))
             return
         }
 
         if (!emailRegex.matches(state.email.trim())) {
-            _uiState.value = state.copy(errorMessage = "Введите корректный email")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_korrektnyy_email))
             return
         }
 
         if (state.password.isBlank()) {
-            _uiState.value = state.copy(errorMessage = "Введите пароль")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_parol))
             return
         }
 
         if (state.password.length < 6) {
-            _uiState.value = state.copy(errorMessage = "Пароль должен быть не менее 6 символов")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.profile_parol_dolzhen_byt_ne_menee_6_simvolov))
             return
         }
 
         if (state.password != state.confirmPassword) {
-            _uiState.value = state.copy(errorMessage = "Пароли не совпадают")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.profile_paroli_ne_sovpadayut))
             return
         }
 
@@ -155,7 +156,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                             Log.e("RegisterViewModel", "❌ UserId is NULL after registration")
                             _uiState.value = state.copy(
                                 isLoading = false,
-                                errorMessage = "Не удалось получить данные пользователя"
+                                errorMessage = getApplication<Application>().getString(R.string.auth_ne_udalos_poluchit_dannye_polzovatelya)
                             )
                         }
                     },
@@ -163,7 +164,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                         Log.e("RegisterViewModel", "❌ Registration failed: ${error.message}")
                         _uiState.value = state.copy(
                             isLoading = false,
-                            errorMessage = error.message ?: "Ошибка регистрации"
+                            errorMessage = error.message ?: getApplication<Application>().getString(R.string.auth_oshibka_registratsii)
                         )
                     }
                 )
@@ -171,7 +172,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                 Log.e("RegisterViewModel", "❌ Exception during registration", e)
                 _uiState.value = state.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "Неизвестная ошибка"
+                    errorMessage = e.message ?: getApplication<Application>().getString(R.string.carmembers_neizvestnaya_oshibka)
                 )
             }
         }
@@ -190,7 +191,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                         it.copy(
                             isLoading = false,
                             errorMessage = if (msg == VkSignInHelper.CANCELLED_MESSAGE) null
-                            else (msg ?: "Ошибка входа через VK")
+                            else (msg ?: getApplication<Application>().getString(R.string.auth_oshibka_vhoda_cherez_vk))
                         )
                     }
                     return@launch
@@ -203,7 +204,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = exchange.exceptionOrNull()?.message ?: "Ошибка входа через VK"
+                            errorMessage = exchange.exceptionOrNull()?.message ?: getApplication<Application>().getString(R.string.auth_oshibka_vhoda_cherez_vk)
                         )
                     }
                     return@launch
@@ -232,7 +233,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                         val user = User(
                             uid = userInfo.id,
                             email = userInfo.email ?: "",
-                            displayName = displayName ?: "Пользователь",
+                            displayName = displayName ?: getApplication<Application>().getString(R.string.profile_polzovatel),
                             photoUrl = photoUrl,
                             lastLoginAt = System.currentTimeMillis()
                         )
@@ -247,12 +248,12 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     },
                     onFailure = { e ->
                         _uiState.update {
-                            it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка регистрации через VK")
+                            it.copy(isLoading = false, errorMessage = e.message ?: getApplication<Application>().getString(R.string.auth_oshibka_registratsii_cherez_vk))
                         }
                     }
                 )
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
+                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: getApplication<Application>().getString(R.string.carmembers_neizvestnaya_oshibka)) }
             }
         }
     }

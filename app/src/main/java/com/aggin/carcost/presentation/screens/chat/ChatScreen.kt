@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.chat
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -625,7 +627,7 @@ class ChatViewModel(
             val userId = awaitUserId()
             if (userId == null) {
                 _uiState.update {
-                    it.copy(isSending = false, sendError = "Не удалось определить пользователя — попробуйте ещё раз")
+                    it.copy(isSending = false, sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_opredelit_polzovatelya))
                 }
                 return@launch
             }
@@ -637,7 +639,7 @@ class ChatViewModel(
                 if (mediaUri != null) {
                     val raw = readBytesFromUri(mediaUri, "jpg")
                     if (raw == null) {
-                        _uiState.update { it.copy(isSending = false, sendError = "Не удалось прочитать изображение") }
+                        _uiState.update { it.copy(isSending = false, sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_prochitat_izobrazhenie)) }
                         return@launch
                     }
                     // Compress the image (scale to 1200px max, JPEG 82%)
@@ -658,7 +660,7 @@ class ChatViewModel(
                     } catch (_: Exception) { raw }
                     val uploadResult = supabaseChat.uploadMedia(carId, messageId, bytes, "jpg", "image/jpeg")
                     if (uploadResult.isFailure) {
-                        _uiState.update { it.copy(isSending = false, sendError = "Ошибка загрузки фото: ${uploadResult.exceptionOrNull()?.message}") }
+                        _uiState.update { it.copy(isSending = false, sendError = getApplication<Application>().getString(R.string.chat_oshibka_zagruzki_foto, uploadResult.exceptionOrNull()?.message.orEmpty())) }
                         return@launch
                     }
                     mediaUrl = uploadResult.getOrNull()
@@ -689,7 +691,7 @@ class ChatViewModel(
                 )
             } catch (e: Exception) {
                 android.util.Log.e("ChatVM", "sendMessage failed", e)
-                _uiState.update { it.copy(sendError = "Ошибка отправки: ${e.message}") }
+                _uiState.update { it.copy(sendError = getApplication<Application>().getString(R.string.chat_oshibka_otpravki, e.message.orEmpty())) }
             } finally {
                 _uiState.update { it.copy(isSending = false) }
             }
@@ -713,7 +715,7 @@ class ChatViewModel(
             val userId = awaitUserId()
             if (userId == null) {
                 _uiState.update {
-                    it.copy(isSending = false, sendError = "Не удалось определить пользователя — попробуйте ещё раз")
+                    it.copy(isSending = false, sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_opredelit_polzovatelya))
                 }
                 return@launch
             }
@@ -723,7 +725,7 @@ class ChatViewModel(
                 // Тоже потоком: документ или архив может весить не меньше видео
                 val tmp = copyUriToTempFile(uri, extension)
                 if (tmp == null) {
-                    _uiState.update { it.copy(isSending = false, sendError = "Не удалось прочитать файл") }
+                    _uiState.update { it.copy(isSending = false, sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_prochitat_fayl)) }
                     return@launch
                 }
                 val messageId = UUID.randomUUID().toString()
@@ -753,7 +755,7 @@ class ChatViewModel(
                         it.copy(
                             isSending = false,
                             failedUploadIds = it.failedUploadIds + messageId,
-                            sendError = "Ошибка загрузки файла: ${uploadResult.exceptionOrNull()?.message}"
+                            sendError = getApplication<Application>().getString(R.string.chat_oshibka_zagruzki_fayla, uploadResult.exceptionOrNull()?.message.orEmpty())
                         )
                     }
                     return@launch
@@ -766,7 +768,7 @@ class ChatViewModel(
                 com.aggin.carcost.data.analytics.Analytics.chatMessageSent("file")
             } catch (e: Exception) {
                 android.util.Log.e("ChatVM", "sendFile failed", e)
-                _uiState.update { it.copy(sendError = "Ошибка отправки файла: ${e.message}") }
+                _uiState.update { it.copy(sendError = getApplication<Application>().getString(R.string.chat_oshibka_otpravki_fayla, e.message.orEmpty())) }
             } finally {
                 _uiState.update { it.copy(isSending = false) }
             }
@@ -790,7 +792,7 @@ class ChatViewModel(
             val userId = awaitUserId()
             if (userId == null) {
                 _uiState.update {
-                    it.copy(isSending = false, sendError = "Не удалось определить пользователя — попробуйте ещё раз")
+                    it.copy(isSending = false, sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_opredelit_polzovatelya))
                 }
                 return@launch
             }
@@ -811,7 +813,7 @@ class ChatViewModel(
                 // ролик целиком в памяти — верный OutOfMemoryError на слабом телефоне
                 val tmp = copyUriToTempFile(uri, uploadExt)
                 if (tmp == null) {
-                    _uiState.update { it.copy(isSending = false, sendError = "Не удалось прочитать видео") }
+                    _uiState.update { it.copy(isSending = false, sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_prochitat_video)) }
                     return@launch
                 }
                 val messageId = UUID.randomUUID().toString()
@@ -849,7 +851,7 @@ class ChatViewModel(
                         it.copy(
                             isSending = false,
                             failedUploadIds = it.failedUploadIds + messageId,
-                            sendError = "Ошибка загрузки видео: ${uploadResult.exceptionOrNull()?.message}"
+                            sendError = getApplication<Application>().getString(R.string.chat_oshibka_zagruzki_video, uploadResult.exceptionOrNull()?.message.orEmpty())
                         )
                     }
                     return@launch
@@ -861,7 +863,7 @@ class ChatViewModel(
                 com.aggin.carcost.data.analytics.Analytics.chatMessageSent("video")
             } catch (e: Exception) {
                 android.util.Log.e("ChatVM", "sendVideo failed", e)
-                _uiState.update { it.copy(sendError = "Ошибка отправки видео: ${e.message}") }
+                _uiState.update { it.copy(sendError = getApplication<Application>().getString(R.string.chat_oshibka_otpravki_video, e.message.orEmpty())) }
             } finally {
                 _uiState.update { it.copy(isSending = false) }
             }
@@ -1073,7 +1075,7 @@ class ChatViewModel(
             // отвергает запись. Реакция появлялась и через мгновение пропадала.
             val userId = _uiState.value.currentUserId.ifEmpty { awaitUserId().orEmpty() }
             if (userId.isEmpty()) {
-                _uiState.update { it.copy(sendError = "Не удалось определить пользователя — попробуйте ещё раз") }
+                _uiState.update { it.copy(sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_opredelit_polzovatelya)) }
                 return@launch
             }
             val userEmail = auth.getCurrentUserEmail() ?: ""
@@ -1086,7 +1088,7 @@ class ChatViewModel(
                     // выглядел как «реакция сама исчезла»
                     android.util.Log.e("ChatVM", "Не удалось снять реакцию", e)
                     try { db.chatReactionDao().insert(existing) } catch (_: Exception) {}
-                    _uiState.update { it.copy(sendError = "Не удалось снять реакцию: ${e.message}") }
+                    _uiState.update { it.copy(sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_snyat_reaktsiyu, e.message.orEmpty())) }
                 }
             } else {
                 val reaction = com.aggin.carcost.data.local.database.entities.ChatReaction(
@@ -1099,7 +1101,7 @@ class ChatViewModel(
                 retrying { supabaseReactions.addReaction(reaction) }.onFailure { e ->
                     android.util.Log.e("ChatVM", "Не удалось поставить реакцию", e)
                     try { db.chatReactionDao().deleteById(reaction.id) } catch (_: Exception) {}
-                    _uiState.update { it.copy(sendError = "Не удалось поставить реакцию: ${e.message}") }
+                    _uiState.update { it.copy(sendError = getApplication<Application>().getString(R.string.chat_ne_udalos_postavit_reaktsiyu, e.message.orEmpty())) }
                 }
             }
         }
@@ -1130,6 +1132,11 @@ class ChatViewModelFactory(
 @Composable
 fun ChatScreen(carId: String, navController: NavController) {
     val context = LocalContext.current
+
+    // Подписи дней читаются здесь: ниже они нужны и внутри LaunchedEffect,
+    // где композиции уже нет и ресурсы оттуда недоступны
+    val todayLabel = stringResource(R.string.chat_segodnya)
+    val yesterdayLabel = stringResource(R.string.chat_vchera)
     val viewModel: ChatViewModel = viewModel(
         factory = ChatViewModelFactory(context.applicationContext as Application, carId)
     )
@@ -1275,7 +1282,7 @@ fun ChatScreen(carId: String, navController: NavController) {
 
     LaunchedEffect(uiState.isLoading) {
         if (!uiState.isLoading && uiState.messages.isNotEmpty() && !hasScrolledInitially) {
-            val grouped = uiState.messages.groupByDate()
+            val grouped = uiState.messages.groupByDate(todayLabel, yesterdayLabel)
             val lastIndex = grouped.size + uiState.messages.size - 1
             listState.scrollToItem(lastIndex)
             hasScrolledInitially = true
@@ -1298,7 +1305,7 @@ fun ChatScreen(carId: String, navController: NavController) {
 
     LaunchedEffect(uiState.messages.size) {
         if (hasScrolledInitially && uiState.messages.isNotEmpty()) {
-            val grouped = uiState.messages.groupByDate()
+            val grouped = uiState.messages.groupByDate(todayLabel, yesterdayLabel)
             val lastIndex = grouped.size + uiState.messages.size - 1
             listState.animateScrollToItem(lastIndex)
         }
@@ -1317,7 +1324,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                             OutlinedTextField(
                                 value = uiState.searchQuery,
                                 onValueChange = { viewModel.setSearchQuery(it) },
-                                placeholder = { Text("Поиск по чату...") },
+                                placeholder = { Text(stringResource(R.string.chat_poisk_po_chatu)) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(24.dp),
                                 modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
@@ -1341,7 +1348,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                                     )
                                 }
                             ) {
-                                Text("Чат", fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.cardetail_chat), fontWeight = FontWeight.Bold)
                                 if (uiState.carName.isNotBlank()) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -1363,7 +1370,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                                                     .background(Color(0xFF4CAF50))
                                             )
                                             Text(
-                                                text = "$onlineCount онлайн",
+                                                text = stringResource(R.string.chat_onlayn, onlineCount),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = Color(0xFF4CAF50)
                                             )
@@ -1392,7 +1399,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                         }) {
                             Icon(
                                 Icons.Default.Search,
-                                contentDescription = "Поиск",
+                                contentDescription = stringResource(R.string.action_search),
                                 tint = if (showSearch) MaterialTheme.colorScheme.primary else LocalContentColor.current
                             )
                         }
@@ -1460,8 +1467,8 @@ fun ChatScreen(carId: String, navController: NavController) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("💬", fontSize = 48.sp)
                     Spacer(Modifier.height(12.dp))
-                    Text("Нет сообщений", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Напишите первым", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.chat_net_soobscheniy), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.chat_napishite_pervym), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -1480,7 +1487,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                 }
                 val filteredMessages = if (uiState.searchQuery.isBlank()) uiState.messages
                     else uiState.messages.filter { it.message.contains(uiState.searchQuery, ignoreCase = true) }
-                val grouped = filteredMessages.groupByDate()
+                val grouped = filteredMessages.groupByDate(todayLabel, yesterdayLabel)
                 grouped.forEach { (dateLabel, msgs) ->
                     item(key = "date_$dateLabel") { DateSeparator(dateLabel) }
                     items(msgs, key = { it.id }) { message ->
@@ -1503,7 +1510,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                             uploadFailed = message.id in uiState.failedUploadIds,
                             onJumpToMessage = { targetId ->
                                 screenScope.launch {
-                                    val grouped = uiState.messages.groupByDate()
+                                    val grouped = uiState.messages.groupByDate(todayLabel, yesterdayLabel)
                                     var flatIndex = 0
                                     outer@ for ((_, msgs) in grouped) {
                                         flatIndex++ // date separator item
@@ -1547,7 +1554,7 @@ fun ChatScreen(carId: String, navController: NavController) {
         ModalBottomSheet(onDismissRequest = { showAttachSheet = false }) {
             ListItem(
                 leadingContent = { Icon(Icons.Default.Image, null, tint = MaterialTheme.colorScheme.primary) },
-                headlineContent = { Text("Фото из галереи") },
+                headlineContent = { Text(stringResource(R.string.chat_foto_iz_galerei)) },
                 modifier = Modifier.clickable {
                     imagePicker.launch("image/*")
                     showAttachSheet = false
@@ -1555,7 +1562,7 @@ fun ChatScreen(carId: String, navController: NavController) {
             )
             ListItem(
                 leadingContent = { Icon(Icons.Default.Videocam, null, tint = MaterialTheme.colorScheme.tertiary) },
-                headlineContent = { Text("Видео") },
+                headlineContent = { Text(stringResource(R.string.chat_video)) },
                 supportingContent = { Text("MP4, MOV, WebM") },
                 modifier = Modifier.clickable {
                     videoPicker.launch("video/*")
@@ -1564,7 +1571,7 @@ fun ChatScreen(carId: String, navController: NavController) {
             )
             ListItem(
                 leadingContent = { Icon(Icons.Default.InsertDriveFile, null, tint = MaterialTheme.colorScheme.secondary) },
-                headlineContent = { Text("Документ") },
+                headlineContent = { Text(stringResource(R.string.chat_dokument)) },
                 supportingContent = { Text("PDF, Word, TXT, JSON, PPTX") },
                 modifier = Modifier.clickable {
                     // Любой тип файла.
@@ -1592,7 +1599,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                             android.util.Log.e("ChatVM", "Запасной выбор тоже не открылся", e2)
                             android.widget.Toast.makeText(
                                 context,
-                                "На устройстве нет приложения для выбора файлов",
+                                context.getString(R.string.chat_na_ustroystve_net_prilozheniya_dlya),
                                 android.widget.Toast.LENGTH_LONG
                             ).show()
                         }
@@ -1655,7 +1662,7 @@ fun ChatScreen(carId: String, navController: NavController) {
                     onClick = { downloadAttachment(context, url, null, "image") },
                     modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
                 ) {
-                    Icon(Icons.Default.Download, "Сохранить фото", tint = Color.White)
+                    Icon(Icons.Default.Download, stringResource(R.string.chat_sohranit_foto), tint = Color.White)
                 }
             }
         }
@@ -1738,7 +1745,7 @@ private fun ChatInputBar(
                         Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Редактирование", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                            Text(stringResource(R.string.chat_redaktirovanie), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                             Text(editingMessage.message.take(80), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
                         }
                         IconButton(onClick = onCancelEdit, modifier = Modifier.size(32.dp)) {
@@ -1783,7 +1790,7 @@ private fun ChatInputBar(
                             contentScale = ContentScale.Crop
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Фото прикреплено", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.chat_foto_prikrepleno), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                         IconButton(onClick = onRemoveImage) { Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                     HorizontalDivider()
@@ -1828,7 +1835,7 @@ private fun ChatInputBar(
                         value = text,
                         onValueChange = onTextChange,
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("Сообщение...") },
+                        placeholder = { Text(stringResource(R.string.chat_soobschenie)) },
                         shape = RoundedCornerShape(24.dp),
                         maxLines = 4,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
@@ -1837,7 +1844,7 @@ private fun ChatInputBar(
 
                     if (showMic) {
                         FilledIconButton(onClick = onMicClick, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Default.Mic, "Голосовое сообщение")
+                            Icon(Icons.Default.Mic, stringResource(R.string.chat_golosovoe_soobschenie))
                         }
                     } else {
                         FilledIconButton(onClick = onSend, enabled = canSend, modifier = Modifier.size(48.dp)) {
@@ -1870,7 +1877,7 @@ private fun RecordingBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onCancel) {
-                Icon(Icons.Default.Delete, "Отменить запись", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Delete, stringResource(R.string.chat_otmenit_zapis), tint = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.weight(1f))
             Box(
@@ -1888,7 +1895,7 @@ private fun RecordingBar(
                 onClick = onStop,
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Icon(Icons.Default.Stop, "Остановить запись", tint = Color.White)
+                Icon(Icons.Default.Stop, stringResource(R.string.chat_ostanovit_zapis), tint = Color.White)
             }
         }
     }
@@ -1946,14 +1953,14 @@ private fun ChatBubble(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Удалить сообщение?") },
+            title = { Text(stringResource(R.string.chat_udalit_soobschenie)) },
             confirmButton = {
                 TextButton(onClick = { showDeleteDialog = false; onDelete?.invoke() }) {
-                    Text("Удалить", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Отмена") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -1990,13 +1997,13 @@ private fun ChatBubble(
                 }
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("Ответить") },
+                    headlineContent = { Text(stringResource(R.string.chat_otvetit)) },
                     leadingContent = { Icon(Icons.Default.Reply, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable { showContextMenu = false; onReply() }
                 )
                 if (message.message.isNotBlank()) {
                     ListItem(
-                        headlineContent = { Text("Копировать") },
+                        headlineContent = { Text(stringResource(R.string.chat_kopirovat)) },
                         leadingContent = { Icon(Icons.Default.ContentCopy, null) },
                         modifier = Modifier.clickable {
                             showContextMenu = false
@@ -2012,9 +2019,9 @@ private fun ChatBubble(
                         headlineContent = {
                             Text(
                                 when (message.mediaType) {
-                                    "video" -> "Сохранить видео"
-                                    "file" -> "Сохранить файл"
-                                    else -> "Сохранить фото"
+                                    "video" -> stringResource(R.string.chat_sohranit_video)
+                                    "file" -> stringResource(R.string.chat_sohranit_fayl)
+                                    else -> stringResource(R.string.chat_sohranit_foto)
                                 }
                             )
                         },
@@ -2032,14 +2039,14 @@ private fun ChatBubble(
                 }
                 if (onDelete != null && message.message.isNotBlank()) {
                     ListItem(
-                        headlineContent = { Text("Редактировать") },
+                        headlineContent = { Text(stringResource(R.string.cardetail_redaktirovat)) },
                         leadingContent = { Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.secondary) },
                         modifier = Modifier.clickable { showContextMenu = false; onEdit() }
                     )
                 }
                 if (onDelete != null) {
                     ListItem(
-                        headlineContent = { Text("Удалить", color = MaterialTheme.colorScheme.error) },
+                        headlineContent = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                         leadingContent = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
                         modifier = Modifier.clickable { showContextMenu = false; showDeleteDialog = true }
                     )
@@ -2210,9 +2217,9 @@ private fun ChatBubble(
                                         Text(
                                             text = message.fileName?.takeIf { it.isNotBlank() }
                                                 ?: when (message.mediaType) {
-                                                    "video" -> "Видео"
-                                                    "file"  -> "Файл"
-                                                    else    -> "Вложение"
+                                                    "video" -> stringResource(R.string.chat_video)
+                                                    "file"  -> stringResource(R.string.chat_fayl)
+                                                    else    -> stringResource(R.string.chat_vlozhenie)
                                                 },
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Medium,
@@ -2221,7 +2228,7 @@ private fun ChatBubble(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            text = if (uploadFailed) "Не удалось отправить" else "Отправляется…",
+                                            text = if (uploadFailed) stringResource(R.string.chat_ne_udalos_otpravit) else stringResource(R.string.chat_otpravlyaetsya),
                                             fontSize = 11.sp,
                                             color = if (uploadFailed) MaterialTheme.colorScheme.error
                                                     else onBubble.copy(alpha = 0.7f)
@@ -2308,8 +2315,8 @@ private fun ChatBubble(
                                         Icon(fileIcon(message.fileName ?: ""), null, tint = if (isMe) onBubble else fileColor(message.fileName ?: ""), modifier = Modifier.size(32.dp))
                                         Spacer(Modifier.width(10.dp))
                                         Column {
-                                            Text(message.fileName ?: "Файл", maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = onBubble)
-                                            Text("Нажмите, чтобы открыть", fontSize = 11.sp, color = onBubble.copy(alpha = 0.7f))
+                                            Text(message.fileName ?: stringResource(R.string.chat_fayl), maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = onBubble)
+                                            Text(stringResource(R.string.chat_nazhmite_chtoby_otkryt), fontSize = 11.sp, color = onBubble.copy(alpha = 0.7f))
                                         }
                                     }
                                 }
@@ -2332,7 +2339,7 @@ private fun ChatBubble(
                                 if (message.mediaType == null || message.mediaType == "image") {
                                     AsyncImage(
                                         model = url,
-                                        contentDescription = "Фото",
+                                        contentDescription = stringResource(R.string.chat_foto),
                                         modifier = Modifier
                                             .widthIn(max = 240.dp)
                                             .clip(bubbleShape)
@@ -2371,7 +2378,7 @@ private fun ChatBubble(
                         modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
                     ) {
                         if (message.isEdited) {
-                            Text("изменено", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                            Text(stringResource(R.string.chat_izmeneno), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                         }
                         Text(timeFmt.format(Date(message.createdAt)), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -2446,7 +2453,7 @@ private fun ReplyQuote(
         Box(modifier = Modifier.width(3.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
         Spacer(Modifier.width(6.dp))
         Text(
-            text ?: "Сообщение",
+            text ?: stringResource(R.string.chat_soobschenie_2),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodySmall,
@@ -2485,15 +2492,25 @@ private fun DateSeparator(label: String) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-private fun List<ChatMessage>.groupByDate(): List<Pair<String, List<ChatMessage>>> {
+/**
+ * Разбивка сообщений по дням.
+ *
+ * Подписи «сегодня» и «вчера» передаются снаружи, а не читаются здесь: функция
+ * зовётся в том числе из LaunchedEffect, где композиции уже нет, и обращение к
+ * ресурсам изнутри сделало бы её недоступной оттуда.
+ */
+private fun List<ChatMessage>.groupByDate(
+    todayLabel: String,
+    yesterdayLabel: String
+): List<Pair<String, List<ChatMessage>>> {
     val dateFmt = SimpleDateFormat("d MMMM yyyy", Locale.getDefault())
     val keyFmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
     val today = keyFmt.format(Date())
     val yesterday = keyFmt.format(Date(System.currentTimeMillis() - 86_400_000))
     return groupBy { msg ->
         when (keyFmt.format(Date(msg.createdAt))) {
-            today -> "Сегодня"
-            yesterday -> "Вчера"
+            today -> todayLabel
+            yesterday -> yesterdayLabel
             else -> dateFmt.format(Date(msg.createdAt))
         }
     }.toList()
@@ -2527,7 +2544,7 @@ private fun MemberProfileCard(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Закрыть") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
         },
         title = null,
         text = {
@@ -2609,7 +2626,7 @@ private fun MemberProfileCard(
                                 .background(if (isOnline) Color(0xFF4CAF50) else Color(0xFF9E9E9E))
                         )
                         Text(
-                            if (isOnline) "Онлайн" else "Не в сети",
+                            if (isOnline) stringResource(R.string.chat_onlayn_2) else stringResource(R.string.chat_ne_v_seti),
                             style = MaterialTheme.typography.labelMedium,
                             color = if (isOnline) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2620,8 +2637,8 @@ private fun MemberProfileCard(
                 if (role != null) {
                     Spacer(Modifier.height(6.dp))
                     val roleLabel = when (role) {
-                        "OWNER" -> "Владелец"
-                        "DRIVER" -> "Водитель"
+                        "OWNER" -> stringResource(R.string.carmembers_vladelets)
+                        "DRIVER" -> stringResource(R.string.home_voditel)
                         else -> role
                     }
                     Text(
@@ -2731,7 +2748,7 @@ internal fun openFile(context: Context, url: String, fileName: String) {
             withContext(kotlinx.coroutines.Dispatchers.Main) {
                 android.widget.Toast.makeText(
                     context,
-                    "Нет приложения, которое откроет этот файл",
+                    context.getString(R.string.chat_net_prilozheniya_kotoroe_otkroet_etot_fayl),
                     android.widget.Toast.LENGTH_LONG
                 ).show()
             }
@@ -2740,7 +2757,7 @@ internal fun openFile(context: Context, url: String, fileName: String) {
             withContext(kotlinx.coroutines.Dispatchers.Main) {
                 android.widget.Toast.makeText(
                     context,
-                    "Не удалось открыть файл",
+                    context.getString(R.string.chat_ne_udalos_otkryt_fayl),
                     android.widget.Toast.LENGTH_LONG
                 ).show()
             }

@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.auth
 
+import com.aggin.carcost.R
 import android.app.Application
 import android.content.Context
 import android.util.Log
@@ -58,17 +59,17 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
 
         if (state.email.isBlank()) {
-            _uiState.value = state.copy(errorMessage = "Введите email")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_email))
             return
         }
 
         if (!emailRegex.matches(state.email.trim())) {
-            _uiState.value = state.copy(errorMessage = "Введите корректный email")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_korrektnyy_email))
             return
         }
 
         if (state.password.isBlank()) {
-            _uiState.value = state.copy(errorMessage = "Введите пароль")
+            _uiState.value = state.copy(errorMessage = getApplication<Application>().getString(R.string.auth_vvedite_parol))
             return
         }
 
@@ -114,7 +115,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                             val user = com.aggin.carcost.data.local.database.entities.User(
                                 uid = userInfo.id,
                                 email = userInfo.email ?: state.email,
-                                displayName = userProfile?.displayName ?: "Пользователь",
+                                displayName = userProfile?.displayName ?: getApplication<Application>().getString(R.string.profile_polzovatel),
                                 photoUrl = userProfile?.photoUrl,  // ✅ ДОБАВЛЕНО
                                 lastLoginAt = System.currentTimeMillis()
                             )
@@ -160,7 +161,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                         Log.e("Login", "❌ Login failed: ${error.message}")
                         _uiState.value = state.copy(
                             isLoading = false,
-                            errorMessage = error.message ?: "Ошибка входа"
+                            errorMessage = error.message ?: getApplication<Application>().getString(R.string.auth_oshibka_vhoda)
                         )
                     }
                 )
@@ -168,7 +169,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e("Login", "Exception during login", e)
                 _uiState.value = state.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "Неизвестная ошибка"
+                    errorMessage = e.message ?: getApplication<Application>().getString(R.string.carmembers_neizvestnaya_oshibka)
                 )
             }
         }
@@ -188,7 +189,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                         it.copy(
                             isLoading = false,
                             errorMessage = if (msg == VkSignInHelper.CANCELLED_MESSAGE) null
-                            else (msg ?: "Ошибка входа через VK")
+                            else (msg ?: getApplication<Application>().getString(R.string.auth_oshibka_vhoda_cherez_vk))
                         )
                     }
                     return@launch
@@ -202,7 +203,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = exchange.exceptionOrNull()?.message ?: "Ошибка входа через VK"
+                            errorMessage = exchange.exceptionOrNull()?.message ?: getApplication<Application>().getString(R.string.auth_oshibka_vhoda_cherez_vk)
                         )
                     }
                     return@launch
@@ -238,13 +239,13 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                     onFailure = { e ->
                         Log.e("LoginViewModel", "Supabase VK sign-in failed", e)
                         _uiState.update {
-                            it.copy(isLoading = false, errorMessage = e.message ?: "Ошибка входа через VK")
+                            it.copy(isLoading = false, errorMessage = e.message ?: getApplication<Application>().getString(R.string.auth_oshibka_vhoda_cherez_vk))
                         }
                     }
                 )
             } catch (e: Exception) {
                 Log.e("LoginViewModel", "signInWithVk exception", e)
-                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Неизвестная ошибка") }
+                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: getApplication<Application>().getString(R.string.carmembers_neizvestnaya_oshibka)) }
             }
         }
     }
@@ -253,7 +254,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         val user = com.aggin.carcost.data.local.database.entities.User(
             uid = userId,
             email = email,
-            displayName = displayName ?: "Пользователь",
+            displayName = displayName ?: getApplication<Application>().getString(R.string.profile_polzovatel),
             photoUrl = photoUrl,
             lastLoginAt = System.currentTimeMillis()
         )

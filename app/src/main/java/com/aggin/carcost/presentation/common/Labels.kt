@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.common
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Build
@@ -13,7 +15,10 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Toll
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.ServiceType
@@ -30,32 +35,56 @@ import java.util.Locale
  * показывала старый текст.
  */
 
-private val RU = Locale("ru")
+/**
+ * Язык подписей.
+ *
+ * Через get(), а не val: значение читается заново при каждом обращении.
+ * Файловое свойство инициализируется один раз на процесс, а язык меняется без
+ * его перезапуска — застывшее значение осталось бы прежним до перезагрузки
+ * приложения, и месяцы показывались бы на старом языке.
+ */
+private val RU: Locale get() = Locale.getDefault()
 
 // ── Категории расходов ───────────────────────────────────────────────────────
 
-fun ExpenseCategory.displayName(): String = when (this) {
-    ExpenseCategory.FUEL -> "Топливо"
-    ExpenseCategory.CHARGING -> "Зарядка"
-    ExpenseCategory.MAINTENANCE -> "Обслуживание"
-    ExpenseCategory.REPAIR -> "Ремонт"
-    ExpenseCategory.INSURANCE -> "Страховка"
-    ExpenseCategory.TAX -> "Налог"
-    ExpenseCategory.PARKING -> "Парковка"
-    ExpenseCategory.TOLL -> "Платная дорога"
-    ExpenseCategory.WASH -> "Мойка"
-    ExpenseCategory.FINE -> "Штраф"
-    ExpenseCategory.ACCESSORIES -> "Аксессуары"
-    ExpenseCategory.OTHER -> "Прочее"
+/**
+ * Ключ подписи категории.
+ *
+ * Возвращается идентификатор ресурса, а не готовая строка: подписи нужны и на
+ * экранах, и в уведомлениях, и в выгрузке, а способ достать текст в этих трёх
+ * местах разный. Общим остаётся ключ.
+ */
+@StringRes
+fun ExpenseCategory.displayNameRes(): Int = when (this) {
+    ExpenseCategory.FUEL -> R.string.category_fuel
+    ExpenseCategory.CHARGING -> R.string.category_charging
+    ExpenseCategory.MAINTENANCE -> R.string.category_maintenance
+    ExpenseCategory.REPAIR -> R.string.category_repair
+    ExpenseCategory.INSURANCE -> R.string.category_insurance
+    ExpenseCategory.TAX -> R.string.category_tax
+    ExpenseCategory.PARKING -> R.string.category_parking
+    ExpenseCategory.TOLL -> R.string.category_toll
+    ExpenseCategory.WASH -> R.string.category_wash
+    ExpenseCategory.FINE -> R.string.category_fine
+    ExpenseCategory.ACCESSORIES -> R.string.category_accessories
+    ExpenseCategory.OTHER -> R.string.category_other
 }
+
+/** Подпись на экране */
+@Composable
+fun ExpenseCategory.displayName(): String = stringResource(displayNameRes())
+
+/** Подпись вне композиции: уведомления, выгрузка, виджет */
+fun ExpenseCategory.displayName(context: Context): String =
+    context.getString(displayNameRes())
 
 /**
  * Подпись по строковому имени категории — для мест, где на руках нет enum
  * (уведомления получают категорию из payload).
  */
-fun categoryDisplayName(rawCategory: String): String =
-    runCatching { ExpenseCategory.valueOf(rawCategory.uppercase()).displayName() }
-        .getOrDefault("Расход")
+fun categoryDisplayName(context: Context, rawCategory: String): String =
+    runCatching { ExpenseCategory.valueOf(rawCategory.uppercase()).displayName(context) }
+        .getOrDefault(context.getString(R.string.category_generic_expense))
 
 fun ExpenseCategory.emoji(): String = when (this) {
     ExpenseCategory.FUEL -> "⛽"
@@ -104,34 +133,44 @@ fun ExpenseCategory.color(): Color = when (this) {
 
 // ── Виды работ ───────────────────────────────────────────────────────────────
 
-fun ServiceType.displayName(): String = when (this) {
-    ServiceType.OIL_CHANGE -> "Замена масла"
-    ServiceType.OIL_FILTER -> "Масляный фильтр"
-    ServiceType.AIR_FILTER -> "Воздушный фильтр"
-    ServiceType.FUEL_FILTER -> "Топливный фильтр"
-    ServiceType.CABIN_FILTER -> "Салонный фильтр"
-    ServiceType.SPARK_PLUGS -> "Свечи зажигания"
-    ServiceType.BRAKE_PADS -> "Тормозные колодки"
-    ServiceType.BRAKE_FLUID -> "Тормозная жидкость"
-    ServiceType.COOLANT -> "Охлаждающая жидкость"
-    ServiceType.TRANSMISSION_FLUID -> "Трансмиссионное масло"
-    ServiceType.TIMING_BELT -> "Ремень ГРМ"
-    ServiceType.TIRES -> "Шины"
-    ServiceType.BATTERY -> "Аккумулятор"
-    ServiceType.ALIGNMENT -> "Развал-схождение"
-    ServiceType.BALANCING -> "Балансировка"
-    ServiceType.INSPECTION -> "Техосмотр"
-    ServiceType.FULL_SERVICE -> "Полное ТО"
-    ServiceType.REDUCER_OIL -> "Масло редуктора"
-    ServiceType.BATTERY_COOLANT -> "Охлаждающая жидкость батареи"
-    ServiceType.BATTERY_HEALTH -> "Проверка состояния батареи"
-    ServiceType.BRAKE_CALIPERS -> "Чистка и смазка суппортов"
-    ServiceType.CHAIN_LUBE -> "Смазка цепи"
-    ServiceType.CHAIN_REPLACE -> "Замена цепи и звёзд"
-    ServiceType.FORK_OIL -> "Масло в вилке"
-    ServiceType.VALVE_CLEARANCE -> "Регулировка клапанов"
-    ServiceType.OTHER -> "Другое"
+/** Ключ названия работы. Как и у категорий — ключ, а не готовый текст */
+@StringRes
+fun ServiceType.displayNameRes(): Int = when (this) {
+    ServiceType.OIL_CHANGE -> R.string.service_oil_change
+    ServiceType.OIL_FILTER -> R.string.service_oil_filter
+    ServiceType.AIR_FILTER -> R.string.service_air_filter
+    ServiceType.FUEL_FILTER -> R.string.service_fuel_filter
+    ServiceType.CABIN_FILTER -> R.string.service_cabin_filter
+    ServiceType.SPARK_PLUGS -> R.string.service_spark_plugs
+    ServiceType.BRAKE_PADS -> R.string.service_brake_pads
+    ServiceType.BRAKE_FLUID -> R.string.service_brake_fluid
+    ServiceType.COOLANT -> R.string.service_coolant
+    ServiceType.TRANSMISSION_FLUID -> R.string.service_transmission_fluid
+    ServiceType.TIMING_BELT -> R.string.service_timing_belt
+    ServiceType.TIRES -> R.string.service_tires
+    ServiceType.BATTERY -> R.string.service_battery
+    ServiceType.ALIGNMENT -> R.string.service_alignment
+    ServiceType.BALANCING -> R.string.service_balancing
+    ServiceType.INSPECTION -> R.string.service_inspection
+    ServiceType.FULL_SERVICE -> R.string.service_full
+    ServiceType.REDUCER_OIL -> R.string.service_reducer_oil
+    ServiceType.BATTERY_COOLANT -> R.string.service_battery_coolant
+    ServiceType.BATTERY_HEALTH -> R.string.service_battery_health
+    ServiceType.BRAKE_CALIPERS -> R.string.service_brake_calipers
+    ServiceType.CHAIN_LUBE -> R.string.service_chain_lube
+    ServiceType.CHAIN_REPLACE -> R.string.service_chain_replace
+    ServiceType.FORK_OIL -> R.string.service_fork_oil
+    ServiceType.VALVE_CLEARANCE -> R.string.service_valve_clearance
+    ServiceType.OTHER -> R.string.service_other
 }
+
+/** Название работы на экране */
+@Composable
+fun ServiceType.displayName(): String = stringResource(displayNameRes())
+
+/** Название работы вне композиции */
+fun ServiceType.displayName(context: Context): String =
+    context.getString(displayNameRes())
 
 // ── Даты ─────────────────────────────────────────────────────────────────────
 // Три формата намеренно разные: длинный в формах ввода, короткий в списках,

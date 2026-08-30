@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.components
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -86,8 +88,8 @@ fun openNotificationSettings(context: Context) {
 @Composable
 fun NotificationsDisabledWarning(
     modifier: Modifier = Modifier,
-    text: String = "Уведомления выключены в настройках телефона. " +
-        "Напоминания о ТО, документах и страховке приходить не будут."
+    text: String = stringResource(R.string.components_uvedomleniya_vyklyucheny_v_nastroykah) +
+        stringResource(R.string.components_napominaniya_o_to_dokumentah_i_strahovke)
 ) {
     val context = LocalContext.current
     var enabled by remember { mutableStateOf(notificationsEnabled(context)) }
@@ -150,7 +152,7 @@ fun NotificationsDisabledWarning(
                         openNotificationSettings(context)
                     }
                 }
-            ) { Text("Включить") }
+            ) { Text(stringResource(R.string.components_vklyuchit)) }
         }
     }
 }

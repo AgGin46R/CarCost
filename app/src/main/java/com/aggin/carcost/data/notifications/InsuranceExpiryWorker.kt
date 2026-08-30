@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.notifications
 
+import com.aggin.carcost.R
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -32,15 +33,15 @@ class InsuranceExpiryWorker(
                 val car = carDao.getCarById(policy.carId) ?: return@forEachIndexed
                 val carName = "${car.brand} ${car.model}"
                 val typeLabel = when (policy.type) {
-                    "OSAGO" -> "ОСАГО"
-                    "KASKO" -> "КАСКО"
-                    else -> "Страховка"
+                    "OSAGO" -> applicationContext.getString(R.string.insurance_osago)
+                    "KASKO" -> applicationContext.getString(R.string.insurance_kasko)
+                    else -> applicationContext.getString(R.string.profile_strahovka)
                 }
-                val body = "$typeLabel истекает через $days ${dayWord(days)}"
+                val body = applicationContext.getString(R.string.notify_istekaet_cherez, typeLabel, days, dayWord(days))
                 NotificationHelper.sendGenericNotification(
                     context = applicationContext,
                     notificationId = 5000 + i + days * 10,
-                    title = "Страховка: $carName",
+                    title = applicationContext.getString(R.string.notify_strahovka, carName),
                     body = body,
                     carId = policy.carId,
                     navType = null
@@ -52,8 +53,8 @@ class InsuranceExpiryWorker(
     }
 
     private fun dayWord(days: Int): String = when {
-        days == 1 -> "день"
-        days in 2..4 -> "дня"
-        else -> "дней"
+        days == 1 -> applicationContext.getString(R.string.notify_den)
+        days in 2..4 -> applicationContext.getString(R.string.notify_dnya)
+        else -> applicationContext.getString(R.string.notify_dney)
     }
 }

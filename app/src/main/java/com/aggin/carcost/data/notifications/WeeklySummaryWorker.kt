@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.notifications
 
+import com.aggin.carcost.R
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -94,10 +95,10 @@ class WeeklySummaryWorker(
         val currency = cars.first().currency
 
         val body = buildString {
-            append("Потрачено: ${CurrencyUtils.format(totalSpent, currency)}")
+            append(applicationContext.getString(R.string.notify_potracheno, CurrencyUtils.format(totalSpent, currency)))
             comparisonWithPreviousWeek(totalSpent, previousSpent)?.let { append(" ($it)") }
-            if (totalKm > 0) append(" • Пройдено: %.0f км".format(totalKm))
-            if (fuelCount > 0) append(" • Заправок: $fuelCount")
+            if (totalKm > 0) append(applicationContext.getString(R.string.notify_proydeno_0f_km).format(totalKm))
+            if (fuelCount > 0) append(applicationContext.getString(R.string.notify_zapravok, fuelCount))
 
             // Наблюдение о расходе — то, ради чего человек и ведёт учёт.
             //
@@ -110,7 +111,7 @@ class WeeklySummaryWorker(
         NotificationHelper.sendGenericNotification(
             context = applicationContext,
             notificationId = 9000,
-            title = "Итоги недели",
+            title = applicationContext.getString(R.string.notify_itogi_nedeli),
             body = body
         )
 
@@ -150,10 +151,10 @@ class WeeklySummaryWorker(
 
         val percent = abs(change * 100).roundToInt()
         return if (change > 0) {
-            "Расход вырос на $percent%: %.1f против %.1f л/100 км в среднем. "
-                .format(recentAvg, overall) + "Стоит проверить давление в шинах."
+            applicationContext.getString(R.string.notify_rashod_vyros_na_1f_protiv_1f_l_100_km_v, percent)
+                .format(recentAvg, overall) + applicationContext.getString(R.string.notify_stoit_proverit_davlenie_v_shinah)
         } else {
-            "Расход снизился на $percent%: %.1f против %.1f л/100 км в среднем."
+            applicationContext.getString(R.string.notify_rashod_snizilsya_na_1f_protiv_1f_l_100_km, percent)
                 .format(recentAvg, overall)
         }
     }
@@ -171,6 +172,6 @@ class WeeklySummaryWorker(
         if (abs(change) < NOTABLE_CHANGE) return null
 
         val percent = abs(change * 100).roundToInt()
-        return if (change > 0) "на $percent% больше" else "на $percent% меньше"
+        return if (change > 0) applicationContext.getString(R.string.notify_na_bolshe, percent) else applicationContext.getString(R.string.notify_na_menshe, percent)
     }
 }

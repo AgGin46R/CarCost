@@ -52,7 +52,37 @@ class CarRepository(private val carDao: CarDao) {
      * для сравнения "кто новее".
      */
     suspend fun saveFromServer(car: Car) {
-        carDao.upsertCar(car)
+        carDao.upsertCar(mergeOdometer(car))
+    }
+
+    /**
+     * Пробег с сервера не должен опускать локальный.
+     *
+     * Пробег выводится из записей расходов, а не вводится отдельно. Запись
+     * уезжает на сервер сразу, а пробег автомобиля — только следующей
+     * синхронизацией, и в промежутке на сервере лежит старое значение. Без
+     * этой проверки загрузка автомобиля возвращала его обратно поверх верного:
+     * человек вносил расход на больший пробег, обновлял экран и видел прежнее
+     * число.
+     *
+     * Берём большее. Пробег только растёт — это то же правило, по которому он
+     * считается из записей.
+     */
+    private suspend fun mergeOdometer(fromServer: Car): Car {
+        val local = carDao.getCarById(fromServer.id) ?: return fromServer
+        return if (local.currentOdometer > fromServer.currentOdometer) {
+            // Метку времени ставим свою, а не серверную: иначе локальная запись
+            // навсегда останется «старее» серверной и верный пробег никогда не
+            // уедет наверх — на сервере так и будет лежать прежнее число.
+            // С новой меткой ближайшая синхронизация его туда отправит, после
+            // чего значения сойдутся и слияние больше не сработает.
+            fromServer.copy(
+                currentOdometer = local.currentOdometer,
+                updatedAt = System.currentTimeMillis()
+            )
+        } else {
+            fromServer
+        }
     }
 
     suspend fun updateCar(car: Car) {

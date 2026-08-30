@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.service_timeline
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,7 +45,7 @@ fun ServiceTimelineScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Таймлайн обслуживания")
+                        Text(stringResource(R.string.servicetimeline_taymlayn_obsluzhivaniya))
                         uiState.car?.let {
                             Text("${it.brand} ${it.model}", style = MaterialTheme.typography.labelSmall)
                         }
@@ -51,7 +53,7 @@ fun ServiceTimelineScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -73,8 +75,8 @@ fun ServiceTimelineScreen(
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
                     Spacer(Modifier.height(12.dp))
-                    Text("Нет записей об обслуживании", style = MaterialTheme.typography.titleMedium)
-                    Text("Добавьте расход категории «ТО» или «Ремонт» — он появится здесь",
+                    Text(stringResource(R.string.servicetimeline_net_zapisey_ob_obsluzhivanii), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.servicetimeline_dobavte_rashod_kategorii_to_ili_remont_on),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
@@ -110,7 +112,7 @@ fun ServiceTimelineScreen(
 
 @Composable
 private fun TimelineSummaryCard(uiState: ServiceTimelineUiState) {
-    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
+    val fmt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 0 }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -125,7 +127,7 @@ private fun TimelineSummaryCard(uiState: ServiceTimelineUiState) {
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Text("Записей", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.cardetail_zapisey), style = MaterialTheme.typography.labelSmall)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -133,7 +135,7 @@ private fun TimelineSummaryCard(uiState: ServiceTimelineUiState) {
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Text("На обслуживание", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.servicetimeline_na_obsluzhivanie), style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -146,8 +148,8 @@ private fun TimelineEventRow(
     isLast: Boolean,
     onClick: () -> Unit
 ) {
-    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
-    val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale("ru"))
+    val fmt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 0 }
+    val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
     val expense = event.expense
 
     val dotColor = if (expense.category == ExpenseCategory.MAINTENANCE)
@@ -216,7 +218,7 @@ private fun TimelineEventRow(
                         color = dotColor.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            if (expense.category == ExpenseCategory.MAINTENANCE) "Обслуживание" else "Ремонт",
+                            if (expense.category == ExpenseCategory.MAINTENANCE) stringResource(R.string.servicetimeline_obsluzhivanie) else stringResource(R.string.incidents_remont),
                             style = MaterialTheme.typography.labelSmall,
                             color = dotColor,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -224,7 +226,7 @@ private fun TimelineEventRow(
                     }
                     if (expense.odometer > 0) {
                         Text(
-                            "${fmt.format(expense.odometer)} км",
+                            stringResource(R.string.home_km, fmt.format(expense.odometer)),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
@@ -289,9 +291,11 @@ private fun TimelineDot(
     }
 }
 
+@Composable
 private fun serviceLabel(expense: com.aggin.carcost.data.local.database.entities.Expense): String {
-    return expense.serviceType?.let { serviceTypeName(it) } ?: "Обслуживание"
+    return expense.serviceType?.let { serviceTypeName(it) } ?: stringResource(R.string.servicetimeline_obsluzhivanie)
 }
 
+@Composable
 private fun serviceTypeName(type: ServiceType) = type.displayName()
 

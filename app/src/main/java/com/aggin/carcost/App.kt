@@ -55,6 +55,19 @@ import ru.ok.tracer.TracerConfiguration
  */
 class App : Application(), HasTracerConfiguration {
 
+    /**
+     * Язык интерфейса подменяется на уровне приложения, а не только activity.
+     *
+     * Уведомления о ТО, страховке и еженедельная сводка собираются в фоновых
+     * задачах: своего activity у них нет, и без этой подмены они приходили бы
+     * на языке системы, пока экраны показаны на выбранном.
+     */
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(
+            com.aggin.carcost.data.local.settings.LocaleManager.wrap(base)
+        )
+    }
+
     override val tracerConfiguration: List<TracerConfiguration>
         get() = listOf(
             CoreTracerConfiguration.build { }

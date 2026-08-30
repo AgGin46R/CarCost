@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.car_members
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -168,7 +170,7 @@ class CarMembersViewModel(
                 }
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = "Не удалось создать приглашение: ${e.message}"
+                        errorMessage = getApplication<Application>().getString(R.string.carmembers_ne_udalos_sozdat_priglashenie, e.message.orEmpty())
                     )
                 }
         }
@@ -235,12 +237,12 @@ fun CarMembersScreen(
         AlertDialog(
             onDismissRequest = { viewModel.clearInviteSent() },
             icon = { Icon(Icons.Default.VpnKey, null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Код приглашения") },
+            title = { Text(stringResource(R.string.components_kod_priglasheniya)) },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "Передайте код тому, кого приглашаете. В приложении он вводит его " +
-                            "через «Присоединиться по коду» на главном экране."
+                        stringResource(R.string.carmembers_peredayte_kod_tomu_kogo_priglashaete_v) +
+                            stringResource(R.string.carmembers_cherez_prisoedinitsya_po_kodu_na_glavnom)
                     )
                     Spacer(Modifier.height(16.dp))
                     Surface(
@@ -256,7 +258,7 @@ fun CarMembersScreen(
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Действует 7 дней, сработает один раз.",
+                        stringResource(R.string.carmembers_deystvuet_7_dney_srabotaet_odin_raz),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -268,24 +270,24 @@ fun CarMembersScreen(
                         type = "text/plain"
                         putExtra(
                             Intent.EXTRA_TEXT,
-                            "Приглашаю вас в CarCost — совместный учёт расходов на автомобиль.\n\n" +
-                                "Код приглашения: $pretty\n\n" +
-                                "Установите приложение и введите код на главном экране: " +
-                                "«Присоединиться по коду»."
+                            context.getString(R.string.carmembers_priglashayu_vas_v_carcost_sovmestnyy) +
+                                context.getString(R.string.carmembers_kod_priglasheniya_n_n, pretty) +
+                                context.getString(R.string.carmembers_ustanovite_prilozhenie_i_vvedite_kod_na) +
+                                context.getString(R.string.carmembers_prisoedinitsya_po_kodu)
                         )
                     }
-                    context.startActivity(Intent.createChooser(share, "Отправить приглашение"))
+                    context.startActivity(Intent.createChooser(share, context.getString(R.string.carmembers_otpravit_priglashenie)))
                     viewModel.clearInviteSent()
-                }) { Text("Отправить") }
+                }) { Text(stringResource(R.string.carmembers_otpravit)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     clipboard.setText(androidx.compose.ui.text.AnnotatedString(pretty))
                     android.widget.Toast
-                        .makeText(context, "Код скопирован", android.widget.Toast.LENGTH_SHORT)
+                        .makeText(context, context.getString(R.string.carmembers_kod_skopirovan), android.widget.Toast.LENGTH_SHORT)
                         .show()
                     viewModel.clearInviteSent()
-                }) { Text("Скопировать") }
+                }) { Text(stringResource(R.string.carmembers_skopirovat)) }
             }
         )
     }
@@ -294,7 +296,7 @@ fun CarMembersScreen(
     uiState.errorMessage?.let { error ->
         AlertDialog(
             onDismissRequest = { viewModel.clearError() },
-            title = { Text("Ошибка") },
+            title = { Text(stringResource(R.string.common_error)) },
             text = { Text(error) },
             confirmButton = {
                 TextButton(onClick = { viewModel.clearError() }) { Text("OK") }
@@ -315,7 +317,7 @@ fun CarMembersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Участники") },
+                title = { Text(stringResource(R.string.cardetail_uchastniki)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
@@ -323,7 +325,7 @@ fun CarMembersScreen(
                 },
                 actions = {
                     IconButton(onClick = { navController.navigateOnce(Screen.Chat.createRoute(carId)) }) {
-                        Icon(Icons.Default.Chat, contentDescription = "Чат")
+                        Icon(Icons.Default.Chat, contentDescription = stringResource(R.string.cardetail_chat))
                     }
                 }
             )
@@ -357,9 +359,9 @@ fun CarMembersScreen(
                             Icon(Icons.Default.Group, null, Modifier.size(64.dp),
                                 tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.height(16.dp))
-                            Text("Нет участников", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.carmembers_net_uchastnikov), style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(8.dp))
-                            Text("Пригласите тех, кто ездит на этой машине или её обслуживает",
+                            Text(stringResource(R.string.carmembers_priglasite_teh_kto_ezdit_na_etoy_mashine),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -395,16 +397,16 @@ private fun SharedAccessCard(
             if (isOwner) {
                 SharedAccessRow(
                     icon = Icons.Default.PersonAdd,
-                    title = "Пригласить в эту машину",
-                    subtitle = "Создать код и передать его самому",
+                    title = stringResource(R.string.carmembers_priglasit_v_etu_mashinu),
+                    subtitle = stringResource(R.string.carmembers_sozdat_kod_i_peredat_ego_samomu),
                     onClick = onInvite
                 )
                 HorizontalDivider()
             }
             SharedAccessRow(
                 icon = Icons.Default.VpnKey,
-                title = "Присоединиться по коду",
-                subtitle = "Если код прислали вам — для другой машины",
+                title = stringResource(R.string.components_prisoedinitsya_po_kodu),
+                subtitle = stringResource(R.string.carmembers_esli_kod_prislali_vam_dlya_drugoy_mashiny),
                 onClick = onJoin
             )
         }
@@ -453,14 +455,14 @@ private fun RoleInfoCard() {
         // добавляет тот, кто сейчас на сервисе, а не тот, у кого нужная роль.
         // Текст описывает то, что закреплено политиками на сервере.
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Роли участников", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            RoleRow("👑", "Владелец", "Приглашает и удаляет участников, может удалить автомобиль")
-            RoleRow("🔧", "Механик", "Ведёт машину наравне с владельцем")
-            RoleRow("🚗", "Водитель", "Ведёт машину наравне с владельцем")
+            Text(stringResource(R.string.carmembers_roli_uchastnikov), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            RoleRow("👑", stringResource(R.string.carmembers_vladelets), stringResource(R.string.carmembers_priglashaet_i_udalyaet_uchastnikov_mozhet))
+            RoleRow("🔧", stringResource(R.string.home_mehanik), stringResource(R.string.carmembers_vedet_mashinu_naravne_s_vladeltsem))
+            RoleRow("🚗", stringResource(R.string.home_voditel), stringResource(R.string.carmembers_vedet_mashinu_naravne_s_vladeltsem))
             Spacer(Modifier.height(4.dp))
             Text(
-                "Расходы, ТО, документы и чат доступны всем участникам одинаково — " +
-                    "роль лишь помечает, кто чем занимается.",
+                stringResource(R.string.carmembers_rashody_to_dokumenty_i_chat_dostupny_vsem) +
+                    stringResource(R.string.carmembers_rol_lish_pomechaet_kto_chem_zanimaetsya),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -519,15 +521,15 @@ private fun MemberCard(
                 Text(member.email, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 Text(
                     when (member.role) {
-                        MemberRole.OWNER -> "Владелец"
-                        MemberRole.DRIVER -> "Водитель"
-                        MemberRole.MECHANIC -> "Механик"
+                        MemberRole.OWNER -> stringResource(R.string.carmembers_vladelets)
+                        MemberRole.DRIVER -> stringResource(R.string.home_voditel)
+                        MemberRole.MECHANIC -> stringResource(R.string.home_mehanik)
                     },
                     fontSize = 12.sp,
                     color = roleColor
                 )
                 if (member.userId.startsWith("pending_")) {
-                    Text("Ожидает подтверждения",
+                    Text(stringResource(R.string.carmembers_ozhidaet_podtverzhdeniya),
                         fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -552,25 +554,25 @@ private fun InviteMemberDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Пригласить участника") },
+        title = { Text(stringResource(R.string.carmembers_priglasit_uchastnika)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Вы получите код и передадите его сами — любым способом.",
+                    stringResource(R.string.carmembers_vy_poluchite_kod_i_peredadite_ego_sami),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email (необязательно)") },
+                    label = { Text(stringResource(R.string.carmembers_email_neobyazatelno)) },
                     supportingText = {
-                        Text("Если у человека уже есть CarCost на этой почте — он ещё и увидит приглашение баннером")
+                        Text(stringResource(R.string.carmembers_esli_u_cheloveka_uzhe_est_carcost_na_etoy))
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                Text("Роль", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.carmembers_rol), style = MaterialTheme.typography.labelMedium)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     MemberRole.values().filter { it != MemberRole.OWNER }.forEach { role ->
                         Row(
@@ -585,16 +587,16 @@ private fun InviteMemberDialog(
                             Column {
                                 Text(
                                     when (role) {
-                                        MemberRole.DRIVER -> "Водитель"
-                                        MemberRole.MECHANIC -> "Механик"
+                                        MemberRole.DRIVER -> stringResource(R.string.home_voditel)
+                                        MemberRole.MECHANIC -> stringResource(R.string.home_mehanik)
                                         else -> role.name
                                     },
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
                                     when (role) {
-                                        MemberRole.DRIVER -> "Добавление расходов"
-                                        MemberRole.MECHANIC -> "Управление ТО"
+                                        MemberRole.DRIVER -> stringResource(R.string.carmembers_dobavlenie_rashodov)
+                                        MemberRole.MECHANIC -> stringResource(R.string.carmembers_upravlenie_to)
                                         else -> ""
                                     },
                                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -612,10 +614,10 @@ private fun InviteMemberDialog(
             TextButton(
                 enabled = emailValid,
                 onClick = { onConfirm(email, selectedRole) }
-            ) { Text("Создать код") }
+            ) { Text(stringResource(R.string.carmembers_sozdat_kod)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

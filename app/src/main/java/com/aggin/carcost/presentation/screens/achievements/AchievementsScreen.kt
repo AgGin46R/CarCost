@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.achievements
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -133,7 +135,7 @@ fun AchievementsScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Достижения") },
+                title = { Text(stringResource(R.string.achievements_dostizheniya)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
@@ -156,7 +158,7 @@ fun AchievementsScreen(navController: NavController) {
                 if (uiState.unlocked.isNotEmpty()) {
                     item {
                         Text(
-                            "Разблокировано (${uiState.unlocked.size})",
+                            stringResource(R.string.achievements_razblokirovano, uiState.unlocked.size),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.primary
@@ -165,8 +167,8 @@ fun AchievementsScreen(navController: NavController) {
                     items(uiState.unlocked, key = { it.id }) { achievement ->
                         AchievementCard(
                             icon = achievement.type.icon,
-                            title = achievement.type.title,
-                            description = achievement.type.description,
+                            title = achievement.type.let { stringResource(it.titleRes) },
+                            description = achievement.type.let { stringResource(it.descriptionRes) },
                             unlocked = true,
                             dateText = dateFmt.format(Date(achievement.unlockedAt)),
                             progress = null
@@ -178,7 +180,7 @@ fun AchievementsScreen(navController: NavController) {
                 if (uiState.locked.isNotEmpty()) {
                     item {
                         Text(
-                            "Ещё не разблокировано (${uiState.locked.size})",
+                            stringResource(R.string.achievements_esche_ne_razblokirovano, uiState.locked.size),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -187,8 +189,8 @@ fun AchievementsScreen(navController: NavController) {
                     items(uiState.locked) { type ->
                         AchievementCard(
                             icon = type.icon,
-                            title = type.title,
-                            description = type.description,
+                            title = type.let { stringResource(it.titleRes) },
+                            description = type.let { stringResource(it.descriptionRes) },
                             unlocked = false,
                             dateText = null,
                             progress = uiState.progress[type]
@@ -240,7 +242,7 @@ private fun AchievementCard(
                 if (unlocked && dateText != null) {
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Разблокировано $dateText",
+                        stringResource(R.string.achievements_razblokirovano_2, dateText),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.primary
                     )

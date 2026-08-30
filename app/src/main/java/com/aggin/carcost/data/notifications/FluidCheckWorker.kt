@@ -1,5 +1,6 @@
 package com.aggin.carcost.data.notifications
 
+import com.aggin.carcost.R
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -51,9 +52,9 @@ class FluidCheckWorker(
 
                 val daysAgo = record?.let { ((now - it.checkedAt) / 86_400_000L).toInt() }
                 if (daysAgo == null) {
-                    "${type.emoji} ${type.labelRu} — ещё не проверялась"
+                    applicationContext.getString(R.string.notify_esche_ne_proveryalas, type.emoji, type.let { applicationContext.getString(it.labelRes) })
                 } else {
-                    "${type.emoji} ${type.labelRu} — $daysAgo дн. назад"
+                    applicationContext.getString(R.string.notify_dn_nazad, type.emoji, type.let { applicationContext.getString(it.labelRes) }, daysAgo)
                 }
             }
 
@@ -62,8 +63,8 @@ class FluidCheckWorker(
             // Заголовок называет число, чтобы смысл был понятен ещё до раскрытия:
             // в свёрнутом виде система показывает только первую строку текста.
             val title = when (overdue.size) {
-                1    -> "Проверьте жидкость: $carName"
-                else -> "Проверьте жидкости (${overdue.size}): $carName"
+                1    -> applicationContext.getString(R.string.notify_proverte_zhidkost, carName)
+                else -> applicationContext.getString(R.string.notify_proverte_zhidkosti, overdue.size, carName)
             }
 
             NotificationHelper.sendGenericNotification(

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.budget
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,10 +26,16 @@ import java.util.*
 import com.aggin.carcost.presentation.common.emoji
 import com.aggin.carcost.presentation.common.displayName
 
-private val MONTH_NAMES = listOf(
-    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
-)
+/**
+ * Названия месяцев берём у системы, а не держим своим списком.
+ *
+ * Двенадцать строк на каждый язык — это двенадцать поводов ошибиться, причём
+ * система знает их для всех языков сразу и склоняет как принято в каждом.
+ * Читается при обращении: язык меняется без перезапуска процесса, а файловое
+ * свойство вычислилось бы один раз и осталось на прежнем языке.
+ */
+private val MONTH_NAMES: List<String>
+    get() = java.text.DateFormatSymbols(java.util.Locale.getDefault()).months.take(12)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +54,7 @@ fun BudgetScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Бюджет по категориям")
+                        Text(stringResource(R.string.budget_byudzhet_po_kategoriyam))
                         if (uiState.month > 0) {
                             Text(
                                 "${MONTH_NAMES[uiState.month - 1]} ${uiState.year}",
@@ -57,7 +65,7 @@ fun BudgetScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -107,7 +115,7 @@ fun BudgetScreen(
 
 @Composable
 private fun BudgetSummaryCard(uiState: BudgetUiState) {
-    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
+    val fmt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 0 }
     val hasLimits = uiState.totalLimit > 0
     val overallProgress = if (hasLimits) (uiState.totalSpent / uiState.totalLimit).toFloat().coerceIn(0f, 1f) else 0f
 
@@ -117,14 +125,14 @@ private fun BudgetSummaryCard(uiState: BudgetUiState) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Итого за месяц",
+                stringResource(R.string.budget_itogo_za_mesyats),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("Потрачено", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.budget_potracheno), style = MaterialTheme.typography.labelSmall)
                     Text(
                         "${fmt.format(uiState.totalSpent)} ₽",
                         style = MaterialTheme.typography.titleLarge,
@@ -137,7 +145,7 @@ private fun BudgetSummaryCard(uiState: BudgetUiState) {
                 }
                 if (hasLimits) {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("Лимит", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.budget_limit), style = MaterialTheme.typography.labelSmall)
                         Text(
                             "${fmt.format(uiState.totalLimit)} ₽",
                             style = MaterialTheme.typography.titleLarge,
@@ -158,9 +166,9 @@ private fun BudgetSummaryCard(uiState: BudgetUiState) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     if (uiState.totalSpent > uiState.totalLimit)
-                        "Превышение: ${fmt.format(uiState.totalSpent - uiState.totalLimit)} ₽"
+                        stringResource(R.string.budget_prevyshenie, fmt.format(uiState.totalSpent - uiState.totalLimit))
                     else
-                        "Остаток: ${fmt.format(uiState.totalLimit - uiState.totalSpent)} ₽",
+                        stringResource(R.string.budget_ostatok, fmt.format(uiState.totalLimit - uiState.totalSpent)),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (uiState.totalSpent > uiState.totalLimit)
                         MaterialTheme.colorScheme.error
@@ -178,7 +186,7 @@ private fun BudgetCategoryCard(
     onEdit: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val fmt = NumberFormat.getNumberInstance(Locale("ru")).apply { maximumFractionDigits = 0 }
+    val fmt = NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 0 }
 
     // Skip categories with no spending and no limit
     if (item.spent == 0.0 && item.limit == null) return
@@ -219,11 +227,11 @@ private fun BudgetCategoryCard(
                     )
                 }
                 IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Edit, "Изменить лимит", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Edit, stringResource(R.string.budget_izmenit_limit), modifier = Modifier.size(18.dp))
                 }
                 if (item.limit != null) {
                     IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.Delete, "Удалить лимит",
+                        Icon(Icons.Default.Delete, stringResource(R.string.budget_udalit_limit),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.error)
                     }
@@ -246,9 +254,9 @@ private fun BudgetCategoryCard(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Text(
                         if (item.isOverBudget)
-                            "Перерасход: ${fmt.format(-item.remaining)} ₽"
+                            stringResource(R.string.budget_pererashod, fmt.format(-item.remaining))
                         else
-                            "Осталось: ${fmt.format(item.remaining)} ₽",
+                            stringResource(R.string.budget_ostalos, fmt.format(item.remaining)),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (item.isOverBudget) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
@@ -271,12 +279,12 @@ private fun BudgetEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Лимит: ${categoryName(category)}") },
+        title = { Text(stringResource(R.string.budget_limit_2, categoryName(category))) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it.filter { c -> c.isDigit() } },
-                label = { Text("Сумма в ₽") },
+                label = { Text(stringResource(R.string.budget_summa_v)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -284,15 +292,16 @@ private fun BudgetEditDialog(
         },
         confirmButton = {
             TextButton(onClick = { text.toDoubleOrNull()?.let(onSave) }, enabled = isValid) {
-                Text("Сохранить")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }
 
 private fun categoryEmoji(c: ExpenseCategory) = c.emoji()
 
+@Composable
 private fun categoryName(c: ExpenseCategory) = c.displayName()

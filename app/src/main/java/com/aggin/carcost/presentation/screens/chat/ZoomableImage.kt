@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.chat
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -75,7 +77,7 @@ fun ZoomableImage(
 
         AsyncImage(
             model = url,
-            contentDescription = "Фото",
+            contentDescription = stringResource(R.string.chat_foto),
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .fillMaxSize()

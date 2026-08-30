@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.fuel_calculator
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -48,10 +50,10 @@ fun FuelCalculatorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Калькулятор топлива") },
+                title = { Text(stringResource(R.string.analytics_kalkulyator_topliva)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -76,7 +78,7 @@ fun FuelCalculatorScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        "Параметры поездки",
+                        stringResource(R.string.fuelcalculator_parametry_poezdki),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -84,25 +86,25 @@ fun FuelCalculatorScreen(
                     FuelCalcField(
                         value = distanceKmStr,
                         onValueChange = { distanceKmStr = it },
-                        label = "Расстояние, км",
+                        label = stringResource(R.string.fuelcalculator_rasstoyanie_km),
                         icon = Icons.Default.Route
                     )
                     FuelCalcField(
                         value = avgL100Str,
                         onValueChange = { avgL100Str = it },
-                        label = "Средний расход, л/100 км",
+                        label = stringResource(R.string.fuelcalculator_sredniy_rashod_l_100_km),
                         icon = Icons.Default.LocalGasStation
                     )
                     FuelCalcField(
                         value = pricePerLStr,
                         onValueChange = { pricePerLStr = it },
-                        label = "Цена топлива, ₽/л",
+                        label = stringResource(R.string.fuelcalculator_tsena_topliva_l),
                         icon = Icons.Default.AttachMoney
                     )
                     FuelCalcField(
                         value = tankLitresStr,
                         onValueChange = { tankLitresStr = it },
-                        label = "Объём бака, л (необязательно)",
+                        label = stringResource(R.string.fuelcalculator_obem_baka_l_neobyazatelno),
                         icon = Icons.Default.OilBarrel
                     )
                 }
@@ -121,7 +123,7 @@ fun FuelCalculatorScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            "Результат",
+                            stringResource(R.string.fuelcalculator_rezultat),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -129,14 +131,14 @@ fun FuelCalculatorScreen(
 
                         ResultRow(
                             icon = Icons.Default.LocalGasStation,
-                            label = "Нужно топлива",
-                            value = "%.2f л".format(litresNeeded)
+                            label = stringResource(R.string.fuelcalculator_nuzhno_topliva),
+                            value = stringResource(R.string.cardetail_2f_l).format(litresNeeded)
                         )
 
                         if (totalCost > 0) {
                             ResultRow(
                                 icon = Icons.Default.AttachMoney,
-                                label = "Стоимость",
+                                label = stringResource(R.string.fuelcalculator_stoimost),
                                 value = "%.0f ₽".format(totalCost),
                                 highlight = true
                             )
@@ -145,15 +147,15 @@ fun FuelCalculatorScreen(
                         if (fullTankRange > 0) {
                             ResultRow(
                                 icon = Icons.Default.Speed,
-                                label = "Запас хода на полном баке",
-                                value = "${fullTankRange.roundToInt()} км"
+                                label = stringResource(R.string.fuelcalculator_zapas_hoda_na_polnom_bake),
+                                value = stringResource(R.string.home_km, fullTankRange.roundToInt())
                             )
                         }
 
                         if (refuelsNeeded >= 1) {
                             ResultRow(
                                 icon = Icons.Default.Repeat,
-                                label = "Заправок в пути",
+                                label = stringResource(R.string.fuelcalculator_zapravok_v_puti),
                                 value = "~${Math.ceil(refuelsNeeded).toInt()}"
                             )
                         }
@@ -162,8 +164,8 @@ fun FuelCalculatorScreen(
                         if (distanceKm > 0 && totalCost > 0) {
                             ResultRow(
                                 icon = Icons.Default.Calculate,
-                                label = "Цена за километр",
-                                value = "%.2f ₽/км".format(totalCost / distanceKm)
+                                label = stringResource(R.string.fuelcalculator_tsena_za_kilometr),
+                                value = stringResource(R.string.compare_2f_km).format(totalCost / distanceKm)
                             )
                         }
                     }
@@ -186,7 +188,7 @@ fun FuelCalculatorScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        "Совет: средний расход вашего авто можно посмотреть в разделе Аналитика → Статистика топлива",
+                        stringResource(R.string.fuelcalculator_sovet_sredniy_rashod_vashego_avto_mozhno),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

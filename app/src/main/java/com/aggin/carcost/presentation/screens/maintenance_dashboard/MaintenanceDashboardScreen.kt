@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.maintenance_dashboard
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,10 +39,10 @@ fun MaintenanceDashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Дашборд ТО") },
+                title = { Text(stringResource(R.string.home_dashbord_to)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -53,7 +55,7 @@ fun MaintenanceDashboardScreen(
             FloatingActionButton(
                 onClick = { navController.navigateOnce(Screen.EditMaintenanceReminder.createRoute()) }
             ) {
-                Icon(Icons.Default.Add, "Добавить напоминание ТО")
+                Icon(Icons.Default.Add, stringResource(R.string.maintenancedashboard_dobavit_napominanie_to))
             }
         }
     ) { padding ->
@@ -71,9 +73,9 @@ fun MaintenanceDashboardScreen(
                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text("Нет активных напоминаний", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.maintenancedashboard_net_aktivnyh_napominaniy), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Добавьте ТО в карточке автомобиля",
+                        stringResource(R.string.maintenancedashboard_dobavte_to_v_kartochke_avtomobilya),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
@@ -98,7 +100,7 @@ fun MaintenanceDashboardScreen(
             val overdue = uiState.items.filter { it.urgency == ReminderUrgency.OVERDUE }
             if (overdue.isNotEmpty()) {
                 item {
-                    SectionHeader("Просрочено", MaterialTheme.colorScheme.error)
+                    SectionHeader(stringResource(R.string.maintenancedashboard_prosrocheno), MaterialTheme.colorScheme.error)
                 }
                 items(overdue, key = { it.reminder.id }) { item ->
                     ReminderCard(item, navController)
@@ -109,7 +111,7 @@ fun MaintenanceDashboardScreen(
             val soon = uiState.items.filter { it.urgency == ReminderUrgency.SOON }
             if (soon.isNotEmpty()) {
                 item {
-                    SectionHeader("Скоро", MaterialTheme.colorScheme.tertiary)
+                    SectionHeader(stringResource(R.string.maintenancedashboard_skoro), MaterialTheme.colorScheme.tertiary)
                 }
                 items(soon, key = { it.reminder.id }) { item ->
                     ReminderCard(item, navController)
@@ -120,7 +122,7 @@ fun MaintenanceDashboardScreen(
             val ok = uiState.items.filter { it.urgency == ReminderUrgency.OK }
             if (ok.isNotEmpty()) {
                 item {
-                    SectionHeader("В норме", MaterialTheme.colorScheme.primary)
+                    SectionHeader(stringResource(R.string.maintenancedashboard_v_norme), MaterialTheme.colorScheme.primary)
                 }
                 items(ok, key = { it.reminder.id }) { item ->
                     ReminderCard(item, navController)
@@ -153,7 +155,7 @@ private fun StatusSummaryCard(overdueCount: Int, soonCount: Int) {
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.error
                     )
-                    Text("Просрочено", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.maintenancedashboard_prosrocheno), style = MaterialTheme.typography.labelSmall)
                 }
             }
             if (soonCount > 0) {
@@ -164,7 +166,7 @@ private fun StatusSummaryCard(overdueCount: Int, soonCount: Int) {
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.tertiary
                     )
-                    Text("Скоро", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.maintenancedashboard_skoro), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -218,7 +220,7 @@ private fun ReminderCard(item: ReminderWithCar, navController: NavController) {
                 Spacer(Modifier.height(2.dp))
                 // Тип ТО
                 Text(
-                    item.reminder.type.displayName,
+                    stringResource(item.reminder.type.displayNameRes),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -227,8 +229,8 @@ private fun ReminderCard(item: ReminderWithCar, navController: NavController) {
                 // Пробег
                 Text(
                     buildString {
-                        append("Следующее ТО: ${item.reminder.nextChangeOdometer} км")
-                        item.car?.let { append(" (сейчас: ${it.currentOdometer} км)") }
+                        append(stringResource(R.string.maintenancedashboard_sleduyuschee_to_km, item.reminder.nextChangeOdometer))
+                        item.car?.let { append(stringResource(R.string.maintenancedashboard_seychas_km, it.currentOdometer)) }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -250,8 +252,8 @@ private fun ReminderCard(item: ReminderWithCar, navController: NavController) {
                 ) {
                     Text(
                         when {
-                            item.kmRemaining <= 0 -> "+${abs(item.kmRemaining)} км"
-                            else -> "${item.kmRemaining} км"
+                            item.kmRemaining <= 0 -> stringResource(R.string.maintenancedashboard_km, abs(item.kmRemaining))
+                            else -> stringResource(R.string.home_km, item.kmRemaining)
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,

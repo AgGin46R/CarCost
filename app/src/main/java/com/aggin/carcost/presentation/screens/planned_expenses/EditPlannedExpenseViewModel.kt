@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
+import com.aggin.carcost.R
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -82,7 +83,7 @@ class EditPlannedExpenseViewModel(
                     } else {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            errorMessage = "План не найден"
+                            errorMessage = getApplication<Application>().getString(R.string.planned_plan_ne_nayden)
                         )
                     }
                 }
@@ -90,7 +91,7 @@ class EditPlannedExpenseViewModel(
                 Log.e("EditPlannedExpense", "Error loading", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = "Ошибка загрузки: ${e.message}"
+                    errorMessage = getApplication<Application>().getString(R.string.editexp_oshibka_zagruzki, e.message)
                 )
             }
         }
@@ -151,7 +152,7 @@ class EditPlannedExpenseViewModel(
 
         // Валидация
         if (state.title.isBlank()) {
-            _uiState.value = state.copy(titleError = "Введите название")
+            _uiState.value = state.copy(titleError = getApplication<Application>().getString(R.string.planned_vvedite_nazvanie))
             return
         }
 
@@ -207,7 +208,7 @@ class EditPlannedExpenseViewModel(
                 Log.e("EditPlannedExpense", "Error saving", e)
                 _uiState.value = state.copy(
                     isSaving = false,
-                    errorMessage = "Ошибка сохранения: ${e.message}"
+                    errorMessage = getApplication<Application>().getString(R.string.addcar_oshibka_sohraneniya, e.message)
                 )
             }
         }
@@ -238,7 +239,7 @@ class EditPlannedExpenseViewModel(
             } catch (e: Exception) {
                 Log.e("EditPlannedExpense", "Error deleting", e)
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "Ошибка удаления: ${e.message}"
+                    errorMessage = getApplication<Application>().getString(R.string.editcar_oshibka_udaleniya, e.message)
                 )
             }
         }

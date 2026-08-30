@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.export
 
+import com.aggin.carcost.R
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
@@ -105,10 +106,10 @@ class ExportViewModel(
                 val file = backupService.createBackupFile()
                 exportService.shareFile(file)
                 _uiState.update {
-                    it.copy(isExporting = false, exportSuccessMessage = "Резервная копия создана")
+                    it.copy(isExporting = false, exportSuccessMessage = getApplication<Application>().getString(R.string.export_rezervnaya_kopiya_sozdana))
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isExporting = false, errorMessage = "Ошибка резервной копии: ${e.message}") }
+                _uiState.update { it.copy(isExporting = false, errorMessage = getApplication<Application>().getString(R.string.export_oshibka_rezervnoy_kopii, e.message)) }
             }
         }
     }
@@ -136,7 +137,7 @@ class ExportViewModel(
                         it.copy(
                             isRestoring = false,
                             pendingBackup = null,
-                            exportSuccessMessage = "Восстановлено: ${backup.summary}"
+                            exportSuccessMessage = getApplication<Application>().getString(R.string.export_vosstanovleno, backup.summary(getApplication()))
                         )
                     }
                 }
@@ -177,15 +178,15 @@ class ExportViewModel(
                 exportService.shareFile(file)
 
                 val periodNote = if (state.filterStartDate != null || state.filterEndDate != null)
-                    " (${expenses.size} записей за период)"
+                    getApplication<Application>().getString(R.string.export_zapisey_za_period, expenses.size)
                 else ""
 
                 _uiState.update {
-                    it.copy(isExporting = false, exportSuccessMessage = "Файл создан$periodNote")
+                    it.copy(isExporting = false, exportSuccessMessage = getApplication<Application>().getString(R.string.export_fayl_sozdan, periodNote))
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isExporting = false, errorMessage = "Ошибка экспорта: ${e.message}")
+                    it.copy(isExporting = false, errorMessage = getApplication<Application>().getString(R.string.export_oshibka_eksporta, e.message))
                 }
             }
         }

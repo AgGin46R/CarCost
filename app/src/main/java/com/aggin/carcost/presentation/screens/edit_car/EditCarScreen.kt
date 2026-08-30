@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.edit_car
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import android.Manifest
 import android.net.Uri
 import android.os.Build
@@ -70,10 +72,10 @@ fun EditCarScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Редактировать автомобиль") },
+                title = { Text(stringResource(R.string.editcar_redaktirovat_avtomobil)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Назад")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -81,7 +83,7 @@ fun EditCarScreen(
                     // право владельца, а не любого участника
                     if (uiState.canDeleteCar) {
                         IconButton(onClick = { viewModel.showDeleteDialog() }) {
-                            Icon(Icons.Default.Delete, "Удалить", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Delete, stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 },
@@ -135,7 +137,7 @@ fun EditCarScreen(
                         if (uiState.photoUri != null) {
                             AsyncImage(
                                 model = uiState.photoUri,
-                                contentDescription = "Фото автомобиля",
+                                contentDescription = stringResource(R.string.home_foto_avtomobilya),
                                 modifier = Modifier
                                     .size(120.dp)
                                     .clip(RoundedCornerShape(12.dp)),
@@ -177,7 +179,7 @@ fun EditCarScreen(
                             } else {
                                 Icon(
                                     Icons.Default.CameraAlt,
-                                    contentDescription = "Сменить фото",
+                                    contentDescription = stringResource(R.string.editcar_smenit_foto),
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.onPrimary
                                 )
@@ -185,14 +187,14 @@ fun EditCarScreen(
                         }
                     }
                     Text(
-                        "Нажмите на камеру чтобы выбрать фото",
+                        stringResource(R.string.editcar_nazhmite_na_kameru_chtoby_vybrat_foto),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 Text(
-                    text = "Основная информация",
+                    text = stringResource(R.string.addexp_osnovnaya_informatsiya),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -202,7 +204,7 @@ fun EditCarScreen(
                     value = uiState.brand,
                     onValueChange = { viewModel.updateBrand(it) },
                     suggestions = VehicleCatalog.suggestBrands(uiState.vehicleType, uiState.brand),
-                    label = "Марка *",
+                    label = stringResource(R.string.addcar_marka),
                     placeholder = "Toyota",
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !uiState.isSaving
@@ -215,7 +217,7 @@ fun EditCarScreen(
                     suggestions = VehicleCatalog.suggestModels(
                         uiState.vehicleType, uiState.brand, uiState.model
                     ),
-                    label = "Модель *",
+                    label = stringResource(R.string.addcar_model),
                     placeholder = "Camry",
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !uiState.isSaving
@@ -229,7 +231,7 @@ fun EditCarScreen(
                     OutlinedTextField(
                         value = uiState.year,
                         onValueChange = { viewModel.updateYear(it) },
-                        label = { Text("Год *") },
+                        label = { Text(stringResource(R.string.addcar_god)) },
                         placeholder = { Text("2020") },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
@@ -241,7 +243,7 @@ fun EditCarScreen(
                     OutlinedTextField(
                         value = uiState.licensePlate,
                         onValueChange = { viewModel.updateLicensePlate(it) },
-                        label = { Text("Номер *") },
+                        label = { Text(stringResource(R.string.addcar_nomer)) },
                         placeholder = { Text("A123BC") },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
@@ -253,7 +255,7 @@ fun EditCarScreen(
                 OutlinedTextField(
                     value = uiState.currentOdometer,
                     onValueChange = { viewModel.updateOdometer(it) },
-                    label = { Text("Текущий пробег (км) *") },
+                    label = { Text(stringResource(R.string.addcar_tekuschiy_probeg_km)) },
                     placeholder = { Text("50000") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -263,7 +265,7 @@ fun EditCarScreen(
 
                 // Тип топлива
                 Text(
-                    text = "Тип топлива",
+                    text = stringResource(R.string.addcar_tip_topliva),
                     style = MaterialTheme.typography.bodyMedium
                 )
 
@@ -272,13 +274,13 @@ fun EditCarScreen(
                     onValueChange = { viewModel.updateTankCapacity(it) },
                     label = {
                         Text(
-                            if (uiState.fuelType == FuelType.ELECTRIC) "Ёмкость батареи"
-                            else "Объём бака"
+                            if (uiState.fuelType == FuelType.ELECTRIC) stringResource(R.string.addcar_emkost_batarei)
+                            else stringResource(R.string.addcar_obem_baka)
                         )
                     },
-                    supportingText = { Text("Нужен, чтобы напоминать о скорой заправке") },
+                    supportingText = { Text(stringResource(R.string.addcar_nuzhen_chtoby_napominat_o_skoroy_zapravke)) },
                     suffix = {
-                        Text(if (uiState.fuelType == FuelType.ELECTRIC) "кВт·ч" else "л")
+                        Text(if (uiState.fuelType == FuelType.ELECTRIC) stringResource(R.string.addexp_kvt_ch) else stringResource(R.string.addexp_l))
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -305,7 +307,7 @@ fun EditCarScreen(
                 HorizontalDivider()
 
                 Text(
-                    text = "Дополнительно",
+                    text = stringResource(R.string.addcar_dopolnitelno),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -329,7 +331,7 @@ fun EditCarScreen(
                 )
 
                 // Валюта
-                Text("Валюта учёта", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.addcar_valyuta_ucheta), style = MaterialTheme.typography.bodyMedium)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(CurrencyUtils.SUPPORTED_CURRENCIES) { cur ->
                         FilterChip(
@@ -361,12 +363,12 @@ fun EditCarScreen(
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
-                        Text("Сохранить изменения", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.editexp_sohranit_izmeneniya), style = MaterialTheme.typography.titleMedium)
                     }
                 }
 
                 Text(
-                    text = "* Обязательные поля",
+                    text = stringResource(R.string.addexp_obyazatelnye_polya),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -378,9 +380,9 @@ fun EditCarScreen(
     if (uiState.showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.hideDeleteDialog() },
-            title = { Text("Удалить автомобиль?") },
+            title = { Text(stringResource(R.string.editcar_udalit_avtomobil)) },
             text = {
-                Text("Вместе с автомобилем будут удалены все расходы. Это действие нельзя отменить.")
+                Text(stringResource(R.string.editcar_vmeste_s_avtomobilem_budut_udaleny_vse))
             },
             confirmButton = {
                 TextButton(
@@ -396,12 +398,12 @@ fun EditCarScreen(
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("Удалить")
+                    Text(stringResource(R.string.action_delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.hideDeleteDialog() }) {
-                    Text("Отмена")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -439,14 +441,15 @@ fun FuelTypeSelector(
     }
 }
 
+@Composable
 private fun fuelTypeLabel(type: FuelType): String = when (type) {
-    FuelType.GASOLINE -> "Бензин"
-    FuelType.DIESEL -> "Дизель"
-    FuelType.ELECTRIC -> "Электро"
-    FuelType.HYBRID -> "Гибрид"
-    FuelType.PLUGIN_HYBRID -> "Гибрид с розеткой"
-    FuelType.GAS -> "Газ"
-    FuelType.OTHER -> "Другое"
+    FuelType.GASOLINE -> stringResource(R.string.home_benzin)
+    FuelType.DIESEL -> stringResource(R.string.home_dizel)
+    FuelType.ELECTRIC -> stringResource(R.string.home_elektro)
+    FuelType.HYBRID -> stringResource(R.string.home_gibrid)
+    FuelType.PLUGIN_HYBRID -> stringResource(R.string.addcar_gibrid_s_rozetkoy)
+    FuelType.GAS -> stringResource(R.string.home_gaz)
+    FuelType.OTHER -> stringResource(R.string.home_drugoe)
 }
 
 /** Автомобиль или мотоцикл. Тот же выбор, что и при создании */
@@ -477,19 +480,27 @@ fun VehicleTypeSelector(
 // ---------------------------------------------------------------------------
 
 /** Common car colors as hex strings → display name */
-val CAR_COLOR_PALETTE: List<Pair<String, String>> = listOf(
-    "#FFFFFF" to "Белый",
-    "#C0C0C0" to "Серебристый",
-    "#808080" to "Серый",
-    "#1C1C1C" to "Чёрный",
-    "#C0392B" to "Красный",
-    "#E67E22" to "Оранжевый",
-    "#F1C40F" to "Жёлтый",
-    "#27AE60" to "Зелёный",
-    "#2980B9" to "Синий",
-    "#1A237E" to "Тёмно-синий",
-    "#6C3483" to "Фиолетовый",
-    "#795548" to "Коричневый",
+/**
+ * Цвета кузова: код цвета и ключ его названия.
+ *
+ * Хранится идентификатор ресурса, а не готовая строка: список объявлен на
+ * верхнем уровне файла и вычисляется один раз при загрузке класса, тогда как
+ * stringResource читает язык из текущей композиции. Готовая строка здесь
+ * застыла бы на языке, который стоял в момент первого открытия экрана.
+ */
+val CAR_COLOR_PALETTE: List<Pair<String, Int>> = listOf(
+    "#FFFFFF" to R.string.editcar_belyy,
+    "#C0C0C0" to R.string.editcar_serebristyy,
+    "#808080" to R.string.editcar_seryy,
+    "#1C1C1C" to R.string.addcar_chernyy,
+    "#C0392B" to R.string.editcar_krasnyy,
+    "#E67E22" to R.string.editcar_oranzhevyy,
+    "#F1C40F" to R.string.editcar_zheltyy,
+    "#27AE60" to R.string.editcar_zelenyy,
+    "#2980B9" to R.string.editcar_siniy,
+    "#1A237E" to R.string.editcar_temno_siniy,
+    "#6C3483" to R.string.editcar_fioletovyy,
+    "#795548" to R.string.editcar_korichnevyy,
 )
 
 @Composable
@@ -499,9 +510,10 @@ fun CarColorPicker(
     enabled: Boolean = true
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Цвет автомобиля", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.editcar_tsvet_avtomobilya), style = MaterialTheme.typography.bodyMedium)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(CAR_COLOR_PALETTE) { (hex, name) ->
+            items(CAR_COLOR_PALETTE) { (hex, nameRes) ->
+                val name = stringResource(nameRes)
                 val isSelected = currentColor.equals(hex, ignoreCase = true)
                 val parsed = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color.Gray }
                 Box(
@@ -531,12 +543,12 @@ fun CarColorPicker(
         OutlinedTextField(
             value = currentColor,
             onValueChange = { if (enabled) onColorSelected(it) },
-            label = { Text("Или введите вручную") },
-            placeholder = { Text("#RRGGBB или название") },
+            label = { Text(stringResource(R.string.editcar_ili_vvedite_vruchnuyu)) },
+            placeholder = { Text(stringResource(R.string.editcar_rrggbb_ili_nazvanie)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             enabled = enabled,
-            supportingText = { Text("Выберите из палитры или введите HEX-цвет", fontSize = 11.sp) }
+            supportingText = { Text(stringResource(R.string.editcar_vyberite_iz_palitry_ili_vvedite_hex_tsvet), fontSize = 11.sp) }
         )
     }
 }

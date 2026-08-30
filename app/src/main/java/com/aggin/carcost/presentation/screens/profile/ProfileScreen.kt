@@ -17,6 +17,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
+import com.aggin.carcost.data.local.settings.LocaleManager
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,7 +71,7 @@ private fun InvitationAddressCard(address: String) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Адрес для приглашений",
+                    text = stringResource(R.string.profile_adres_dlya_priglasheniy),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -80,7 +83,7 @@ private fun InvitationAddressCard(address: String) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Сообщите его тому, кто добавит вас в свой автомобиль",
+                    text = stringResource(R.string.profile_soobschite_ego_tomu_kto_dobavit_vas_v),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -88,10 +91,10 @@ private fun InvitationAddressCard(address: String) {
             IconButton(onClick = {
                 clipboard.setText(androidx.compose.ui.text.AnnotatedString(address))
                 android.widget.Toast
-                    .makeText(context, "Адрес скопирован", android.widget.Toast.LENGTH_SHORT)
+                    .makeText(context, context.getString(R.string.profile_adres_skopirovan), android.widget.Toast.LENGTH_SHORT)
                     .show()
             }) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "Скопировать")
+                Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.carmembers_skopirovat))
             }
         }
     }
@@ -126,7 +129,7 @@ private fun SignInMethodsCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Способы входа",
+                text = stringResource(R.string.profile_sposoby_vhoda),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -142,13 +145,13 @@ private fun SignInMethodsCard(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("ВКонтакте", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.profile_vkontakte), style = MaterialTheme.typography.bodyLarge)
                     Text(
                         text = when {
                             vkLink != null && vkLink.displayName.isNotBlank() -> vkLink.displayName
-                            vkLink != null -> "Привязан"
-                            notLinked -> "Не привязан"
-                            else -> "Проверяем…"
+                            vkLink != null -> stringResource(R.string.profile_privyazan)
+                            notLinked -> stringResource(R.string.profile_ne_privyazan)
+                            else -> stringResource(R.string.profile_proveryaem)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -162,9 +165,9 @@ private fun SignInMethodsCard(
                     // Кнопки нет, пока неизвестно: «Привязать» на привязанном
                     // аккаунте — приглашение к бессмысленному действию
                     !isLinkKnown -> Unit
-                    vkLink == null -> TextButton(onClick = onLink) { Text("Привязать") }
+                    vkLink == null -> TextButton(onClick = onLink) { Text(stringResource(R.string.profile_privyazat)) }
                     canUnlink -> TextButton(onClick = { showUnlinkDialog = true }) {
-                        Text("Отвязать", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.profile_otvyazat), color = MaterialTheme.colorScheme.error)
                     }
                     // Иначе — привязан и отвязать нельзя: кнопки нет вовсе
                 }
@@ -173,8 +176,8 @@ private fun SignInMethodsCard(
             if (notLinked) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "После привязки вход через ВКонтакте будет вести в этот же аккаунт, " +
-                        "а не создавать новый",
+                    text = stringResource(R.string.profile_posle_privyazki_vhod_cherez_vkontakte) +
+                        stringResource(R.string.profile_a_ne_sozdavat_novyy),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -185,15 +188,15 @@ private fun SignInMethodsCard(
     if (showUnlinkDialog) {
         AlertDialog(
             onDismissRequest = { showUnlinkDialog = false },
-            title = { Text("Отвязать ВКонтакте?") },
-            text = { Text("Вход через ВКонтакте перестанет вести в этот аккаунт. Данные останутся на месте.") },
+            title = { Text(stringResource(R.string.profile_otvyazat_vkontakte)) },
+            text = { Text(stringResource(R.string.profile_vhod_cherez_vkontakte_perestanet_vesti_v)) },
             confirmButton = {
                 TextButton(onClick = { showUnlinkDialog = false; onUnlink() }) {
-                    Text("Отвязать", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.profile_otvyazat), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showUnlinkDialog = false }) { Text("Отмена") }
+                TextButton(onClick = { showUnlinkDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -266,10 +269,10 @@ fun ProfileScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Профиль") },
+                title = { Text(stringResource(R.string.home_profil)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -291,8 +294,8 @@ fun ProfileScreen(
             val isSyntheticEmail = userEmail.endsWith("@$VK_EMAIL_DOMAIN")
 
             ProfileHeader(
-                displayName = uiState.user?.displayName ?: "Пользователь",
-                email = if (isSyntheticEmail) "Вход через ВКонтакте" else userEmail,
+                displayName = uiState.user?.displayName ?: stringResource(R.string.profile_polzovatel),
+                email = if (isSyntheticEmail) stringResource(R.string.profile_vhod_cherez_vkontakte) else userEmail,
                 photoUrl = uiState.user?.photoUrl,
                 isUploading = uiState.isUploadingPhoto,
                 onPhotoClick = { showPhotoOptionsDialog = true }
@@ -462,7 +465,7 @@ fun ProfileScreen(
         if (uiState.passwordChangeState is PasswordChangeState.Success) {
             showPasswordDialog = false
             android.widget.Toast
-                .makeText(context, "Пароль изменён", android.widget.Toast.LENGTH_SHORT)
+                .makeText(context, context.getString(R.string.profile_parol_izmenen), android.widget.Toast.LENGTH_SHORT)
                 .show()
             viewModel.resetPasswordChangeState()
         }
@@ -471,29 +474,29 @@ fun ProfileScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { if (!uiState.isSigningOut) showLogoutDialog = false },
-            title = { Text("Выход из аккаунта") },
+            title = { Text(stringResource(R.string.profile_vyhod_iz_akkaunta)) },
             text = {
                 if (uiState.isSigningOut) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Отправляем данные на сервер…")
+                        Text(stringResource(R.string.profile_otpravlyaem_dannye_na_server))
                     }
                 } else {
-                    Text("Вы уверены, что хотите выйти?")
+                    Text(stringResource(R.string.profile_vy_uvereny_chto_hotite_vyyti))
                 }
             },
             confirmButton = {
                 TextButton(
                     enabled = !uiState.isSigningOut,
                     onClick = { viewModel.signOut(navController) }
-                ) { Text("Выйти") }
+                ) { Text(stringResource(R.string.profile_vyyti)) }
             },
             dismissButton = {
                 TextButton(
                     enabled = !uiState.isSigningOut,
                     onClick = { showLogoutDialog = false }
-                ) { Text("Отмена") }
+                ) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -504,19 +507,19 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { viewModel.dismissLogoutBlocked() },
             icon = { Icon(Icons.Default.CloudOff, contentDescription = null) },
-            title = { Text("Данные не отправлены") },
+            title = { Text(stringResource(R.string.profile_dannye_ne_otpravleny)) },
             text = {
                 Text(
-                    "Не удалось синхронизировать данные с сервером — скорее всего, нет интернета.\n\n" +
-                        "Выход удаляет все данные с этого устройства. Если выйти сейчас, " +
-                        "несохранённые записи будут потеряны безвозвратно."
+                    stringResource(R.string.profile_ne_udalos_sinhronizirovat_dannye_s) +
+                        stringResource(R.string.profile_vyhod_udalyaet_vse_dannye_s_etogo) +
+                        stringResource(R.string.profile_nesohranennye_zapisi_budut_poteryany)
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.dismissLogoutBlocked()
                     showLogoutDialog = false
-                }) { Text("Остаться") }
+                }) { Text(stringResource(R.string.profile_ostatsya)) }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -524,7 +527,7 @@ fun ProfileScreen(
                     showLogoutDialog = false
                     viewModel.signOut(navController, force = true)
                 }) {
-                    Text("Выйти и потерять", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.profile_vyyti_i_poteryat), color = MaterialTheme.colorScheme.error)
                 }
             }
         )
@@ -565,7 +568,7 @@ fun ProfileHeader(
             if (photoUrl != null) {
                 AsyncImage(
                     model = photoUrl,  // Это будет путь типа "/data/data/.../photo.jpg"
-                    contentDescription = "Фото профиля",
+                    contentDescription = stringResource(R.string.profile_foto_profilya),
                     modifier = Modifier
                         .size(100.dp)
                         .clip(CircleShape)
@@ -614,7 +617,7 @@ fun ProfileHeader(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.CameraAlt,
-                            contentDescription = "Изменить фото",
+                            contentDescription = stringResource(R.string.profile_izmenit_foto),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
@@ -651,23 +654,23 @@ fun PhotoOptionsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Фото профиля") },
+        title = { Text(stringResource(R.string.profile_foto_profilya)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PhotoOptionItem(
                     icon = Icons.Default.PhotoLibrary,
-                    title = "Выбрать из галереи",
+                    title = stringResource(R.string.profile_vybrat_iz_galerei),
                     onClick = onGalleryClick
                 )
                 PhotoOptionItem(
                     icon = Icons.Default.CameraAlt,
-                    title = "Сделать фото",
+                    title = stringResource(R.string.profile_sdelat_foto),
                     onClick = onCameraClick
                 )
                 if (hasPhoto) {
                     PhotoOptionItem(
                         icon = Icons.Default.Delete,
-                        title = "Удалить фото",
+                        title = stringResource(R.string.profile_udalit_foto),
                         onClick = onRemoveClick,
                         isDestructive = true
                     )
@@ -676,7 +679,7 @@ fun PhotoOptionsDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Отмена")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
@@ -720,10 +723,10 @@ fun DriverScoreCard(score: DriverScore) {
         else -> MaterialTheme.colorScheme.error
     }
     val levelLabel = when {
-        score.total >= 80 -> "Отличный водитель"
-        score.total >= 60 -> "Хороший водитель"
-        score.total >= 40 -> "Средний уровень"
-        else -> "Требует внимания"
+        score.total >= 80 -> stringResource(R.string.profile_otlichnyy_voditel)
+        score.total >= 60 -> stringResource(R.string.profile_horoshiy_voditel)
+        score.total >= 40 -> stringResource(R.string.profile_sredniy_uroven)
+        else -> stringResource(R.string.cardetail_trebuet_vnimaniya)
     }
 
     Card(
@@ -740,7 +743,7 @@ fun DriverScoreCard(score: DriverScore) {
             ) {
                 Column {
                     androidx.compose.material3.Text(
-                        text = "Рейтинг водителя",
+                        text = stringResource(R.string.profile_reyting_voditelya),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -773,10 +776,10 @@ fun DriverScoreCard(score: DriverScore) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                ScorePillar("ТО", score.maintenanceScore)
-                ScorePillar("Бюджет", score.budgetScore)
-                ScorePillar("Топливо", score.fuelScore)
-                ScorePillar("Регуляр.", score.regularityScore)
+                ScorePillar(stringResource(R.string.profile_to), score.maintenanceScore)
+                ScorePillar(stringResource(R.string.cardetail_byudzhet), score.budgetScore)
+                ScorePillar(stringResource(R.string.home_toplivo), score.fuelScore)
+                ScorePillar(stringResource(R.string.profile_regulyar), score.regularityScore)
             }
         }
     }
@@ -819,18 +822,18 @@ fun StatisticsSection(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             StatisticItem(
-                title = "Автомобилей",
+                title = stringResource(R.string.profile_avtomobiley),
                 value = carsCount.toString(),
                 icon = Icons.Default.DirectionsCar
             )
             StatisticItem(
-                title = "Потрачено",
+                title = stringResource(R.string.budget_potracheno),
                 value = String.format("%.2f ₽", totalExpenses),
                 icon = Icons.Default.Payments
             )
             StatisticItem(
-                title = "Пробег",
-                value = "$totalOdometer км",
+                title = stringResource(R.string.home_probeg),
+                value = stringResource(R.string.home_km, totalOdometer),
                 icon = Icons.Default.Speed
             )
         }
@@ -893,71 +896,96 @@ fun ActionsSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        SettingsGroup("Профиль") {
-            SettingsRow(Icons.Default.Edit, "Редактировать профиль", onClick = onEditProfile)
-            SettingsRow(Icons.Default.Palette, "Внешний вид", onClick = onChangeAppearance)
+        SettingsGroup(stringResource(R.string.home_profil)) {
+            SettingsRow(Icons.Default.Edit, stringResource(R.string.profile_redaktirovat_profil), onClick = onEditProfile)
+            SettingsRow(Icons.Default.Palette, stringResource(R.string.profile_vneshniy_vid), onClick = onChangeAppearance)
             if (showChangePassword) {
-                SettingsRow(Icons.Default.Lock, "Сменить пароль", onClick = onChangePassword)
+                SettingsRow(Icons.Default.Lock, stringResource(R.string.profile_smenit_parol), onClick = onChangePassword)
             }
         }
 
         // Обязательная точка входа, а не удобство: присоединяются к ЧУЖОЙ машине,
         // а экран «Участники» открывается только изнутри машины, где ты уже
         // состоишь. У человека без автомобилей другого пути принять приглашение нет.
-        SettingsGroup("Совместный доступ") {
+        SettingsGroup(stringResource(R.string.profile_sovmestnyy_dostup)) {
             SettingsRow(
                 Icons.Default.VpnKey,
-                "Присоединиться по коду",
-                subtitle = "Код присылает владелец автомобиля",
+                stringResource(R.string.components_prisoedinitsya_po_kodu),
+                subtitle = stringResource(R.string.profile_kod_prisylaet_vladelets_avtomobilya),
                 onClick = onJoinByCode
             )
         }
 
-        SettingsGroup("Приложение") {
+        SettingsGroup(stringResource(R.string.profile_prilozhenie)) {
+            // Язык первым в группе: человек, которому нужен другой язык, ищет
+            // этот пункт по значку и не может прочитать подписи вокруг
+            var showLanguages by remember { mutableStateOf(false) }
+            val languageContext = LocalContext.current
             SettingsRow(
-                Icons.AutoMirrored.Filled.Chat, "Чаты",
+                Icons.Default.Language,
+                stringResource(R.string.language_title),
+                subtitle = LocaleManager.currentName(languageContext),
+                onClick = { showLanguages = true }
+            )
+            if (showLanguages) {
+                LanguageDialog(
+                    current = LocaleManager.current(languageContext),
+                    onDismiss = { showLanguages = false },
+                    onPick = { tag ->
+                        showLanguages = false
+                        if (tag != LocaleManager.current(languageContext)) {
+                            LocaleManager.setLanguage(languageContext, tag)
+                            // Пересоздаём activity: подмена конфигурации до уже
+                            // отрисованных экранов сама не доходит
+                            (languageContext as? android.app.Activity)?.recreate()
+                        }
+                    }
+                )
+            }
+            SettingsRow(
+                Icons.AutoMirrored.Filled.Chat, stringResource(R.string.chat_chaty),
                 onClick = { navController.navigateOnce(Screen.ChatsList.route) }
             )
             SettingsRow(
-                Icons.Default.Category, "Категории и теги",
+                Icons.Default.Category, stringResource(R.string.profile_kategorii_i_tegi),
                 onClick = { navController.navigateOnce(Screen.CategoryManagement.route) }
             )
             SettingsRow(
-                Icons.Default.EmojiEvents, "Достижения",
+                Icons.Default.EmojiEvents, stringResource(R.string.achievements_dostizheniya),
                 onClick = { navController.navigateOnce(Screen.Achievements.route) }
             )
             SettingsRow(
-                Icons.Default.BugReport, "Сообщить об ошибке",
+                Icons.Default.BugReport, stringResource(R.string.bugreport_soobschit_ob_oshibke),
                 onClick = { navController.navigateOnce(Screen.BugReport.route) }
             )
             // Согласие даётся при регистрации, но сам документ должен оставаться
             // доступным и после неё — этого требует RuStore, да и просто разумно
             SettingsRow(
                 Icons.Default.PrivacyTip,
-                "Политика конфиденциальности",
-                subtitle = "Какие данные собираются и зачем",
+                stringResource(R.string.auth_politika_konfidentsialnosti),
+                subtitle = stringResource(R.string.profile_kakie_dannye_sobirayutsya_i_zachem),
                 onClick = { navController.navigateOnce(Screen.PrivacyPolicy.route) }
             )
             SettingsRow(
                 Icons.Default.Description,
-                "Пользовательское соглашение",
-                subtitle = "Условия использования приложения",
+                stringResource(R.string.profile_polzovatelskoe_soglashenie),
+                subtitle = stringResource(R.string.profile_usloviya_ispolzovaniya_prilozheniya),
                 onClick = { navController.navigateOnce(Screen.TermsOfUse.route) }
             )
         }
 
-        SettingsGroup("Мои данные") {
+        SettingsGroup(stringResource(R.string.profile_moi_dannye)) {
             SettingsRow(
                 Icons.Default.Backup,
-                "Резервная копия",
-                subtitle = if (isBackupInProgress) "Собираем файл…" else "Файл со всеми автомобилями и расходами",
+                stringResource(R.string.profile_rezervnaya_kopiya),
+                subtitle = if (isBackupInProgress) stringResource(R.string.profile_sobiraem_fayl) else stringResource(R.string.profile_fayl_so_vsemi_avtomobilyami_i_rashodami),
                 enabled = !isBackupInProgress,
                 onClick = onBackup
             )
             SettingsRow(
                 Icons.Default.DeleteForever,
-                "Удалить аккаунт",
-                subtitle = "Вместе со всеми данными, без возможности вернуть",
+                stringResource(R.string.profile_udalit_akkaunt),
+                subtitle = stringResource(R.string.profile_vmeste_so_vsemi_dannymi_bez_vozmozhnosti),
                 isDestructive = true,
                 onClick = onDeleteAccount
             )
@@ -966,7 +994,7 @@ fun ActionsSection(
         SettingsGroup(null) {
             SettingsRow(
                 Icons.Default.Logout,
-                "Выйти из аккаунта",
+                stringResource(R.string.profile_vyyti_iz_akkaunta),
                 isDestructive = true,
                 showChevron = false,
                 onClick = onLogout
@@ -999,16 +1027,16 @@ fun AccountDeletionDialogs(
 
         is AccountDeletionState.LoadingSummary -> AlertDialog(
             onDismissRequest = onCancel,
-            title = { Text("Удаление аккаунта") },
+            title = { Text(stringResource(R.string.profile_udalenie_akkaunta)) },
             text = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
-                    Text("Считаем, что будет удалено…")
+                    Text(stringResource(R.string.profile_schitaem_chto_budet_udaleno))
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onCancel) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) } }
         )
 
         // ── Шаг 1: что именно исчезнет ────────────────────────────────────────
@@ -1017,17 +1045,17 @@ fun AccountDeletionDialogs(
             icon = {
                 Icon(Icons.Default.WarningAmber, null, tint = MaterialTheme.colorScheme.error)
             },
-            title = { Text("Удалить аккаунт?") },
+            title = { Text(stringResource(R.string.profile_udalit_akkaunt_2)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Будет удалено безвозвратно:")
+                    Text(stringResource(R.string.profile_budet_udaleno_bezvozvratno))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        DeletionFact("Автомобилей", state.summary.ownedCars)
-                        DeletionFact("Записей о расходах", state.summary.expenses)
+                        DeletionFact(stringResource(R.string.profile_avtomobiley), state.summary.ownedCars)
+                        DeletionFact(stringResource(R.string.profile_zapisey_o_rashodah), state.summary.expenses)
                     }
                     Text(
-                        "Вместе с ними — история обслуживания, документы, страховки, " +
-                            "фотографии, чеки и переписка.",
+                        stringResource(R.string.profile_vmeste_s_nimi_istoriya_obsluzhivaniya) +
+                            stringResource(R.string.profile_fotografii_cheki_i_perepiska),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1053,26 +1081,26 @@ fun AccountDeletionDialogs(
                 }
             },
             confirmButton = {
-                TextButton(onClick = onProceedToBackup) { Text("Продолжить") }
+                TextButton(onClick = onProceedToBackup) { Text(stringResource(R.string.auth_prodolzhit)) }
             },
-            dismissButton = { TextButton(onClick = onCancel) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) } }
         )
 
         // ── Шаг 2: забрать данные с собой ─────────────────────────────────────
         is AccountDeletionState.OfferBackup -> AlertDialog(
             onDismissRequest = onCancel,
             icon = { Icon(Icons.Default.Backup, null) },
-            title = { Text("Сохранить копию данных?") },
+            title = { Text(stringResource(R.string.profile_sohranit_kopiyu_dannyh)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "Файл со всеми автомобилями и расходами. Его можно будет " +
-                            "восстановить в новый аккаунт — это единственный способ " +
-                            "не потерять историю."
+                        stringResource(R.string.profile_fayl_so_vsemi_avtomobilyami_i_rashodami_2) +
+                            stringResource(R.string.profile_vosstanovit_v_novyy_akkaunt_eto) +
+                            stringResource(R.string.profile_ne_poteryat_istoriyu)
                     )
                     when {
                         state.backupFile != null -> Text(
-                            "Копия готова: ${state.backupFile.name}",
+                            stringResource(R.string.profile_kopiya_gotova, state.backupFile.name),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -1087,20 +1115,20 @@ fun AccountDeletionDialogs(
             confirmButton = {
                 when {
                     state.isCreating -> TextButton(onClick = {}, enabled = false) {
-                        Text("Собираем…")
+                        Text(stringResource(R.string.profile_sobiraem))
                     }
                     // Файл готов — предлагаем именно отправить его, иначе он
                     // останется во временной папке и исчезнет вместе с кэшем
                     state.backupFile != null -> TextButton(
                         onClick = { onShareBackup(state.backupFile) }
-                    ) { Text("Сохранить файл") }
+                    ) { Text(stringResource(R.string.chat_sohranit_fayl)) }
 
-                    else -> TextButton(onClick = onCreateBackup) { Text("Создать копию") }
+                    else -> TextButton(onClick = onCreateBackup) { Text(stringResource(R.string.profile_sozdat_kopiyu)) }
                 }
             },
             dismissButton = {
                 TextButton(onClick = onProceedToConfirm) {
-                    Text(if (state.backupFile != null) "Дальше" else "Пропустить")
+                    Text(if (state.backupFile != null) stringResource(R.string.profile_dalshe) else stringResource(R.string.action_skip))
                 }
             }
         )
@@ -1111,17 +1139,17 @@ fun AccountDeletionDialogs(
             icon = {
                 Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error)
             },
-            title = { Text("Последний шаг") },
+            title = { Text(stringResource(R.string.profile_posledniy_shag)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (!state.backupSaved) {
                         Text(
-                            "Копия данных не сохранена — восстановить будет нечем.",
+                            stringResource(R.string.profile_kopiya_dannyh_ne_sohranena_vosstanovit),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
                     }
-                    Text("Наберите «${AccountDeletionState.CONFIRM_WORD}», чтобы подтвердить.")
+                    Text(stringResource(R.string.profile_naberite_chtoby_podtverdit, stringResource(AccountDeletionState.CONFIRM_WORD_RES)))
                     OutlinedTextField(
                         value = state.typed,
                         onValueChange = onTypedChange,
@@ -1133,23 +1161,23 @@ fun AccountDeletionDialogs(
             confirmButton = {
                 TextButton(
                     onClick = onDelete,
-                    enabled = state.canDelete,
+                    enabled = state.canDelete(LocalContext.current),
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text("Удалить навсегда") }
+                ) { Text(stringResource(R.string.profile_udalit_navsegda)) }
             },
-            dismissButton = { TextButton(onClick = onCancel) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) } }
         )
 
         is AccountDeletionState.InProgress -> AlertDialog(
             onDismissRequest = {},   // прерывать посреди удаления нечем и незачем
-            title = { Text("Удаляем аккаунт") },
+            title = { Text(stringResource(R.string.profile_udalyaem_akkaunt)) },
             text = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
-                    Text("Не закрывайте приложение")
+                    Text(stringResource(R.string.profile_ne_zakryvayte_prilozhenie))
                 }
             },
             confirmButton = {}
@@ -1158,11 +1186,11 @@ fun AccountDeletionDialogs(
         is AccountDeletionState.Failed -> AlertDialog(
             onDismissRequest = onCancel,
             icon = { Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Не получилось") },
+            title = { Text(stringResource(R.string.profile_ne_poluchilos)) },
             // Ничего не удалено — важно сказать прямо, иначе человек решит,
             // что аккаунт стёрт наполовину
-            text = { Text("${state.message}.\n\nДанные на месте, ничего не удалено.") },
-            confirmButton = { TextButton(onClick = onCancel) { Text("Закрыть") } }
+            text = { Text(stringResource(R.string.profile_n_ndannye_na_meste_nichego_ne_udaleno, state.message)) },
+            confirmButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.action_close)) } }
         )
     }
 }
@@ -1183,18 +1211,19 @@ private fun DeletionFact(label: String, count: Int) {
  * на одном участнике получается «1 человек потеряют». Здесь заодно согласуется
  * глагол.
  */
+@Composable
 private fun otherPeopleWarning(people: Int, cars: Int): String {
     val peoplePart = when {
-        people % 10 == 1 && people % 100 != 11 -> "$people человек потеряет"
-        people % 10 in 2..4 && people % 100 !in 12..14 -> "$people человека потеряют"
-        else -> "$people человек потеряют"
+        people % 10 == 1 && people % 100 != 11 -> stringResource(R.string.profile_chelovek_poteryaet, people)
+        people % 10 in 2..4 && people % 100 !in 12..14 -> stringResource(R.string.profile_cheloveka_poteryayut, people)
+        else -> stringResource(R.string.profile_chelovek_poteryayut, people)
     }
     val carsPart = when {
-        cars % 10 == 1 && cars % 100 != 11 -> "$cars машине"
-        else -> "$cars машинам"
+        cars % 10 == 1 && cars % 100 != 11 -> stringResource(R.string.profile_mashine, cars)
+        else -> stringResource(R.string.profile_mashinam, cars)
     }
-    return "Ещё $peoplePart доступ к $carsPart, которыми вы пользуетесь вместе, " +
-        "— вместе со всей историей. Предупредите их заранее."
+    return stringResource(R.string.profile_esche_dostup_k_kotorymi_vy_polzuetes, peoplePart, carsPart) +
+        stringResource(R.string.profile_vmeste_so_vsey_istoriey_predupredite_ih)
 }
 
 /** Заголовок + одна карточка на группу: связанное держится вместе */
@@ -1304,7 +1333,7 @@ fun NotificationSection(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Уведомления",
+                text = stringResource(R.string.onboarding_uvedomleniya),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
@@ -1316,11 +1345,11 @@ fun NotificationSection(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            NotifToggleRow("Напоминания о ТО", notifMaintenance, onToggleMaintenance)
-            NotifToggleRow("Страховка", notifInsurance, onToggleInsurance)
-            NotifToggleRow("Еженедельный дайджест", notifDigest, onToggleDigest)
-            NotifToggleRow("Низкий уровень топлива", notifFuel, onToggleFuel)
-            NotifToggleRow("Превышение 80% бюджета", notifBudgetAlert, onToggleBudgetAlert)
+            NotifToggleRow(stringResource(R.string.profile_napominaniya_o_to), notifMaintenance, onToggleMaintenance)
+            NotifToggleRow(stringResource(R.string.profile_strahovka), notifInsurance, onToggleInsurance)
+            NotifToggleRow(stringResource(R.string.profile_ezhenedelnyy_daydzhest), notifDigest, onToggleDigest)
+            NotifToggleRow(stringResource(R.string.profile_nizkiy_uroven_topliva), notifFuel, onToggleFuel)
+            NotifToggleRow(stringResource(R.string.profile_prevyshenie_80_byudzheta), notifBudgetAlert, onToggleBudgetAlert)
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
@@ -1331,9 +1360,9 @@ fun NotificationSection(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("Тихие часы", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.profile_tihie_chasy), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "Не беспокоить с ${quietHoursStart}:00 до ${quietHoursEnd}:00",
+                        stringResource(R.string.profile_ne_bespokoit_s_00_do_00, quietHoursStart, quietHoursEnd),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1345,7 +1374,7 @@ fun NotificationSection(
                 Spacer(Modifier.height(12.dp))
                 // Слайдер начала (0–23)
                 Text(
-                    "Начало: ${quietHoursStart}:00",
+                    stringResource(R.string.profile_nachalo_00, quietHoursStart),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(start = 4.dp)
                 )
@@ -1359,7 +1388,7 @@ fun NotificationSection(
                 Spacer(Modifier.height(4.dp))
                 // Слайдер конца (0–23)
                 Text(
-                    "Конец: ${quietHoursEnd}:00",
+                    stringResource(R.string.profile_konets_00, quietHoursEnd),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(start = 4.dp)
                 )
@@ -1427,7 +1456,7 @@ fun AppInfoSection() {
     ) {
         Text("CarCost", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
-            "Версия ${com.aggin.carcost.BuildConfig.VERSION_NAME}",
+            stringResource(R.string.profile_versiya, com.aggin.carcost.BuildConfig.VERSION_NAME),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
@@ -1444,24 +1473,24 @@ fun EditProfileDialog(
     var name by remember { mutableStateOf(currentName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Редактировать профиль") },
+        title = { Text(stringResource(R.string.profile_redaktirovat_profil)) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Имя") },
+                label = { Text(stringResource(R.string.auth_imya)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
-                Text("Сохранить")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Отмена")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
@@ -1479,19 +1508,24 @@ fun ChangePasswordDialog(
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
+    // Читаются здесь: ниже они нужны внутри onClick, а это уже не композиция
+    val errEmptyFields = stringResource(R.string.profile_zapolnite_vse_polya)
+    val errShortPassword = stringResource(R.string.profile_parol_dolzhen_byt_ne_menee_6_simvolov)
+    val errMismatch = stringResource(R.string.profile_paroli_ne_sovpadayut)
+
     val inProgress = state is PasswordChangeState.InProgress
     // Ошибка с сервера (неверный текущий пароль) важнее локальной валидации
     val error = (state as? PasswordChangeState.Error)?.message ?: localError
 
     AlertDialog(
         onDismissRequest = { if (!inProgress) onDismiss() },
-        title = { Text("Сменить пароль") },
+        title = { Text(stringResource(R.string.profile_smenit_parol)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = oldPassword,
                     onValueChange = { oldPassword = it; localError = null },
-                    label = { Text("Текущий пароль") },
+                    label = { Text(stringResource(R.string.profile_tekuschiy_parol)) },
                     singleLine = true,
                     enabled = !inProgress,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
@@ -1501,7 +1535,7 @@ fun ChangePasswordDialog(
                 OutlinedTextField(
                     value = newPassword,
                     onValueChange = { newPassword = it; localError = null },
-                    label = { Text("Новый пароль") },
+                    label = { Text(stringResource(R.string.auth_novyy_parol)) },
                     singleLine = true,
                     enabled = !inProgress,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
@@ -1511,7 +1545,7 @@ fun ChangePasswordDialog(
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it; localError = null },
-                    label = { Text("Подтвердите пароль") },
+                    label = { Text(stringResource(R.string.auth_podtverdite_parol)) },
                     singleLine = true,
                     enabled = !inProgress,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
@@ -1532,16 +1566,16 @@ fun ChangePasswordDialog(
                 enabled = !inProgress,
                 onClick = {
                     when {
-                        oldPassword.isBlank() || newPassword.isBlank() -> localError = "Заполните все поля"
-                        newPassword.length < 6 -> localError = "Пароль должен быть не менее 6 символов"
-                        newPassword != confirmPassword -> localError = "Пароли не совпадают"
+                        oldPassword.isBlank() || newPassword.isBlank() -> localError = errEmptyFields
+                        newPassword.length < 6 -> localError = errShortPassword
+                        newPassword != confirmPassword -> localError = errMismatch
                         else -> { localError = null; onConfirm(oldPassword, newPassword) }
                     }
                 }
-            ) { Text(if (inProgress) "Проверяем…" else "Сохранить") }
+            ) { Text(if (inProgress) stringResource(R.string.profile_proveryaem) else stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(enabled = !inProgress, onClick = onDismiss) { Text("Отмена") }
+            TextButton(enabled = !inProgress, onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }
@@ -1554,11 +1588,11 @@ fun AccentColorDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Акцентный цвет") },
+        title = { Text(stringResource(R.string.profile_aktsentnyy_tsvet)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    "Выберите цветовую схему приложения",
+                    stringResource(R.string.profile_vyberite_tsvetovuyu_shemu_prilozheniya),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1620,7 +1654,7 @@ fun AccentColorDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Закрыть") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
         }
     )
 }
@@ -1633,11 +1667,11 @@ fun AppearanceDialog(
     onThemeSelected: (String) -> Unit,
     onAccentSelected: (String) -> Unit
 ) {
-    val themeOptions = mapOf("Light" to "Светлая", "Dark" to "Тёмная", "System" to "Системная")
+    val themeOptions = mapOf("Light" to stringResource(R.string.profile_svetlaya), "Dark" to stringResource(R.string.profile_temnaya), "System" to stringResource(R.string.profile_sistemnaya))
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Внешний вид") },
+        title = { Text(stringResource(R.string.profile_vneshniy_vid)) },
         text = {
             val scroll = rememberScrollState()
             Column(
@@ -1647,7 +1681,7 @@ fun AppearanceDialog(
             ) {
                     // ── Тема ──
                     Text(
-                        "Тема",
+                        stringResource(R.string.profile_tema),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -1677,7 +1711,7 @@ fun AppearanceDialog(
 
                     // ── Акцентный цвет ──
                     Text(
-                        "Акцентный цвет",
+                        stringResource(R.string.profile_aktsentnyy_tsvet),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -1734,7 +1768,7 @@ fun AppearanceDialog(
                 }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Готово") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_done)) }
         }
     )
 }
@@ -1745,11 +1779,11 @@ fun ThemeSelectionDialog(
     onDismiss: () -> Unit,
     onThemeSelected: (String) -> Unit
 ) {
-    val themeOptions = mapOf("Light" to "Светлая", "Dark" to "Темная", "System" to "Системная")
+    val themeOptions = mapOf("Light" to stringResource(R.string.profile_svetlaya), "Dark" to stringResource(R.string.profile_temnaya_2), "System" to stringResource(R.string.profile_sistemnaya))
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Выберите тему") },
+        title = { Text(stringResource(R.string.profile_vyberite_temu)) },
         text = {
             Column {
                 themeOptions.forEach { (key, value) ->
@@ -1776,8 +1810,61 @@ fun ThemeSelectionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Закрыть")
+                Text(stringResource(R.string.action_close))
             }
+        }
+    )
+}
+
+
+/**
+ * Выбор языка интерфейса.
+ *
+ * Названия языков написаны каждое на своём языке и потому не переводятся:
+ * человек, которому нужен казахский, ищет в списке «Қазақша», а не «Казахский»
+ * на языке, которого может не знать.
+ */
+@Composable
+private fun LanguageDialog(
+    current: String,
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.language_title)) },
+        text = {
+            Column {
+                LocaleManager.supported.forEach { language ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(language.tag) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = language.tag == current,
+                            onClick = { onPick(language.tag) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = language.nativeName
+                                ?: stringResource(R.string.language_system),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.language_restart_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

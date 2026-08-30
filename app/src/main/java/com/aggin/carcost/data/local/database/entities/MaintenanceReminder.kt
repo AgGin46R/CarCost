@@ -1,5 +1,7 @@
 package com.aggin.carcost.data.local.database.entities
 
+import androidx.annotation.StringRes
+import com.aggin.carcost.R
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -55,30 +57,43 @@ data class MaintenanceReminder(
     val updatedAt: Long = System.currentTimeMillis()
 ) : Parcelable
 
-enum class MaintenanceType(val displayName: String, val defaultInterval: Int) {
-    OIL_CHANGE("Замена масла", 10000),
-    OIL_FILTER("Масляный фильтр", 10000),
-    AIR_FILTER("Воздушный фильтр", 20000),
-    CABIN_FILTER("Салонный фильтр", 15000),
-    FUEL_FILTER("Топливный фильтр", 30000),
-    SPARK_PLUGS("Свечи зажигания", 30000),
-    BRAKE_PADS("Тормозные колодки", 40000),
-    TIMING_BELT("Ремень ГРМ", 60000),
-    TRANSMISSION_FLUID("Трансмиссионное масло", 60000),
-    COOLANT("Охлаждающая жидкость", 40000),
-    BRAKE_FLUID("Тормозная жидкость", 40000),
+/**
+ * Виды планового обслуживания.
+ *
+ * Хранится ключ подписи, а не сама подпись: названия работ показываются на
+ * экранах, в уведомлениях и в выгрузке, и достать текст в этих трёх местах
+ * можно только имея контекст. Ключ у всех троих общий.
+ *
+ * Ключи те же, что у ServiceType в Labels.kt: «Замена масла» — одна работа, и
+ * переводить её дважды значит однажды получить два разных перевода.
+ */
+enum class MaintenanceType(
+    @StringRes val displayNameRes: Int,
+    val defaultInterval: Int
+) {
+    OIL_CHANGE(R.string.service_oil_change, 10000),
+    OIL_FILTER(R.string.service_oil_filter, 10000),
+    AIR_FILTER(R.string.service_air_filter, 20000),
+    CABIN_FILTER(R.string.service_cabin_filter, 15000),
+    FUEL_FILTER(R.string.service_fuel_filter, 30000),
+    SPARK_PLUGS(R.string.service_spark_plugs, 30000),
+    BRAKE_PADS(R.string.service_brake_pads, 40000),
+    TIMING_BELT(R.string.service_timing_belt, 60000),
+    TRANSMISSION_FLUID(R.string.service_transmission_fluid, 60000),
+    COOLANT(R.string.service_coolant, 40000),
+    BRAKE_FLUID(R.string.service_brake_fluid, 40000),
 
     // ── Электротяга ──────────────────────────────────────────────────────────
-    REDUCER_OIL("Масло редуктора", 60000),
-    BATTERY_COOLANT("Охлаждающая жидкость батареи", 100000),
-    BATTERY_HEALTH("Проверка состояния батареи", 20000),
-    BRAKE_CALIPERS("Чистка и смазка суппортов", 20000),
+    REDUCER_OIL(R.string.service_reducer_oil, 60000),
+    BATTERY_COOLANT(R.string.service_battery_coolant, 100000),
+    BATTERY_HEALTH(R.string.service_battery_health, 20000),
+    BRAKE_CALIPERS(R.string.service_brake_calipers, 20000),
 
     // ── Мотоцикл ─────────────────────────────────────────────────────────────
-    CHAIN_LUBE("Смазка цепи", 500),
-    CHAIN_REPLACE("Замена цепи и звёзд", 25000),
-    FORK_OIL("Масло в вилке", 20000),
-    VALVE_CLEARANCE("Регулировка клапанов", 24000)
+    CHAIN_LUBE(R.string.service_chain_lube, 500),
+    CHAIN_REPLACE(R.string.service_chain_replace, 25000),
+    FORK_OIL(R.string.service_fork_oil, 20000),
+    VALVE_CLEARANCE(R.string.service_valve_clearance, 24000)
 }
 
 /**

@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.components
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -52,9 +54,9 @@ fun DateField(
         singleLine = true,
         isError = invalid,
         supportingText = if (invalid) {
-            { Text("Такой даты нет") }
+            { Text(stringResource(R.string.components_takoy_daty_net)) }
         } else null,
-        placeholder = { Text("дд.мм.гггг") },
+        placeholder = { Text(stringResource(R.string.components_dd_mm_gggg)) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         visualTransformation = DateMask
     )

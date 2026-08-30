@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.planned_expenses
 
+import androidx.compose.ui.res.stringResource
+import com.aggin.carcost.R
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,43 +43,43 @@ fun PlannedExpensesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Планы покупок") },
+                title = { Text(stringResource(R.string.cardetail_plany_pokupok)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { showFilterMenu = true }) {
-                        Icon(Icons.Default.FilterList, "Фильтр")
+                        Icon(Icons.Default.FilterList, stringResource(R.string.action_filter))
                     }
                     DropdownMenu(
                         expanded = showFilterMenu,
                         onDismissRequest = { showFilterMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Все") },
+                            text = { Text(stringResource(R.string.map_vse)) },
                             onClick = {
                                 selectedFilter = null
                                 showFilterMenu = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Запланировано") },
+                            text = { Text(stringResource(R.string.plannedexpenses_zaplanirovano)) },
                             onClick = {
                                 selectedFilter = PlannedExpenseStatus.PLANNED
                                 showFilterMenu = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("В процессе") },
+                            text = { Text(stringResource(R.string.plannedexpenses_v_protsesse)) },
                             onClick = {
                                 selectedFilter = PlannedExpenseStatus.IN_PROGRESS
                                 showFilterMenu = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Выполнено") },
+                            text = { Text(stringResource(R.string.plannedexpenses_vypolneno)) },
                             onClick = {
                                 selectedFilter = PlannedExpenseStatus.COMPLETED
                                 showFilterMenu = false
@@ -96,7 +98,7 @@ fun PlannedExpensesScreen(
                 onClick = { navController.navigateOnce(Screen.AddPlannedExpense.createRoute(carId)) },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Icon(Icons.Default.Add, "Добавить план")
+                Icon(Icons.Default.Add, stringResource(R.string.plannedexpenses_dobavit_plan))
             }
         }
     ) { paddingValues ->
@@ -226,12 +228,12 @@ fun StatisticsCard(
         ) {
             StatItem(
                 icon = Icons.Default.Assignment,
-                label = "Запланировано",
+                label = stringResource(R.string.plannedexpenses_zaplanirovano),
                 value = plannedCount.toString()
             )
             StatItem(
                 icon = Icons.Default.AttachMoney,
-                label = "Ориентировочно",
+                label = stringResource(R.string.plannedexpenses_orientirovochno),
                 value = formatCurrency(totalEstimated, currency)
             )
         }
@@ -296,7 +298,7 @@ fun PlannedExpenseCard(
                 if (showDragHandle) {
                     Icon(
                         Icons.Default.DragHandle,
-                        contentDescription = "Перетащить",
+                        contentDescription = stringResource(R.string.plannedexpenses_peretaschit),
                         modifier = Modifier
                             .size(20.dp)
                             .align(Alignment.CenterVertically)
@@ -341,10 +343,10 @@ fun PlannedExpenseCard(
                                     tint = MaterialTheme.colorScheme.onTertiaryContainer)
                                 Text(
                                     text = when (plannedExpense.recurrenceType) {
-                                        "DAILY"   -> "Ежедневно"
-                                        "WEEKLY"  -> "Еженедельно"
-                                        "MONTHLY" -> "Ежемесячно"
-                                        "YEARLY"  -> "Ежегодно"
+                                        "DAILY"   -> stringResource(R.string.plannedexpenses_ezhednevno)
+                                        "WEEKLY"  -> stringResource(R.string.plannedexpenses_ezhenedelno)
+                                        "MONTHLY" -> stringResource(R.string.plannedexpenses_ezhemesyachno)
+                                        "YEARLY"  -> stringResource(R.string.plannedexpenses_ezhegodno)
                                         else      -> plannedExpense.recurrenceType
                                     },
                                     style = MaterialTheme.typography.labelSmall,
@@ -388,7 +390,7 @@ fun PlannedExpenseCard(
 
                     if (plannedExpense.targetDate != null) {
                         Text(
-                            text = "До ${formatDate(plannedExpense.targetDate)}",
+                            text = stringResource(R.string.plannedexpenses_do, formatDate(plannedExpense.targetDate)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -396,7 +398,7 @@ fun PlannedExpenseCard(
 
                     if (plannedExpense.targetOdometer != null) {
                         Text(
-                            text = "При ${plannedExpense.targetOdometer} км",
+                            text = stringResource(R.string.plannedexpenses_pri_km, plannedExpense.targetOdometer),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -417,8 +419,8 @@ fun PlannedExpenseCard(
                     Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        if (plannedExpense.status == PlannedExpenseStatus.IN_PROGRESS) "Завершить"
-                        else "Выполнить"
+                        if (plannedExpense.status == PlannedExpenseStatus.IN_PROGRESS) stringResource(R.string.plannedexpenses_zavershit)
+                        else stringResource(R.string.plannedexpenses_vypolnit)
                     )
                 }
             }
@@ -441,13 +443,13 @@ fun EmptyState(modifier: Modifier = Modifier) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Нет запланированных покупок",
+            text = stringResource(R.string.plannedexpenses_net_zaplanirovannyh_pokupok),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Добавьте план покупки",
+            text = stringResource(R.string.plannedexpenses_dobavte_plan_pokupki),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
         )
