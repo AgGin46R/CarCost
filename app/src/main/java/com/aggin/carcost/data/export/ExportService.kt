@@ -6,8 +6,18 @@ import androidx.core.content.FileProvider
 import com.aggin.carcost.R
 import com.aggin.carcost.data.local.database.entities.Car
 import com.aggin.carcost.data.local.database.entities.Expense
+import com.aggin.carcost.data.local.database.entities.ExpenseCategory
 import com.aggin.carcost.data.local.database.entities.MaintenanceReminder
+import com.aggin.carcost.data.local.database.AppDatabase
+import com.aggin.carcost.domain.fuel.FuelConsumptionCalculator
+import com.aggin.carcost.util.CurrencyUtils
 import com.itextpdf.io.font.FontProgramFactory
+import com.itextpdf.io.image.ImageDataFactory
+import com.itextpdf.kernel.geom.PageSize
+import com.itextpdf.layout.element.Image
+import com.itextpdf.layout.element.AreaBreak
+import com.itextpdf.layout.properties.AreaBreakType
+import com.itextpdf.kernel.font.PdfFont
 import com.itextpdf.kernel.font.PdfFontFactory
 import com.itextpdf.kernel.pdf.PdfDocument
 import com.itextpdf.kernel.pdf.PdfWriter
@@ -223,6 +233,349 @@ class ExportService(private val context: Context) {
 
         document.close()
         file
+    }
+
+
+    /**
+     * Паспорт автомобиля — вся его история одним документом.
+     *
+     * Отличается от обычного отчёта назначением, а не объёмом. Отчёт человек
+     * смотрит сам; паспорт он отдаёт — покупателю при продаже, сервису при
+     * первом визите, страховой при разборе. Поэтому здесь есть то, чего в
+     * отчёте нет: VIN, срок владения, история происшествий, состояние
+     * регламентных работ на сегодня, документы и полисы.
+     *
+     * Всё берётся из базы прямо здесь: у паспорта восемь источников данных, и
+     * протаскивать их восемью параметрами через экран — приглашение однажды
+     * забыть один из них и молча отдать покупателю документ без половины
+     * истории.
+     *
+     * @return готовый файл, либо null если такой машины нет
+     */
+    suspend fun exportVehiclePassport(carId: String): File? = withContext(Dispatchers.IO) {
+        val db = AppDatabase.getDatabase(context)
+        val car = db.carDao().getCarById(carId) ?: return@withContext null
+
+        val expenses = db.expenseDao().getExpensesByCarIdSync(carId)
+        val reminders = db.maintenanceReminderDao().getRemindersByCarIdSync(carId)
+        val documents = db.carDocumentDao().getDocumentsByCarIdSync(carId)
+        val policies = db.insurancePolicyDao().getPoliciesForCarSync(carId)
+        val incidents = db.carIncidentDao().getIncidentsByCarIdSync(carId)
+        val tyres = db.tyreSetDao().getByCarIdSync(carId)
+
+        val fileName = "CarCost_passport_${car.brand}_${car.model}_${System.currentTimeMillis()}.pdf"
+            .replace(' ', '_')
+        val file = File(context.getExternalFilesDir(null), fileName)
+
+        val document = Document(PdfDocument(PdfWriter(file)), PageSize.A4)
+        val regularFont = loadFont(R.raw.roboto_regular)
+        val boldFont = loadFont(R.raw.roboto_bold)
+
+        // Символ берётся из валюты машины, а не подставляется рублём: паспорт
+        // машины, купленной в евро, с рублёвыми суммами вводил бы в заблуждение
+        val currency = CurrencyUtils.symbol(car.currency)
+        fun money(amount: Double) = "%.2f $currency".format(Locale.US, amount)
+
+        fun heading(text: String) {
+            document.add(
+                Paragraph(text).setFont(boldFont).setFontSize(14f).setMarginTop(14f)
+            )
+        }
+
+        fun body(text: String, size: Float = 10f) {
+            document.add(Paragraph(text).setFont(regularFont).setFontSize(size))
+        }
+
+        fun rows(vararg pairs: Pair<String, String>) {
+            val table = Table(UnitValue.createPercentArray(floatArrayOf(38f, 62f)))
+                .useAllAvailableWidth()
+            pairs.forEach { (label, value) ->
+                table.addCell(Cell().add(Paragraph(label).setFont(boldFont).setFontSize(10f)))
+                table.addCell(Cell().add(Paragraph(value).setFont(regularFont).setFontSize(10f)))
+            }
+            document.add(table)
+        }
+
+        // ── Обложка ─────────────────────────────────────────────────────────
+        document.add(
+            Paragraph("${car.brand} ${car.model}")
+                .setFont(boldFont).setFontSize(26f).setTextAlignment(TextAlignment.CENTER)
+        )
+        document.add(
+            Paragraph(context.getString(R.string.passport_subtitle, car.year, car.licensePlate))
+                .setFont(regularFont).setFontSize(13f).setTextAlignment(TextAlignment.CENTER)
+        )
+
+        // Фотография — украшение, а не содержание. Не открылась (файл удалён,
+        // разрешение отозвано, формат не тот) — документ выходит без неё
+        car.photoUri?.let { uri ->
+            try {
+                val bytes = context.contentResolver.openInputStream(android.net.Uri.parse(uri))
+                    ?.use { it.readBytes() }
+                if (bytes != null) {
+                    document.add(
+                        Image(ImageDataFactory.create(bytes))
+                            .setAutoScale(true)
+                            .setMaxHeight(260f)
+                            .setHorizontalAlignment(com.itextpdf.layout.properties.HorizontalAlignment.CENTER)
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("ExportService", "Фото в паспорт не попало: ${e.message}")
+            }
+        }
+
+        document.add(
+            Paragraph(context.getString(R.string.passport_generated, dateFormat.format(Date())))
+                .setFont(regularFont).setFontSize(9f).setTextAlignment(TextAlignment.CENTER)
+                .setMarginTop(10f)
+        )
+
+        // ── Основные сведения ───────────────────────────────────────────────
+        heading(context.getString(R.string.passport_section_vehicle))
+        val ownedDays = ((System.currentTimeMillis() - car.purchaseDate) / 86_400_000L)
+            .coerceAtLeast(0)
+        val ownedYears = ownedDays / 365
+        val ownedMonths = (ownedDays % 365) / 30
+        rows(
+            context.getString(R.string.export_marka_i_model) to "${car.brand} ${car.model}",
+            context.getString(R.string.export_god_vypuska) to car.year.toString(),
+            context.getString(R.string.export_gos_nomer) to car.licensePlate,
+            context.getString(R.string.passport_vin) to (car.vin ?: "—"),
+            context.getString(R.string.passport_color) to (car.color ?: "—"),
+            context.getString(R.string.export_tekuschiy_probeg) to
+                context.getString(R.string.home_km, car.currentOdometer),
+            context.getString(R.string.passport_purchase_date) to
+                dateOnlyFormat.format(Date(car.purchaseDate)),
+            context.getString(R.string.passport_owned_for) to
+                context.getString(R.string.passport_years_months, ownedYears, ownedMonths)
+        )
+
+        // ── Деньги ──────────────────────────────────────────────────────────
+        val total = expenses.sumOf { it.amount }
+        val drivenSincePurchase = car.purchaseOdometer?.let { car.currentOdometer - it }
+            ?.takeIf { it > 0 }
+        heading(context.getString(R.string.passport_section_money))
+        rows(
+            *listOfNotNull(
+                car.purchasePrice?.let {
+                    context.getString(R.string.passport_purchase_price) to money(it)
+                },
+                context.getString(R.string.passport_spent_total) to money(total),
+                context.getString(R.string.export_kol_vo_zapisey) to expenses.size.toString(),
+                drivenSincePurchase?.let {
+                    context.getString(R.string.passport_driven_by_owner) to
+                        context.getString(R.string.home_km, it)
+                },
+                drivenSincePurchase?.takeIf { total > 0 }?.let {
+                    context.getString(R.string.passport_cost_per_km) to money(total / it)
+                }
+            ).toTypedArray()
+        )
+
+        // Расход топлива считается по заправкам до полного бака, поэтому у
+        // машины с двумя-тремя записями его просто нет — и это честнее, чем
+        // средняя цифра из справочника
+        FuelConsumptionCalculator.average(expenses)?.let { avg ->
+            body(context.getString(R.string.passport_fuel_average, "%.1f".format(avg)))
+        }
+
+        // ── Обслуживание ────────────────────────────────────────────────────
+        val service = expenses.filter {
+            it.category == ExpenseCategory.MAINTENANCE || it.category == ExpenseCategory.REPAIR
+        }.sortedByDescending { it.date }
+
+        document.add(AreaBreak(AreaBreakType.NEXT_PAGE))
+        heading(context.getString(R.string.passport_section_service))
+        if (service.isEmpty()) {
+            body(context.getString(R.string.passport_nothing_recorded))
+        } else {
+            val table = Table(UnitValue.createPercentArray(floatArrayOf(14f, 13f, 13f, 30f, 30f)))
+                .useAllAvailableWidth()
+            listOf(
+                R.string.cardetail_data,
+                R.string.home_probeg,
+                R.string.goals_summa,
+                R.string.cardetail_opisanie,
+                R.string.passport_works_and_shop
+            ).forEach {
+                table.addHeaderCell(
+                    Cell().add(Paragraph(context.getString(it)).setFont(boldFont).setFontSize(9f))
+                )
+            }
+            service.forEach { e ->
+                fun cell(text: String) = Cell().add(
+                    Paragraph(text).setFont(regularFont).setFontSize(9f)
+                )
+                table.addCell(cell(dateOnlyFormat.format(Date(e.date))))
+                table.addCell(cell(context.getString(R.string.home_km, e.odometer)))
+                table.addCell(cell(money(e.amount)))
+                table.addCell(cell(e.description ?: "—"))
+                table.addCell(
+                    cell(
+                        listOfNotNull(e.maintenanceParts, e.workshopName)
+                            .joinToString(", ").ifBlank { "—" }
+                    )
+                )
+            }
+            document.add(table)
+        }
+
+        // ── Регламент на сегодня ────────────────────────────────────────────
+        if (reminders.isNotEmpty()) {
+            heading(context.getString(R.string.passport_section_upcoming))
+            val table = Table(UnitValue.createPercentArray(floatArrayOf(40f, 20f, 20f, 20f)))
+                .useAllAvailableWidth()
+            listOf(
+                R.string.export_tip_to,
+                R.string.export_poslednyaya_km,
+                R.string.export_sleduyuschaya_km,
+                R.string.export_ostalos_km
+            ).forEach {
+                table.addHeaderCell(
+                    Cell().add(Paragraph(context.getString(it)).setFont(boldFont).setFontSize(9f))
+                )
+            }
+            reminders.forEach { r ->
+                fun cell(text: String) = Cell().add(
+                    Paragraph(text).setFont(regularFont).setFontSize(9f)
+                )
+                val remaining = r.nextChangeOdometer - car.currentOdometer
+                table.addCell(cell(context.getString(r.type.displayNameRes)))
+                table.addCell(cell(r.lastChangeOdometer.toString()))
+                table.addCell(cell(r.nextChangeOdometer.toString()))
+                // Просроченное показываем как просроченное, а не отрицательным
+                // числом километров — покупатель должен это заметить
+                table.addCell(
+                    cell(
+                        if (remaining < 0) {
+                            context.getString(R.string.passport_overdue, -remaining)
+                        } else {
+                            context.getString(R.string.home_km, remaining)
+                        }
+                    )
+                )
+            }
+            document.add(table)
+        }
+
+        // ── Шины ────────────────────────────────────────────────────────────
+        if (tyres.isNotEmpty()) {
+            heading(context.getString(R.string.passport_section_tyres))
+            val table = Table(UnitValue.createPercentArray(floatArrayOf(34f, 20f, 20f, 26f)))
+                .useAllAvailableWidth()
+            listOf(
+                R.string.tyres_field_name,
+                R.string.tyres_field_size,
+                R.string.passport_tyre_km,
+                R.string.passport_tyre_state
+            ).forEach {
+                table.addHeaderCell(
+                    Cell().add(Paragraph(context.getString(it)).setFont(boldFont).setFontSize(9f))
+                )
+            }
+            tyres.forEach { t ->
+                fun cell(text: String) = Cell().add(
+                    Paragraph(text).setFont(regularFont).setFontSize(9f)
+                )
+                table.addCell(cell("${t.name} (${context.getString(t.season.labelRes)})"))
+                table.addCell(cell(t.size ?: "—"))
+                table.addCell(cell(context.getString(R.string.home_km, t.kmWith(car.currentOdometer))))
+                table.addCell(
+                    cell(
+                        context.getString(
+                            if (t.isInstalled) R.string.tyres_installed_now
+                            else R.string.passport_tyre_stored
+                        )
+                    )
+                )
+            }
+            document.add(table)
+        }
+
+        // ── Происшествия ────────────────────────────────────────────────────
+        heading(context.getString(R.string.passport_section_incidents))
+        if (incidents.isEmpty()) {
+            // Отсутствие происшествий — самостоятельный факт, ради которого
+            // покупатель этот документ и просит. Пропускать раздел нельзя
+            body(context.getString(R.string.passport_no_incidents))
+        } else {
+            val table = Table(UnitValue.createPercentArray(floatArrayOf(15f, 20f, 45f, 20f)))
+                .useAllAvailableWidth()
+            listOf(
+                R.string.cardetail_data,
+                R.string.passport_incident_type,
+                R.string.cardetail_opisanie,
+                R.string.passport_repair_cost
+            ).forEach {
+                table.addHeaderCell(
+                    Cell().add(Paragraph(context.getString(it)).setFont(boldFont).setFontSize(9f))
+                )
+            }
+            incidents.sortedByDescending { it.date }.forEach { i ->
+                fun cell(text: String) = Cell().add(
+                    Paragraph(text).setFont(regularFont).setFontSize(9f)
+                )
+                table.addCell(cell(dateOnlyFormat.format(Date(i.date))))
+                table.addCell(cell(context.getString(i.type.displayNameRes)))
+                table.addCell(cell(i.description))
+                table.addCell(cell(i.repairCost?.let { money(it) } ?: "—"))
+            }
+            document.add(table)
+        }
+
+        // ── Документы и страховки ───────────────────────────────────────────
+        if (documents.isNotEmpty() || policies.isNotEmpty()) {
+            heading(context.getString(R.string.passport_section_documents))
+            val table = Table(UnitValue.createPercentArray(floatArrayOf(30f, 45f, 25f)))
+                .useAllAvailableWidth()
+            listOf(
+                R.string.passport_doc_type,
+                R.string.passport_doc_title,
+                R.string.passport_doc_valid_until
+            ).forEach {
+                table.addHeaderCell(
+                    Cell().add(Paragraph(context.getString(it)).setFont(boldFont).setFontSize(9f))
+                )
+            }
+            fun cell(text: String) = Cell().add(
+                Paragraph(text).setFont(regularFont).setFontSize(9f)
+            )
+            documents.forEach { d ->
+                table.addCell(cell(context.getString(d.type.displayNameRes)))
+                table.addCell(cell(d.title))
+                table.addCell(cell(d.expiryDate?.let { dateOnlyFormat.format(Date(it)) } ?: "—"))
+            }
+            policies.forEach { pol ->
+                val label = when (pol.type) {
+                    "OSAGO" -> context.getString(R.string.insurance_osago)
+                    "KASKO" -> context.getString(R.string.insurance_kasko)
+                    else -> context.getString(R.string.profile_strahovka)
+                }
+                table.addCell(cell(label))
+                table.addCell(
+                    cell(listOf(pol.company, pol.policyNumber).filter { it.isNotBlank() }
+                        .joinToString(", ").ifBlank { "—" })
+                )
+                table.addCell(cell(dateOnlyFormat.format(Date(pol.endDate))))
+            }
+            document.add(table)
+        }
+
+        document.add(
+            Paragraph(context.getString(R.string.passport_footer))
+                .setFont(regularFont).setFontSize(8f)
+                .setTextAlignment(TextAlignment.CENTER).setMarginTop(20f)
+        )
+
+        document.close()
+        file
+    }
+
+    /** Шрифт с кириллицей из res/raw */
+    private fun loadFont(resId: Int): PdfFont {
+        val bytes = context.resources.openRawResource(resId).use { it.readBytes() }
+        return PdfFontFactory.createFont(FontProgramFactory.createFont(bytes))
     }
 
     fun shareFile(file: File) {

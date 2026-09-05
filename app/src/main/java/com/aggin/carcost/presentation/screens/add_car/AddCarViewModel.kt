@@ -43,6 +43,7 @@ data class AddCarUiState(
      * оно первым делом требует эту величину и без неё выходит.
      */
     val tankCapacity: String = "",
+    val enginePowerHp: String = "",
     val purchasePrice: String = "",
     val purchaseDate: Long? = null,
     val vin: String = "",
@@ -110,6 +111,10 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
         if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
             _uiState.value = _uiState.value.copy(tankCapacity = value)
         }
+    }
+
+    fun updateEnginePowerHp(value: String) {
+        _uiState.value = _uiState.value.copy(enginePowerHp = value.filter { it.isDigit() }.take(4))
     }
 
     fun updatePurchasePrice(value: String) {
@@ -233,6 +238,7 @@ class AddCarViewModel(application: Application) : AndroidViewModel(application) 
                     licensePlate = state.licensePlate.trim(),
                     currentOdometer = state.currentOdometer.toInt(),
                     tankCapacity = state.tankCapacity.toDoubleOrNull(),
+                    enginePowerHp = state.enginePowerHp.toIntOrNull()?.takeIf { it > 0 },
                     vehicleType = state.vehicleType,
                     fuelType = state.fuelType,
                     purchaseDate = state.purchaseDate ?: System.currentTimeMillis(),

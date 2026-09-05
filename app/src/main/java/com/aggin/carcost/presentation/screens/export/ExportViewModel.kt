@@ -92,6 +92,49 @@ class ExportViewModel(
     }
 
     /**
+     * Паспорт автомобиля.
+     *
+     * Фильтры по периоду и категориям здесь сознательно не применяются:
+     * паспорт — документ о всей истории машины, и «история за апрель» им быть
+     * не может. Отчёт с фильтрами — это соседняя кнопка.
+     */
+    fun exportVehiclePassport() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isExporting = true, errorMessage = null, exportSuccessMessage = null) }
+            try {
+                val file = exportService.exportVehiclePassport(carId)
+                if (file == null) {
+                    _uiState.update {
+                        it.copy(
+                            isExporting = false,
+                            errorMessage = getApplication<Application>()
+                                .getString(R.string.passport_failed, "")
+                        )
+                    }
+                    return@launch
+                }
+                exportService.shareFile(file)
+                com.aggin.carcost.data.analytics.Analytics.reportExported()
+                _uiState.update {
+                    it.copy(
+                        isExporting = false,
+                        exportSuccessMessage = getApplication<Application>()
+                            .getString(R.string.export_fayl_sozdan, "")
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isExporting = false,
+                        errorMessage = getApplication<Application>()
+                            .getString(R.string.passport_failed, e.message ?: "")
+                    )
+                }
+            }
+        }
+    }
+
+    /**
      * Резервная копия в JSON.
      *
      * Раньше здесь собирался человекочитаемый CSV, который приложение не умело

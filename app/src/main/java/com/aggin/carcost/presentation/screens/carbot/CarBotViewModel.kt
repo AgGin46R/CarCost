@@ -1,5 +1,6 @@
 package com.aggin.carcost.presentation.screens.carbot
 
+import com.aggin.carcost.R
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
@@ -47,7 +48,16 @@ data class CarBotUiState(
      * а распознавание ошибается: «две тысячи четыреста» легко становится другим
      * числом, и молча созданная запись потом ищется по всей истории.
      */
-    val pendingExpense: CarBotCommand.Command.AddExpense? = null
+    val pendingExpense: CarBotCommand.Command.AddExpense? = null,
+    /**
+     * Что уместно спросить дальше.
+     *
+     * Раньше подсказки показывались только до первого сообщения и потом
+     * исчезали навсегда — узнать, что ещё умеет бот, было неоткуда, кроме
+     * команды «что умеешь», о которой тоже надо догадаться. Теперь после
+     * каждого ответа предлагается продолжение по смыслу этого ответа.
+     */
+    val followUps: List<String> = emptyList()
 )
 
 class CarBotViewModel(application: Application) : AndroidViewModel(application) {
@@ -84,6 +94,9 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
     /** Команда, разобранная из фразы и ждущая подтверждения */
     private val _pendingExpense = MutableStateFlow<CarBotCommand.Command.AddExpense?>(null)
 
+    /** Подсказки-продолжения после последнего ответа */
+    private val _followUps = MutableStateFlow<List<String>>(emptyList())
+
     // Group 1: messages + cars list
     private val _chatBase = combine(
         _messages,
@@ -102,8 +115,9 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
         _chatBase,
         _inputBase,
         _modelState,
-        _pendingExpense
-    ) { (messages, cars), (selectedCarId, isProcessing, inputText), modelState, pending ->
+        _pendingExpense,
+        _followUps
+    ) { (messages, cars), (selectedCarId, isProcessing, inputText), modelState, pending, followUps ->
         val effectiveCarId = selectedCarId
             ?: if (cars.size == 1) cars.first().id else null
         CarBotUiState(
@@ -118,7 +132,8 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
             isModelReady = modelState.isReady,
             isModelInitializing = modelState.isInitializing,
             modelInitError = modelState.initError,
-            pendingExpense = pending
+            pendingExpense = pending,
+            followUps = followUps
         )
     }.stateIn(
         scope = viewModelScope,
@@ -129,7 +144,7 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
     )
 
     init {
-        addBotMessage("👋 Привет! Я **CarBot** — ваш автомобильный помощник. Задайте вопрос о расходах, ТО или состоянии автомобиля.\n\nНапишите **помощь**, чтобы узнать, что я умею.")
+        addBotMessage(application.getString(R.string.carbot_greeting))
 
         // Proactive alerts (after short delay so car data loads)
         viewModelScope.launch {
@@ -166,6 +181,7 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
         val userMsg = BotMessage(text = text, isFromUser = true)
         _messages.update { it + userMsg }
         _isProcessing.value = true
+        _followUps.value = emptyList()
 
         viewModelScope.launch {
             try {
@@ -201,6 +217,7 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
 
                 if (rulesAnswer != null) {
                     addBotMessage(rulesAnswer, isAiGenerated = false)
+                    _followUps.value = followUpsFor(engine.lastIntent)
                     return@launch
                 }
 
@@ -329,6 +346,63 @@ class CarBotViewModel(application: Application) : AndroidViewModel(application) 
         if (_pendingExpense.value == null) return
         _pendingExpense.value = null
         addBotMessage("Отменил, ничего не записал.")
+    }
+
+    /**
+     * Что предложить спросить после ответа.
+     *
+     * Продолжения зависят от того, о чём был вопрос: после суммы уместно
+     * сравнить с прошлым месяцем, после расхода топлива — посмотреть заправки.
+     * Это единственное место, откуда человек узнаёт о возможностях бота по
+     * ходу разговора, не читая список умений целиком.
+     */
+    private fun followUpsFor(intent: CarBotQuery.Intent?): List<String> {
+        val app = getApplication<Application>()
+        fun s(id: Int) = app.getString(id)
+        return when (intent) {
+            CarBotQuery.Intent.SPENDING -> listOf(
+                s(R.string.carbot_follow_last_month),
+                s(R.string.carbot_follow_peak_month),
+                s(R.string.carbot_follow_total)
+            )
+            CarBotQuery.Intent.FUEL_CONSUMPTION -> listOf(
+                s(R.string.carbot_follow_fuel_spend),
+                s(R.string.carbot_follow_trips),
+                s(R.string.carbot_follow_price_per_km)
+            )
+            CarBotQuery.Intent.MAINTENANCE -> listOf(
+                s(R.string.carbot_follow_open_service),
+                s(R.string.carbot_follow_service_spend),
+                s(R.string.carbot_follow_insurance)
+            )
+            CarBotQuery.Intent.INSURANCE -> listOf(
+                s(R.string.carbot_follow_open_docs),
+                s(R.string.carbot_follow_maintenance)
+            )
+            CarBotQuery.Intent.BUDGET -> listOf(
+                s(R.string.carbot_follow_this_month),
+                s(R.string.carbot_follow_peak_month)
+            )
+            CarBotQuery.Intent.TRIPS -> listOf(
+                s(R.string.carbot_follow_fuel),
+                s(R.string.carbot_follow_price_per_km)
+            )
+            CarBotQuery.Intent.CAR_INFO, CarBotQuery.Intent.RECENT,
+            CarBotQuery.Intent.PEAK_MONTH, CarBotQuery.Intent.TOTAL -> listOf(
+                s(R.string.carbot_follow_this_month),
+                s(R.string.carbot_follow_fuel)
+            )
+            else -> emptyList()
+        }
+    }
+
+    /** Очищает переписку и память о предыдущем вопросе */
+    fun clearConversation() {
+        engine.forgetContext()
+        _followUps.value = emptyList()
+        _pendingExpense.value = null
+        _messages.value = emptyList()
+        addBotMessage(getApplication<Application>().getString(R.string.carbot_greeting))
     }
 
     fun sendSuggestion(suggestion: String) {

@@ -84,8 +84,17 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
      * Здесь метка времени сохраняется серверная — она и есть источник истины
      * для сравнения "кто новее".
      */
+    /**
+     * Запись, пришедшая с сервера, по определению им подтверждена — отметка
+     * ставится сразу. Именно по ней синхронизация потом отличит «ещё не
+     * отправлено» от «было и удалено».
+     */
     suspend fun saveFromServer(expense: Expense) {
-        expenseDao.upsertExpense(expense)
+        expenseDao.upsertExpense(expense.copy(syncedAt = System.currentTimeMillis()))
+    }
+
+    suspend fun markSynced(expenseId: String) {
+        expenseDao.markSynced(expenseId)
     }
 
     suspend fun updateExpense(expense: Expense) {

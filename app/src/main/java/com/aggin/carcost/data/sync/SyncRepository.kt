@@ -17,6 +17,7 @@ import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepos
 import com.aggin.carcost.data.remote.repository.SupabaseExpenseTagRepository
 import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseFluidLevelRepository
+import com.aggin.carcost.data.remote.repository.SupabaseTyreSetRepository
 import com.aggin.carcost.data.remote.repository.SupabaseGpsTripRepository
 import com.aggin.carcost.data.remote.repository.SupabaseCarIncidentRepository
 import com.aggin.carcost.data.remote.repository.SupabaseInsurancePolicyRepository
@@ -70,7 +71,8 @@ class SyncRepository(
     private val supabaseSavingsGoalRepo: SupabaseSavingsGoalRepository? = null,
     private val supabaseCategoryBudgetRepo: SupabaseCategoryBudgetRepository? = null,
     private val supabaseCarDocumentRepo: SupabaseCarDocumentRepository? = null,
-    private val supabaseAchievementRepo: SupabaseAchievementRepository? = null
+    private val supabaseAchievementRepo: SupabaseAchievementRepository? = null,
+    private val supabaseTyreSetRepo: SupabaseTyreSetRepository? = null
 ) {
 
     companion object {
@@ -125,6 +127,7 @@ class SyncRepository(
             syncTagLinks()
             syncPlannedExpenses()
             syncFluidLevels()
+            syncTyreSets()
             syncGpsTrips()
             syncIncidents()
             syncInsurancePolicies()
@@ -279,20 +282,36 @@ class SyncRepository(
                 val remoteExpense = remoteExpenses.find { it.id == localExpense.id }
 
                 when {
-                    // Новый расход (только локально)
+                    // На сервере записи нет. Это два разных случая, и раньше
+                    // они обрабатывались одинаково — отправкой.
                     remoteExpense == null -> {
-                        Log.d(TAG, "Pushing new expense: ${localExpense.id}")
-                        val result = supabaseExpenseRepo.insertExpense(localExpense).trackPush("расход")
-                        result.getOrNull()?.let { insertedExpense ->
-                            if (insertedExpense.id != localExpense.id) {
-                                localExpenseRepo.updateExpense(localExpense.copy(id = insertedExpense.id))
-                            }
+                        if (localExpense.syncedAt != null) {
+                            // Сервер эту запись знал, а теперь её там нет —
+                            // значит её удалил совладелец. Повторная отправка
+                            // воскрешала бы удалённое, причём и у него тоже.
+                            Log.d(TAG, "Expense deleted on server, removing locally: ${localExpense.id}")
+                            localExpenseRepo.deleteExpense(localExpense)
+                        } else {
+                            Log.d(TAG, "Pushing new expense: ${localExpense.id}")
+                            val result = supabaseExpenseRepo.insertExpense(localExpense).trackPush("расход")
+                            result.fold(
+                                onSuccess = { insertedExpense ->
+                                    if (insertedExpense.id != localExpense.id) {
+                                        localExpenseRepo.updateExpense(localExpense.copy(id = insertedExpense.id))
+                                        localExpenseRepo.markSynced(insertedExpense.id)
+                                    } else {
+                                        localExpenseRepo.markSynced(localExpense.id)
+                                    }
+                                },
+                                onFailure = { /* отметку не ставим: запись на сервер не уехала */ }
+                            )
                         }
                     }
                     // Расход изменен локально позже
                     localExpense.updatedAt > remoteExpense.updatedAt -> {
                         Log.d(TAG, "Updating expense on server: ${localExpense.id}")
                         supabaseExpenseRepo.updateExpense(localExpense).trackPush("расход")
+                            .onSuccess { localExpenseRepo.markSynced(localExpense.id) }
                     }
                     // Расход изменен на сервере позже
                     remoteExpense.updatedAt > localExpense.updatedAt -> {
@@ -749,6 +768,58 @@ class SyncRepository(
         }
     }
 
+    /**
+     * Комплекты шин.
+     *
+     * Здесь та же осторожность, что и с расходами: неудачная загрузка не
+     * считается пустым сервером, а исчезнувшая на сервере запись удаляется
+     * локально только если сервер её когда-то подтверждал. Иначе комплект,
+     * удалённый совладельцем, возвращался бы обратно каждой синхронизацией.
+     */
+    private suspend fun syncTyreSets() {
+        val db = localDb ?: return
+        val repo = supabaseTyreSetRepo ?: return
+        val cars = localCarRepo.getAllCars().first()
+
+        for (car in cars) {
+            val remote = repo.getByCarId(car.id).getOrNull()
+            if (remote == null) {
+                pushFailures++
+                Log.w(TAG, "Пропуск шин ${car.id}: не удалось загрузить")
+                continue
+            }
+            val local = db.tyreSetDao().getByCarIdSync(car.id)
+
+            for (item in local) {
+                val server = remote.find { it.id == item.id }
+                when {
+                    server == null -> {
+                        if (item.syncedAt != null) {
+                            Log.d(TAG, "Комплект шин удалён на сервере, убираем локально: ${item.id}")
+                            db.tyreSetDao().delete(item)
+                        } else {
+                            repo.upsert(item).trackPush("шины")
+                                .onSuccess { db.tyreSetDao().markSynced(item.id) }
+                        }
+                    }
+                    item.updatedAt > server.updatedAt -> {
+                        repo.upsert(item).trackPush("шины")
+                            .onSuccess { db.tyreSetDao().markSynced(item.id) }
+                    }
+                    server.updatedAt > item.updatedAt -> {
+                        db.tyreSetDao().upsert(server.copy(syncedAt = System.currentTimeMillis()))
+                    }
+                }
+            }
+
+            for (item in remote) {
+                if (local.none { it.id == item.id }) {
+                    db.tyreSetDao().upsert(item.copy(syncedAt = System.currentTimeMillis()))
+                }
+            }
+        }
+    }
+
     private suspend fun syncGpsTrips() {
         val db = localDb ?: return
         val repo = supabaseGpsTripRepo ?: return
@@ -905,6 +976,7 @@ class SyncRepository(
             try { syncTags(); Log.d(TAG, "✅ Tags synced") } catch (e: Exception) { Log.e(TAG, "❌ Tags failed", e) }
             try { syncPlannedExpenses(); Log.d(TAG, "✅ Planned expenses synced") } catch (e: Exception) { Log.e(TAG, "❌ Planned expenses failed", e) }
             try { syncFluidLevels(); Log.d(TAG, "✅ Fluid levels synced") } catch (e: Exception) { Log.e(TAG, "❌ Fluid levels failed", e) }
+            try { syncTyreSets(); Log.d(TAG, "✅ Tyre sets synced") } catch (e: Exception) { Log.e(TAG, "❌ Tyre sets failed", e) }
             try { syncGpsTrips(); Log.d(TAG, "✅ GPS trips synced") } catch (e: Exception) { Log.e(TAG, "❌ GPS trips failed", e) }
             try { syncIncidents(); Log.d(TAG, "✅ Incidents synced") } catch (e: Exception) { Log.e(TAG, "❌ Incidents failed", e) }
             try { syncInsurancePolicies(); Log.d(TAG, "✅ Insurance synced") } catch (e: Exception) { Log.e(TAG, "❌ Insurance failed", e) }

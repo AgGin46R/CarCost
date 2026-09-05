@@ -61,6 +61,9 @@ fun CarDetailScreen(
     viewModel: CarDetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Строка берётся здесь: внутри onClick контекста Composable уже нет
+    val passportBuilding = stringResource(R.string.passport_creating)
 
     /** Расход, по которому нажали: показываем карточку с подробностями и чеком */
     var selectedExpense by remember {
@@ -193,6 +196,33 @@ fun CarDetailScreen(
                                     navController.navigateOnce(Screen.FluidLevels.createRoute(carId))
                                 },
                                 leadingIcon = { Icon(Icons.Default.WaterDrop, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.cardetail_shiny)) },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigateOnce(Screen.Tyres.createRoute(carId))
+                                },
+                                leadingIcon = { Icon(Icons.Default.DonutLarge, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.passport_export)) },
+                                onClick = {
+                                    showMenu = false
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        passportBuilding,
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                    viewModel.buildVehiclePassport { error ->
+                                        if (error != null) {
+                                            android.widget.Toast.makeText(
+                                                context, error, android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                leadingIcon = { Icon(Icons.Default.Description, null) }
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.cardetail_eksport_dannyh)) },

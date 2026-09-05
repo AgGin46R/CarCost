@@ -186,7 +186,7 @@
     <string name="cardetail_l_2"> / %1$s л</string>
     <string name="cardetail_udalit_rashod">Выдаліць выдатак?</string>
     <string name="cardetail_eto_deystvie_nelzya_otmenit">Гэтае дзеянне нельга скасаваць.</string>
-    <string name="cardetail_1f_l_100km">%%.1f л/100км</string>
+    <string name="cardetail_1f_l_100km">%.1f л/100км</string>
     <string name="cardetail_detali">Дэталі: %1$s</string>
     <string name="cardetail_rashody">Выдаткі (%1$s)</string>
     <string name="cardetail_net_rashodov_po_filtru">Няма выдаткаў па фільтры</string>
@@ -210,14 +210,14 @@
     <string name="cardetail_podrobnee">Падрабязней</string>
     <string name="cardetail_data">Дата</string>
     <string name="cardetail_zapravleno">Заправлена</string>
-    <string name="cardetail_2f_l">%%.2f л</string>
+    <string name="cardetail_2f_l">%.2f л</string>
     <string name="cardetail_zaryazheno">Зараджана</string>
-    <string name="cardetail_1f_kvt_ch">%%.1f кВт·гадз</string>
+    <string name="cardetail_1f_kvt_ch">%.1f кВт·гадз</string>
     <string name="cardetail_marka_topliva">Марка паліва</string>
     <string name="cardetail_zapravka">Заправка</string>
     <string name="cardetail_do_polnogo">да поўнага</string>
     <string name="cardetail_rashod">Выдатак</string>
-    <string name="cardetail_2f_l_100_km">%%.2f л/100 км</string>
+    <string name="cardetail_2f_l_100_km">%.2f л/100 км</string>
     <string name="cardetail_rabota">Праца</string>
     <string name="cardetail_servis">Сэрвіс</string>
     <string name="cardetail_zapchasti">Запчасткі</string>
@@ -251,7 +251,7 @@
     <string name="addexp_kilovatt_chasov">Кілават-гадзін</string>
     <string name="addexp_kvt_ch">кВт·гадз</string>
     <string name="addexp_tsena_za_kvt_ch">Кошт за кВт·гадз</string>
-    <string name="addexp_zaryad_do_100">Зарад да 100%%</string>
+    <string name="addexp_zaryad_do_100">Зарад да 100%</string>
     <string name="addexp_detali_obsluzhivaniya">Дэталі абслугоўвання</string>
     <string name="addexp_nazvanie_sto">Назва СТА</string>
     <string name="addexp_avtoservis_1">Аўтасэрвіс №1</string>
@@ -379,10 +379,10 @@
     <string name="analytics_gps_poezdki">GPS-паездкі</string>
     <string name="analytics_vsego_poezdok">Усяго паездак</string>
     <string name="analytics_obschiy_probeg">Агульны прабег</string>
-    <string name="analytics_1f_km">%%.1f км</string>
+    <string name="analytics_1f_km">%.1f км</string>
     <string name="analytics_sr_poezdka">Сяр. паездка</string>
     <string name="analytics_sr_skorost">Сяр. хуткасць</string>
-    <string name="analytics_0f_km_ch">%%.0f км/гадз</string>
+    <string name="analytics_0f_km_ch">%.0f км/гадз</string>
     <string name="analytics_samaya_dlinnaya_poezdka">🏆 Самая доўгая паездка</string>
     <string name="analytics_god_k_godu">Год да году</string>
     <string name="analytics_top_mesyatsev_po_rashodam">Топ месяцаў па выдатках</string>
@@ -410,15 +410,15 @@
     <string name="analytics_istochnikami_oni_zavisyat_ot_doli_poezdok">крыніцамі яны залежаць ад долі паездак на электрычнасці, </string>
     <string name="analytics_poetomu_sravnivat_ih_s_obychnoy_mashinoy">таму параўноўваць іх са звычайнай машынай нельга.</string>
     <string name="analytics_sredniy_rashod">Сярэдні выдатак</string>
-    <string name="analytics_2f_l_100km">%%.2f л/100км</string>
+    <string name="analytics_2f_l_100km">%.2f л/100км</string>
     <string name="analytics_nuzhny_2_zapravki_do_polnogo">патрэбны дзве заправкі да поўнага</string>
     <string name="analytics_vsego_zapravleno">Усяго заправлена</string>
-    <string name="analytics_1f_l">%%.1f л</string>
+    <string name="analytics_1f_l">%.1f л</string>
     <string name="analytics_potracheno_na_toplivo">Выдаткавана на паліва</string>
     <string name="analytics_srednyaya_tsena_za_litr">Сярэдні кошт за літр</string>
     <string name="analytics_rashod_elektrichestva">Выдатак электрычнасці</string>
-    <string name="analytics_1f_kvt_ch_100km">%%.1f кВт·гадз/100км</string>
-    <string name="analytics_nuzhny_2_zaryadki_do_100">патрэбны дзве зарадкі да 100%%</string>
+    <string name="analytics_1f_kvt_ch_100km">%.1f кВт·гадз/100км</string>
+    <string name="analytics_nuzhny_2_zaryadki_do_100">патрэбны дзве зарадкі да 100%</string>
     <string name="analytics_vsego_zaryazheno">Усяго зараджана</string>
     <string name="analytics_potracheno_na_zaryadku">Выдаткавана на зарадку</string>
     <string name="analytics_probeg_v_raschete">Прабег у разліку</string>
@@ -630,7 +630,7 @@
     <string name="compare_obschie_rashody_za_period">Агульныя выдаткі за перыяд</string>
     <string name="compare_sht">%1$s шт.</string>
     <string name="compare_stoimost_1_km">Кошт 1 км</string>
-    <string name="compare_2f_km">%%.2f ₽/км</string>
+    <string name="compare_2f_km">%.2f ₽/км</string>
     <string name="compare_to_i_remont_na_10_000_km">ТА і рамонт на 10 000 км</string>
     <string name="compare_sredniy_rashod_topliva">Сярэдні выдатак паліва</string>
     <string name="compare_net_dannyh">Няма даных</string>
@@ -727,7 +727,7 @@
     <string name="gpstrip_istoriya_poezdok">Гісторыя паездак</string>
     <string name="gpstrip_poezdki_ne_otslezhivalis">Паездкі не адсочваліся</string>
     <string name="gpstrip_nazhmite_start_chtoby_nachat_zapis_pervoy">Націсніце «Старт», каб пачаць запіс першай паездкі</string>
-    <string name="gpstrip_2f_km">%%.2f км</string>
+    <string name="gpstrip_2f_km">%.2f км</string>
     <string name="gpstrip_zapis_idet">Запіс ідзе…</string>
     <string name="gpstrip_zapis_probega_po_gps">Запіс прабегу па GPS</string>
     <string name="gpstrip_nazhmite_start_chtoby_nachat_zapis">Націсніце «Старт», каб пачаць запіс</string>
@@ -735,7 +735,7 @@
     <string name="gpstrip_start">Старт</string>
     <string name="gpstrip_ch">%1$sгадз </string>
     <string name="gpstrip_min">%1$sхв</string>
-    <string name="gpstrip_0f_km_ch"> • %%.0f км/гадз</string>
+    <string name="gpstrip_0f_km_ch"> • %.0f км/гадз</string>
     <string name="gpstrip_pokazat_marshrut">Паказаць маршрут</string>
     <string name="gpstrip_udalit_poezdku">Выдаліць паездку</string>
     <string name="gpstrip_statistika_za_mesyats">Статыстыка за месяц</string>
@@ -786,7 +786,7 @@
     <string name="insurance_polis">Поліс: %1$s</string>
     <string name="insurance_istek">Скончыўся</string>
     <string name="insurance_esche_dn">Яшчэ %1$s дз.</string>
-    <string name="insurance_stoimost_2f">Кошт: %%.2f ₽</string>
+    <string name="insurance_stoimost_2f">Кошт: %.2f ₽</string>
     <string name="insurance_strahovaya_kompaniya">Страхавая кампанія</string>
     <string name="insurance_nomer_polisa">Нумар поліса</string>
     <string name="insurance_stoimost">Кошт (₽)</string>
@@ -863,7 +863,7 @@
     <string name="navigator_rasstoyanie">адлегласць</string>
     <string name="navigator_toplivo">паліва</string>
     <string name="navigator_poehali">Паехалі!</string>
-    <string name="navigator_0f_km">%%.0f км</string>
+    <string name="navigator_0f_km">%.0f км</string>
     <string name="navigator_poezd">%1$s · %2$s паездак</string>
 
     <!-- Знаёмства -->
@@ -1031,7 +1031,7 @@
     <string name="profile_strahovka">Страхоўка</string>
     <string name="profile_ezhenedelnyy_daydzhest">Штотыднёвая зводка</string>
     <string name="profile_nizkiy_uroven_topliva">Нізкі ўзровень паліва</string>
-    <string name="profile_prevyshenie_80_byudzheta">Дасягнута 80%% бюджэту</string>
+    <string name="profile_prevyshenie_80_byudzheta">Дасягнута 80% бюджэту</string>
     <string name="profile_tihie_chasy">Ціхія гадзіны</string>
     <string name="profile_ne_bespokoit_s_00_do_00">Не турбаваць з %1$s:00 да %2$s:00</string>
     <string name="profile_nachalo_00">Пачатак: %1$s:00</string>
@@ -1324,7 +1324,7 @@
     <string name="notify_cherez">%1$s — праз %2$s %3$s</string>
     <string name="notify_to_po_sroku">ТА па тэрміне: %1$s</string>
     <string name="notify_potracheno">Выдаткавана: %1$s</string>
-    <string name="notify_proydeno_0f_km"> • Пройдзена: %%.0f км</string>
+    <string name="notify_proydeno_0f_km"> • Пройдзена: %.0f км</string>
     <string name="notify_zapravok"> • Заправак: %1$s</string>
     <string name="notify_itogi_nedeli">Вынікі тыдня</string>
     <string name="notify_rashod_vyros_na_1f_protiv_1f_l_100_km_v">Выдатак вырас на %1$s%%: %%.1f супраць %%.1f л/100 км у сярэднім. </string>
@@ -1334,11 +1334,11 @@
     <string name="notify_na_menshe">на %1$s%% менш</string>
 
     <!-- Віджэт -->
-    <string name="widget_1f_kvt_ch_100">%%.1f кВт·гадз/100</string>
-    <string name="widget_1f_l_100">%%.1f л/100</string>
+    <string name="widget_1f_kvt_ch_100">%.1f кВт·гадз/100</string>
+    <string name="widget_1f_l_100">%.1f л/100</string>
     <string name="widget_cherez_km">%1$s: праз %2$s км</string>
     <string name="widget_rashod">+ Выдатак</string>
-    <string name="widget_d_km">%%,d км</string>
+    <string name="widget_d_km">%,d км</string>
     <string name="widget_rashody_za_mesyats">Выдаткі за месяц</string>
     <string name="widget_avt">%1$s аўт.</string>
 
@@ -1368,4 +1368,157 @@
     <string name="maneuver_hard_right">Рэзка направа</string>
     <string name="maneuver_u_turn">Разварот</string>
     <string name="maneuver_finish">Прыбыццё</string>
+
+    <!-- Апавяшчэнне навігатара -->
+    <string name="nav_service_speed">%1$s км/гадз</string>
+    <string name="nav_service_maneuver_street">%1$s · %2$s на %3$s</string>
+    <string name="nav_service_maneuver">%1$s · %2$s</string>
+    <string name="nav_service_left">засталося %1$s</string>
+
+    <!-- Заезды ў навігатары -->
+    <string name="navigator_add_stop">Дадаць заезд</string>
+    <string name="navigator_stop_n">Заезд %1$s: %2$s</string>
+    <string name="navigator_pick_stop">Выберыце месца заезду</string>
+    <string name="navigator_stops_count">заездаў: %1$s</string>
+
+    <!-- Падказкі-працягі CarBot -->
+    <string name="carbot_follow_last_month">За мінулы месяц</string>
+    <string name="carbot_follow_this_month">За гэты месяц</string>
+    <string name="carbot_follow_peak_month">Самы дарагі месяц</string>
+    <string name="carbot_follow_total">Усяго за ўвесь час</string>
+    <string name="carbot_follow_fuel">Сярэдні выдатак</string>
+    <string name="carbot_follow_fuel_spend">Колькі пайшло на паліва</string>
+    <string name="carbot_follow_trips">Паездкі па GPS</string>
+    <string name="carbot_follow_price_per_km">Кошт кіламетра</string>
+    <string name="carbot_follow_open_service">Адкрый ТА</string>
+    <string name="carbot_follow_service_spend">Колькі пайшло на абслугоўванне</string>
+    <string name="carbot_follow_insurance">Што са страхоўкай</string>
+    <string name="carbot_follow_open_docs">Пакажы дакументы</string>
+    <string name="carbot_follow_maintenance">Што з ТА</string>
+
+    <string name="carbot_clear">Ачысціць размову</string>
+    <string name="carbot_copied">Скапіявана</string>
+    <string name="carbot_greeting">👋 Прывітанне! Я **CarBot** — ваш аўтамабільны памочнік. Спытайце пра выдаткі, ТА ці стан аўтамабіля.
+
+Напішыце **што ўмееш**, каб даведацца, што я магу.</string>
+
+    <!-- Цэны па заправках -->
+    <string name="analytics_stations_title">Цэны па заправках</string>
+    <string name="analytics_stations_hint">Кошт літра па вашых чэках — са зніжкамі і акцыямі, як ёсць</string>
+    <string name="analytics_stations_fillups">заправак: %1$s</string>
+    <string name="analytics_stations_overpay">+%1$s да літра</string>
+    <string name="analytics_stations_total_overpay">Калі б усе заправкі былі па цане самай таннай, вы б зэканомілі %1$s</string>
+
+    <!-- Шыны -->
+    <string name="tyres_title">Шыны</string>
+    <string name="tyres_add">Дадаць камплект</string>
+    <string name="tyres_edit">Змяніць камплект</string>
+    <string name="tyres_empty">Камплектаў пакуль няма. Дадайце зімовыя і летнія — праграма будзе лічыць прабег кожнага асобна.</string>
+    <string name="tyres_season_summer">Летнія</string>
+    <string name="tyres_season_winter">Зімовыя</string>
+    <string name="tyres_season_all">Усесезонныя</string>
+    <string name="tyres_install">Паставіць на машыну</string>
+    <string name="tyres_uninstall">Зняць</string>
+    <string name="tyres_installed_now">Стаяць зараз</string>
+    <string name="tyres_km_total">%1$d км прабегу</string>
+    <string name="tyres_km_this_season">з іх %1$d км за гэты сезон</string>
+    <string name="tyres_wear_of_life">Знос %1$d%% ад рэсурсу %2$d км</string>
+    <string name="tyres_price_and_per_km">%1$s за камплект, %2$s за кіламетр</string>
+    <string name="tyres_stored_at">Захоўванне: %1$s</string>
+    <string name="tyres_delete_title">Выдаліць камплект?</string>
+    <string name="tyres_delete_message">«%1$s» і ўвесь яго прабег будуць выдалены. Адмяніць гэта нельга.</string>
+    <string name="tyres_field_name">Назва</string>
+    <string name="tyres_field_size">Памер</string>
+    <string name="tyres_size_example">205/55 R16 91V</string>
+    <string name="tyres_field_price">Цана камплекта</string>
+    <string name="tyres_field_purchase_date">Дата пакупкі</string>
+    <string name="tyres_field_expected_life">Рэсурс, км</string>
+    <string name="tyres_expected_life_hint">Пакіньце пустым, калі не ведаеце — знос тады не паказваецца</string>
+    <string name="tyres_field_storage">Дзе захоўваецца</string>
+    <string name="tyres_field_notes">Нататкі</string>
+    <string name="cardetail_shiny">Шыны</string>
+
+    <!-- Транспартны падатак -->
+    <string name="car_engine_power">Магутнасць рухавіка</string>
+    <string name="car_engine_power_hint">З тэхпашпарта. Патрэбна для разліку транспартнага падатку</string>
+    <string name="car_hp">к.с.</string>
+    <string name="tax_title">Транспартны падатак за %1$d год</string>
+    <string name="tax_change_rate">Стаўка</string>
+    <string name="tax_rate_base">Па базавай стаўцы %1$s ₽ за к.с., магутнасць %2$d к.с.</string>
+    <string name="tax_rate_custom">Па вашай стаўцы %1$s ₽ за к.с., магутнасць %2$d к.с.</string>
+    <string name="tax_partial_year">За %1$d месяцаў валодання</string>
+    <string name="tax_due">Заплаціць да %1$s</string>
+    <string name="tax_base_rate_warning">Гэта базавая стаўка з Падатковага кодэкса. У вашым рэгіёне яна амаль напэўна іншая — паглядзіце яе ў квітанцыі і ўвядзіце тут.</string>
+    <string name="tax_rate_dialog_title">Стаўка падатку</string>
+    <string name="tax_rate_dialog_hint">Колькі рублёў за адну конскую сілу бяруць у вашым рэгіёне. Значэнне ёсць у падатковым паведамленні.</string>
+    <string name="tax_rate_label">Рублёў за к.с.</string>
+    <string name="tax_reset_rate">Вярнуць базавую</string>
+    <string name="tax_notify_title">Транспартны падатак: %1$s</string>
+    <string name="tax_notify_body">Каля %1$s ₽ за %2$d год. Тэрмін уплаты — 1 снежня</string>
+
+    <!-- Пашпарт аўтамабіля -->
+    <string name="passport_title">Пашпарт аўтамабіля</string>
+    <string name="passport_export">Пашпарт аўто (PDF)</string>
+    <string name="passport_export_hint">Уся гісторыя адным дакументам — для пакупніка, сервісу ці страхавой</string>
+    <string name="passport_subtitle">%1$d года, %2$s</string>
+    <string name="passport_generated">Дакумент сфарміраваны %1$s</string>
+    <string name="passport_section_vehicle">Аўтамабіль</string>
+    <string name="passport_section_money">Валоданне і выдаткі</string>
+    <string name="passport_section_service">Гісторыя абслугоўвання і рамонту</string>
+    <string name="passport_section_upcoming">Рэгламентныя работы на сёння</string>
+    <string name="passport_section_tyres">Шыны</string>
+    <string name="passport_section_incidents">Здарэнні</string>
+    <string name="passport_section_documents">Дакументы і страхоўкі</string>
+    <string name="passport_vin">VIN</string>
+    <string name="passport_color">Колер</string>
+    <string name="passport_purchase_date">Дата пакупкі</string>
+    <string name="passport_owned_for">Ва ўласнасці</string>
+    <string name="passport_years_months">%1$d г. %2$d мес.</string>
+    <string name="passport_purchase_price">Цана пакупкі</string>
+    <string name="passport_spent_total">Укладзена за ўвесь час</string>
+    <string name="passport_driven_by_owner">Пройдзена ўладальнікам</string>
+    <string name="passport_cost_per_km">Кошт кіламетра</string>
+    <string name="passport_fuel_average">Сярэднія выдаткі па запраўках да поўнага бака: %1$s л на 100 км</string>
+    <string name="passport_works_and_shop">Работы і сервіс</string>
+    <string name="passport_overdue">Пратэрмінавана на %1$d км</string>
+    <string name="passport_tyre_km">Прабег</string>
+    <string name="passport_tyre_state">Стан</string>
+    <string name="passport_tyre_stored">На захоўванні</string>
+    <string name="passport_incident_type">Што адбылося</string>
+    <string name="passport_repair_cost">Рамонт</string>
+    <string name="passport_doc_type">Тып</string>
+    <string name="passport_doc_title">Назва</string>
+    <string name="passport_doc_valid_until">Дзейнічае да</string>
+    <string name="passport_no_incidents">За ўвесь час валодання здарэнняў не зафіксавана.</string>
+    <string name="passport_nothing_recorded">Запісаў няма.</string>
+    <string name="passport_footer">Дакумент сабраны праграмай CarCost з запісаў уладальніка.</string>
+    <string name="passport_creating">Збіраем пашпарт…</string>
+    <string name="passport_failed">Не ўдалося сабраць пашпарт: %1$s</string>
+
+    <!-- Вынікі года -->
+    <string name="yearreview_title">Вынікі года</string>
+    <string name="yearreview_open">Вынікі года</string>
+    <string name="yearreview_share">Падзяліцца</string>
+    <string name="yearreview_no_car">Аўтамабіль не знойдзены</string>
+    <string name="yearreview_not_enough">За гэты год усяго %1$d запісаў — для вынікаў малавата. Вядзіце запісы, і напрыканцы года будзе што паказаць.</string>
+    <string name="yearreview_spent">выдаткавана за год</string>
+    <string name="yearreview_driven">пройдзена за год</string>
+    <string name="yearreview_cost_per_km">%1$s за кіламетр</string>
+    <string name="yearreview_more_than_last">на %1$d%% больш, чым годам раней</string>
+    <string name="yearreview_less_than_last">на %1$d%% менш, чым годам раней</string>
+    <string name="yearreview_section_fuel">Паліва</string>
+    <string name="yearreview_fillups">Запраўленняў: %1$d</string>
+    <string name="yearreview_liters">Заліта літраў: %1$s</string>
+    <string name="yearreview_avg_price">Сярэдняя цана літра: %1$s</string>
+    <string name="yearreview_favourite_station">Часцей за ўсё запраўляліся: %1$s</string>
+    <string name="yearreview_section_months">Месяцы</string>
+    <string name="yearreview_busiest_month">Самы дарагі — %1$s, %2$s</string>
+    <string name="yearreview_quietest_month">Самы спакойны — %1$s, %2$s</string>
+    <string name="yearreview_section_trips">Паездкі</string>
+    <string name="yearreview_longest_trip">Самая доўгая паездка: %1$s км</string>
+    <string name="yearreview_trips_recorded">Запісана паездак: %1$d</string>
+    <string name="yearreview_section_categories">На што ішло</string>
+    <string name="yearreview_footer">Палічана праграмай CarCost</string>
+    <string name="yearreview_notify_title">Вынікі %1$d года гатовыя</string>
+    <string name="yearreview_notify_body">Паглядзіце, колькі прайшлі і на што пайшлі грошы</string>
 </resources>

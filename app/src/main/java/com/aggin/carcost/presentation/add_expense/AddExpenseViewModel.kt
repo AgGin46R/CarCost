@@ -742,6 +742,10 @@ class AddExpenseViewModel(
                     val result = supabaseExpenseRepo.insertExpense(expense)
                     result.fold(
                         onSuccess = {
+                            // Отметка о подтверждении сервером: по ней
+                            // синхронизация отличит новую запись от удалённой
+                            // совладельцем и не воскресит удалённое
+                            database.expenseDao().markSynced(expense.id)
                             android.util.Log.d("AddExpense", "✅ Expense synced to Supabase: ${expense.id}")
                         },
                         onFailure = { error ->
@@ -749,7 +753,10 @@ class AddExpenseViewModel(
                             val carSynced = ensureCarSyncedToSupabase(carId)
                             if (carSynced) {
                                 supabaseExpenseRepo.insertExpense(expense).fold(
-                                    onSuccess = { android.util.Log.d("AddExpense", "✅ Expense synced after car sync") },
+                                    onSuccess = {
+                                        database.expenseDao().markSynced(expense.id)
+                                        android.util.Log.d("AddExpense", "✅ Expense synced after car sync")
+                                    },
                                     onFailure = { e -> android.util.Log.e("AddExpense", "❌ Expense sync failed after car sync: ${e.message}") }
                                 )
                             } else {

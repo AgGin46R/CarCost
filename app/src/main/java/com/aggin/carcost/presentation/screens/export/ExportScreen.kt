@@ -174,6 +174,25 @@ fun ExportScreen(
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+                        // Паспорт стоит за разделителем вместе с бэкапом, а не
+                        // рядом с отчётами: фильтры периода и категорий на него
+                        // не действуют, и соседство с ними обещало бы обратное
+                        ExportButton(
+                            text = stringResource(R.string.passport_export),
+                            icon = Icons.Default.Description,
+                            onClick = { viewModel.exportVehiclePassport() },
+                            enabled = !uiState.isExporting,
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+
+                        Text(
+                            text = stringResource(R.string.passport_export_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                        )
+
                         ExportButton(
                             text = stringResource(R.string.export_rezervnaya_kopiya_vse_avto),
                             icon = Icons.Default.BackupTable,

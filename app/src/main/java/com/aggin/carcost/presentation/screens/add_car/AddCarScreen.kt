@@ -294,6 +294,21 @@ fun AddCarScreen(
                 enabled = !uiState.isSaving
             )
 
+            // Мощность двигателя — из ПТС. Нужна только для транспортного
+            // налога, поэтому и подпись говорит об этом прямо
+            OutlinedTextField(
+                value = uiState.enginePowerHp,
+                onValueChange = { viewModel.updateEnginePowerHp(it) },
+                label = { Text(stringResource(R.string.car_engine_power)) },
+                placeholder = { Text("106") },
+                supportingText = { Text(stringResource(R.string.car_engine_power_hint)) },
+                suffix = { Text(stringResource(R.string.car_hp)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                enabled = !uiState.isSaving
+            )
+
             // VIN
             OutlinedTextField(
                 value = uiState.vin,

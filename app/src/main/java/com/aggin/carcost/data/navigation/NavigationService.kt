@@ -42,8 +42,35 @@ class NavigationService : LifecycleService() {
         const val EXTRA_LONGITUDE = "extra_longitude"
         const val EXTRA_SPEED_KMH = "extra_speed_kmh"
 
+        /** Подсказка от экрана навигатора: манёвр и остаток пути */
+        const val ACTION_GUIDANCE = "action_navigation_guidance"
+        const val EXTRA_MANEUVER = "extra_maneuver"
+        const val EXTRA_DETAILS = "extra_details"
+
         private const val LOCATION_INTERVAL_MS = 2_000L
         private const val MAX_ACCURACY_METERS = 30f
+
+        /**
+         * Передаёт в уведомление то, что знает только экран навигатора.
+         *
+         * Служба видит лишь координаты и скорость — маршрут и манёвры живут в
+         * модели навигатора. Раньше в уведомлении из-за этого была одна
+         * скорость, а водителю, у которого телефон в кармане или экран погас,
+         * нужен как раз поворот и расстояние до него.
+         *
+         * Текст приходит готовым: язык интерфейса известен модели, и собирать
+         * строки в службе значило бы дублировать эту логику.
+         */
+        fun updateGuidance(context: Context, maneuver: String, details: String) {
+            val intent = Intent(context, NavigationService::class.java).apply {
+                action = ACTION_GUIDANCE
+                putExtra(EXTRA_MANEUVER, maneuver)
+                putExtra(EXTRA_DETAILS, details)
+            }
+            // Служба уже работает на переднем плане; если её нет — подсказку
+            // просто некуда показывать, и падать из-за этого незачем
+            runCatching { context.startService(intent) }
+        }
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -59,6 +86,11 @@ class NavigationService : LifecycleService() {
     private var destName: String = "Пункт назначения"
     private var startTime: Long = 0L
     private var lastLocation: Location? = null
+
+    /** Что показывать в уведомлении: манёвр сверху, подробности строкой ниже */
+    private var lastManeuver: String? = null
+    private var lastDetails: String? = null
+    private var lastSpeedKmh: Int = 0
     private var totalDistanceMeters: Double = 0.0
     private val routePoints = mutableListOf<Pair<Double, Double>>()
 
@@ -78,6 +110,11 @@ class NavigationService : LifecycleService() {
                 startTime = System.currentTimeMillis()
                 startForeground(NOTIFICATION_ID, buildNotification("Навигация запущена", destName))
                 startLocationUpdates()
+            }
+            ACTION_GUIDANCE -> {
+                lastManeuver = intent.getStringExtra(EXTRA_MANEUVER) ?: lastManeuver
+                lastDetails = intent.getStringExtra(EXTRA_DETAILS) ?: lastDetails
+                refreshNotification()
             }
             ACTION_STOP -> {
                 stopNavigation()
@@ -116,8 +153,8 @@ class NavigationService : LifecycleService() {
             setPackage(packageName)
         })
 
-        // Update notification with speed
-        updateNotification("Скорость: $speedKmh км/ч", destName)
+        lastSpeedKmh = speedKmh
+        refreshNotification()
     }
 
     private fun stopNavigation() {
@@ -185,6 +222,25 @@ class NavigationService : LifecycleService() {
 
     private fun updateNotification(title: String, subtitle: String) {
         notificationManager.notify(NOTIFICATION_ID, buildNotification(title, subtitle))
+    }
+
+    /**
+     * Собирает уведомление из того, что известно на этот момент.
+     *
+     * Первой строкой — манёвр с расстоянием до него: это единственное, что
+     * нужно водителю немедленно. Скорость уходит в конец второй строки: она
+     * есть на приборной панели, а поворот больше нигде не написан.
+     *
+     * Пока подсказка от экрана не пришла, показываем то, что знаем сами, —
+     * пустое уведомление у постоянно висящей службы выглядит поломкой.
+     */
+    private fun refreshNotification() {
+        val title = lastManeuver ?: getString(R.string.navigator_marshrut)
+        val parts = listOfNotNull(
+            lastDetails ?: destName,
+            if (lastSpeedKmh > 0) getString(R.string.nav_service_speed, lastSpeedKmh) else null
+        )
+        updateNotification(title, parts.joinToString(" · "))
     }
 
     override fun onDestroy() {

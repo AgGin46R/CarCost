@@ -1,5 +1,12 @@
 package com.aggin.carcost.presentation.screens.carbot
 
+import androidx.compose.material.icons.filled.Delete
+import com.aggin.carcost.R
+import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.Mic
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -229,6 +236,17 @@ fun CarBotScreen(navController: NavController) {
                     }
                 },
                 actions = {
+                    // Очистить разговор: заодно сбрасывает память о предыдущем
+                    // вопросе, иначе уточнение вроде «а за август?» продолжало
+                    // бы разговор, которого на экране уже нет
+                    if (uiState.messages.size > 1) {
+                        IconButton(onClick = { viewModel.clearConversation() }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.carbot_clear)
+                            )
+                        }
+                    }
                     // AI setup button (when not downloaded and not downloading)
                     if (!uiState.isModelDownloaded && !uiState.isDownloadingModel) {
                         TextButton(onClick = { showAiSetupDialog = true }) {
@@ -311,7 +329,16 @@ fun CarBotScreen(navController: NavController) {
                 }
             }
 
-            if (uiState.messages.size <= 1 && !uiState.isProcessing) {
+            // До первого вопроса показываем, с чего начать; после каждого
+            // ответа — что уместно спросить дальше. Раньше подсказки исчезали
+            // навсегда после первого сообщения, и узнать о возможностях бота
+            // по ходу разговора было неоткуда.
+            val chips = when {
+                uiState.followUps.isNotEmpty() -> uiState.followUps
+                uiState.messages.size <= 1 -> suggestions
+                else -> emptyList()
+            }
+            if (chips.isNotEmpty() && !uiState.isProcessing) {
                 LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -319,7 +346,7 @@ fun CarBotScreen(navController: NavController) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
-                    items(suggestions) { suggestion ->
+                    items(chips) { suggestion ->
                         SuggestionChip(
                             onClick = { viewModel.sendSuggestion(suggestion) },
                             label = { Text(suggestion, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -421,6 +448,7 @@ fun CarBotScreen(navController: NavController) {
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun MessageBubble(message: BotMessage) {
     val alignment = if (message.isFromUser) Alignment.End else Alignment.Start
     val bgColor = if (message.isFromUser)
@@ -440,11 +468,27 @@ private fun MessageBubble(message: BotMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
     ) {
+        // Долгое нажатие копирует ответ: в ответах бота числа, которые люди
+        // переносят в заметки и сообщения, а выделить текст внутри пузыря
+        // нельзя — он не поле ввода
+        val clipboard = LocalClipboardManager.current
+        val context = LocalContext.current
         Box(
             modifier = Modifier
                 .widthIn(max = 280.dp)
                 .clip(shape)
                 .background(bgColor)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = {
+                        clipboard.setText(AnnotatedString(message.text))
+                        android.widget.Toast.makeText(
+                            context,
+                            context.getString(R.string.carbot_copied),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                )
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             MarkdownText(text = message.text, color = textColor)

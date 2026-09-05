@@ -187,7 +187,7 @@
     <string name="cardetail_l_2"> / %1$s l</string>
     <string name="cardetail_udalit_rashod">Delete expense?</string>
     <string name="cardetail_eto_deystvie_nelzya_otmenit">This cannot be undone.</string>
-    <string name="cardetail_1f_l_100km">%%.1f l/100km</string>
+    <string name="cardetail_1f_l_100km">%.1f l/100km</string>
     <string name="cardetail_detali">Details: %1$s</string>
     <string name="cardetail_rashody">Expenses (%1$s)</string>
     <string name="cardetail_net_rashodov_po_filtru">No expenses match the filter</string>
@@ -211,14 +211,14 @@
     <string name="cardetail_podrobnee">Details</string>
     <string name="cardetail_data">Date</string>
     <string name="cardetail_zapravleno">Filled</string>
-    <string name="cardetail_2f_l">%%.2f l</string>
+    <string name="cardetail_2f_l">%.2f l</string>
     <string name="cardetail_zaryazheno">Charged</string>
-    <string name="cardetail_1f_kvt_ch">%%.1f kWh</string>
+    <string name="cardetail_1f_kvt_ch">%.1f kWh</string>
     <string name="cardetail_marka_topliva">Fuel grade</string>
     <string name="cardetail_zapravka">Fill-up</string>
     <string name="cardetail_do_polnogo">to full</string>
     <string name="cardetail_rashod">Consumption</string>
-    <string name="cardetail_2f_l_100_km">%%.2f l/100 km</string>
+    <string name="cardetail_2f_l_100_km">%.2f l/100 km</string>
     <string name="cardetail_rabota">Labour</string>
     <string name="cardetail_servis">Garage</string>
     <string name="cardetail_zapchasti">Parts</string>
@@ -252,7 +252,7 @@
     <string name="addexp_kilovatt_chasov">Kilowatt-hours</string>
     <string name="addexp_kvt_ch">kWh</string>
     <string name="addexp_tsena_za_kvt_ch">Price per kWh</string>
-    <string name="addexp_zaryad_do_100">Charged to 100%%</string>
+    <string name="addexp_zaryad_do_100">Charged to 100%</string>
     <string name="addexp_detali_obsluzhivaniya">Service details</string>
     <string name="addexp_nazvanie_sto">Garage name</string>
     <string name="addexp_avtoservis_1">Garage No. 1</string>
@@ -380,10 +380,10 @@
     <string name="analytics_gps_poezdki">GPS trips</string>
     <string name="analytics_vsego_poezdok">Trips total</string>
     <string name="analytics_obschiy_probeg">Total distance</string>
-    <string name="analytics_1f_km">%%.1f km</string>
+    <string name="analytics_1f_km">%.1f km</string>
     <string name="analytics_sr_poezdka">Avg trip</string>
     <string name="analytics_sr_skorost">Avg speed</string>
-    <string name="analytics_0f_km_ch">%%.0f km/h</string>
+    <string name="analytics_0f_km_ch">%.0f km/h</string>
     <string name="analytics_samaya_dlinnaya_poezdka">🏆 Longest trip</string>
     <string name="analytics_god_k_godu">Year on year</string>
     <string name="analytics_top_mesyatsev_po_rashodam">Top months by spending</string>
@@ -411,15 +411,15 @@
     <string name="analytics_istochnikami_oni_zavisyat_ot_doli_poezdok">energy sources they depend on how much you drive on electricity, </string>
     <string name="analytics_poetomu_sravnivat_ih_s_obychnoy_mashinoy">so they cannot be compared with an ordinary car.</string>
     <string name="analytics_sredniy_rashod">Average consumption</string>
-    <string name="analytics_2f_l_100km">%%.2f l/100km</string>
+    <string name="analytics_2f_l_100km">%.2f l/100km</string>
     <string name="analytics_nuzhny_2_zapravki_do_polnogo">two fill-ups to full are needed</string>
     <string name="analytics_vsego_zapravleno">Fuel bought</string>
-    <string name="analytics_1f_l">%%.1f l</string>
+    <string name="analytics_1f_l">%.1f l</string>
     <string name="analytics_potracheno_na_toplivo">Spent on fuel</string>
     <string name="analytics_srednyaya_tsena_za_litr">Average price per litre</string>
     <string name="analytics_rashod_elektrichestva">Electricity consumption</string>
-    <string name="analytics_1f_kvt_ch_100km">%%.1f kWh/100km</string>
-    <string name="analytics_nuzhny_2_zaryadki_do_100">two charges to 100%% are needed</string>
+    <string name="analytics_1f_kvt_ch_100km">%.1f kWh/100km</string>
+    <string name="analytics_nuzhny_2_zaryadki_do_100">two charges to 100% are needed</string>
     <string name="analytics_vsego_zaryazheno">Energy charged</string>
     <string name="analytics_potracheno_na_zaryadku">Spent on charging</string>
     <string name="analytics_probeg_v_raschete">Distance counted</string>
@@ -631,7 +631,7 @@
     <string name="compare_obschie_rashody_za_period">Total spending for the period</string>
     <string name="compare_sht">%1$s items</string>
     <string name="compare_stoimost_1_km">Cost per km</string>
-    <string name="compare_2f_km">%%.2f ₽/km</string>
+    <string name="compare_2f_km">%.2f ₽/km</string>
     <string name="compare_to_i_remont_na_10_000_km">Service and repair per 10,000 km</string>
     <string name="compare_sredniy_rashod_topliva">Average fuel consumption</string>
     <string name="compare_net_dannyh">No data</string>
@@ -728,7 +728,7 @@
     <string name="gpstrip_istoriya_poezdok">Trip history</string>
     <string name="gpstrip_poezdki_ne_otslezhivalis">No trips have been tracked</string>
     <string name="gpstrip_nazhmite_start_chtoby_nachat_zapis_pervoy">Tap “Start” to record your first trip</string>
-    <string name="gpstrip_2f_km">%%.2f km</string>
+    <string name="gpstrip_2f_km">%.2f km</string>
     <string name="gpstrip_zapis_idet">Recording…</string>
     <string name="gpstrip_zapis_probega_po_gps">Recording distance by GPS</string>
     <string name="gpstrip_nazhmite_start_chtoby_nachat_zapis">Tap “Start” to begin recording</string>
@@ -736,7 +736,7 @@
     <string name="gpstrip_start">Start</string>
     <string name="gpstrip_ch">%1$sh </string>
     <string name="gpstrip_min">%1$smin</string>
-    <string name="gpstrip_0f_km_ch"> • %%.0f km/h</string>
+    <string name="gpstrip_0f_km_ch"> • %.0f km/h</string>
     <string name="gpstrip_pokazat_marshrut">Show route</string>
     <string name="gpstrip_udalit_poezdku">Delete trip</string>
     <string name="gpstrip_statistika_za_mesyats">Statistics for the month</string>
@@ -787,7 +787,7 @@
     <string name="insurance_polis">Policy: %1$s</string>
     <string name="insurance_istek">Expired</string>
     <string name="insurance_esche_dn">%1$s d. left</string>
-    <string name="insurance_stoimost_2f">Cost: %%.2f ₽</string>
+    <string name="insurance_stoimost_2f">Cost: %.2f ₽</string>
     <string name="insurance_strahovaya_kompaniya">Insurer</string>
     <string name="insurance_nomer_polisa">Policy number</string>
     <string name="insurance_stoimost">Cost (₽)</string>
@@ -864,7 +864,7 @@
     <string name="navigator_rasstoyanie">distance</string>
     <string name="navigator_toplivo">fuel</string>
     <string name="navigator_poehali">Let\'s go!</string>
-    <string name="navigator_0f_km">%%.0f km</string>
+    <string name="navigator_0f_km">%.0f km</string>
     <string name="navigator_poezd">%1$s · %2$s trips</string>
 
     <!-- Onboarding -->
@@ -1032,7 +1032,7 @@
     <string name="profile_strahovka">Insurance</string>
     <string name="profile_ezhenedelnyy_daydzhest">Weekly summary</string>
     <string name="profile_nizkiy_uroven_topliva">Low fuel</string>
-    <string name="profile_prevyshenie_80_byudzheta">80%% of budget reached</string>
+    <string name="profile_prevyshenie_80_byudzheta">80% of budget reached</string>
     <string name="profile_tihie_chasy">Quiet hours</string>
     <string name="profile_ne_bespokoit_s_00_do_00">Do not disturb from %1$s:00 to %2$s:00</string>
     <string name="profile_nachalo_00">Start: %1$s:00</string>
@@ -1325,7 +1325,7 @@
     <string name="notify_cherez">%1$s — in %2$s %3$s</string>
     <string name="notify_to_po_sroku">Service due by date: %1$s</string>
     <string name="notify_potracheno">Spent: %1$s</string>
-    <string name="notify_proydeno_0f_km"> • Driven: %%.0f km</string>
+    <string name="notify_proydeno_0f_km"> • Driven: %.0f km</string>
     <string name="notify_zapravok"> • Fill-ups: %1$s</string>
     <string name="notify_itogi_nedeli">Your week</string>
     <string name="notify_rashod_vyros_na_1f_protiv_1f_l_100_km_v">Consumption is up %1$s%%: %%.1f against %%.1f l/100 km on average. </string>
@@ -1335,11 +1335,11 @@
     <string name="notify_na_menshe">%1$s%% less</string>
 
     <!-- Widget -->
-    <string name="widget_1f_kvt_ch_100">%%.1f kWh/100</string>
-    <string name="widget_1f_l_100">%%.1f l/100</string>
+    <string name="widget_1f_kvt_ch_100">%.1f kWh/100</string>
+    <string name="widget_1f_l_100">%.1f l/100</string>
     <string name="widget_cherez_km">%1$s: in %2$s km</string>
     <string name="widget_rashod">+ Expense</string>
-    <string name="widget_d_km">%%,d km</string>
+    <string name="widget_d_km">%,d km</string>
     <string name="widget_rashody_za_mesyats">Spending this month</string>
     <string name="widget_avt">%1$s veh.</string>
 
@@ -1369,4 +1369,157 @@
     <string name="maneuver_hard_right">Sharp right</string>
     <string name="maneuver_u_turn">Make a U-turn</string>
     <string name="maneuver_finish">Arrival</string>
+
+    <!-- Navigation notification -->
+    <string name="nav_service_speed">%1$s km/h</string>
+    <string name="nav_service_maneuver_street">%1$s · %2$s onto %3$s</string>
+    <string name="nav_service_maneuver">%1$s · %2$s</string>
+    <string name="nav_service_left">%1$s left</string>
+
+    <!-- Navigation stops -->
+    <string name="navigator_add_stop">Add a stop</string>
+    <string name="navigator_stop_n">Stop %1$s: %2$s</string>
+    <string name="navigator_pick_stop">Choose a place to stop at</string>
+    <string name="navigator_stops_count">stops: %1$s</string>
+
+    <!-- CarBot follow-up suggestions -->
+    <string name="carbot_follow_last_month">Last month</string>
+    <string name="carbot_follow_this_month">This month</string>
+    <string name="carbot_follow_peak_month">Most expensive month</string>
+    <string name="carbot_follow_total">All time total</string>
+    <string name="carbot_follow_fuel">Average consumption</string>
+    <string name="carbot_follow_fuel_spend">How much went on fuel</string>
+    <string name="carbot_follow_trips">GPS trips</string>
+    <string name="carbot_follow_price_per_km">Cost per kilometre</string>
+    <string name="carbot_follow_open_service">Open service</string>
+    <string name="carbot_follow_service_spend">How much went on maintenance</string>
+    <string name="carbot_follow_insurance">What about insurance</string>
+    <string name="carbot_follow_open_docs">Show documents</string>
+    <string name="carbot_follow_maintenance">What about service</string>
+
+    <string name="carbot_clear">Clear the conversation</string>
+    <string name="carbot_copied">Copied</string>
+    <string name="carbot_greeting">👋 Hello! I am **CarBot**, your car assistant. Ask about expenses, service or the state of your vehicle.
+
+Type **what can you do** to see what I am capable of.</string>
+
+    <!-- Fuel prices by station -->
+    <string name="analytics_stations_title">Prices by station</string>
+    <string name="analytics_stations_hint">Price per litre from your own receipts — discounts and offers included</string>
+    <string name="analytics_stations_fillups">fill-ups: %1$s</string>
+    <string name="analytics_stations_overpay">+%1$s per litre</string>
+    <string name="analytics_stations_total_overpay">Had every fill-up been at your cheapest station, you would have saved %1$s</string>
+
+    <!-- Tyres -->
+    <string name="tyres_title">Tyres</string>
+    <string name="tyres_add">Add a set</string>
+    <string name="tyres_edit">Edit set</string>
+    <string name="tyres_empty">No sets yet. Add your winter and summer tyres and the app will track the mileage of each separately.</string>
+    <string name="tyres_season_summer">Summer</string>
+    <string name="tyres_season_winter">Winter</string>
+    <string name="tyres_season_all">All-season</string>
+    <string name="tyres_install">Fit to the car</string>
+    <string name="tyres_uninstall">Take off</string>
+    <string name="tyres_installed_now">Fitted now</string>
+    <string name="tyres_km_total">%1$d km covered</string>
+    <string name="tyres_km_this_season">%1$d km of that this season</string>
+    <string name="tyres_wear_of_life">%1$d%% worn of a %2$d km life</string>
+    <string name="tyres_price_and_per_km">%1$s per set, %2$s per kilometre</string>
+    <string name="tyres_stored_at">Stored at: %1$s</string>
+    <string name="tyres_delete_title">Delete this set?</string>
+    <string name="tyres_delete_message">"%1$s" and all its mileage will be removed. This cannot be undone.</string>
+    <string name="tyres_field_name">Name</string>
+    <string name="tyres_field_size">Size</string>
+    <string name="tyres_size_example">205/55 R16 91V</string>
+    <string name="tyres_field_price">Price of the set</string>
+    <string name="tyres_field_purchase_date">Purchase date</string>
+    <string name="tyres_field_expected_life">Expected life, km</string>
+    <string name="tyres_expected_life_hint">Leave blank if you do not know — wear is then not shown</string>
+    <string name="tyres_field_storage">Where it is stored</string>
+    <string name="tyres_field_notes">Notes</string>
+    <string name="cardetail_shiny">Tyres</string>
+
+    <!-- Vehicle tax -->
+    <string name="car_engine_power">Engine power</string>
+    <string name="car_engine_power_hint">From the registration document. Used to work out vehicle tax</string>
+    <string name="car_hp">hp</string>
+    <string name="tax_title">Vehicle tax for %1$d</string>
+    <string name="tax_change_rate">Rate</string>
+    <string name="tax_rate_base">At the base rate of %1$s per hp, engine %2$d hp</string>
+    <string name="tax_rate_custom">At your rate of %1$s per hp, engine %2$d hp</string>
+    <string name="tax_partial_year">For %1$d months of ownership</string>
+    <string name="tax_due">Due by %1$s</string>
+    <string name="tax_base_rate_warning">This is the base rate from the tax code. Your region almost certainly charges a different one — check your tax notice and enter it here.</string>
+    <string name="tax_rate_dialog_title">Tax rate</string>
+    <string name="tax_rate_dialog_hint">How much your region charges per horsepower. The figure is on your tax notice.</string>
+    <string name="tax_rate_label">Per hp</string>
+    <string name="tax_reset_rate">Back to base rate</string>
+    <string name="tax_notify_title">Vehicle tax: %1$s</string>
+    <string name="tax_notify_body">About %1$s for %2$d. Due on 1 December</string>
+
+    <!-- Vehicle passport -->
+    <string name="passport_title">Vehicle passport</string>
+    <string name="passport_export">Vehicle passport (PDF)</string>
+    <string name="passport_export_hint">The whole history in one document — for a buyer, a garage or an insurer</string>
+    <string name="passport_subtitle">%1$d, %2$s</string>
+    <string name="passport_generated">Document created %1$s</string>
+    <string name="passport_section_vehicle">Vehicle</string>
+    <string name="passport_section_money">Ownership and spending</string>
+    <string name="passport_section_service">Service and repair history</string>
+    <string name="passport_section_upcoming">Scheduled work as of today</string>
+    <string name="passport_section_tyres">Tyres</string>
+    <string name="passport_section_incidents">Incidents</string>
+    <string name="passport_section_documents">Documents and insurance</string>
+    <string name="passport_vin">VIN</string>
+    <string name="passport_color">Colour</string>
+    <string name="passport_purchase_date">Purchase date</string>
+    <string name="passport_owned_for">Owned for</string>
+    <string name="passport_years_months">%1$d y %2$d m</string>
+    <string name="passport_purchase_price">Purchase price</string>
+    <string name="passport_spent_total">Spent in total</string>
+    <string name="passport_driven_by_owner">Driven by the owner</string>
+    <string name="passport_cost_per_km">Cost per kilometre</string>
+    <string name="passport_fuel_average">Average consumption from full-tank fill-ups: %1$s l per 100 km</string>
+    <string name="passport_works_and_shop">Work and garage</string>
+    <string name="passport_overdue">Overdue by %1$d km</string>
+    <string name="passport_tyre_km">Mileage</string>
+    <string name="passport_tyre_state">State</string>
+    <string name="passport_tyre_stored">In storage</string>
+    <string name="passport_incident_type">What happened</string>
+    <string name="passport_repair_cost">Repair</string>
+    <string name="passport_doc_type">Type</string>
+    <string name="passport_doc_title">Title</string>
+    <string name="passport_doc_valid_until">Valid until</string>
+    <string name="passport_no_incidents">No incidents recorded during the whole period of ownership.</string>
+    <string name="passport_nothing_recorded">No records.</string>
+    <string name="passport_footer">Document assembled by CarCost from the owner\'s records.</string>
+    <string name="passport_creating">Building the passport…</string>
+    <string name="passport_failed">Could not build the passport: %1$s</string>
+
+    <!-- Year in review -->
+    <string name="yearreview_title">Year in review</string>
+    <string name="yearreview_open">Year in review</string>
+    <string name="yearreview_share">Share</string>
+    <string name="yearreview_no_car">Car not found</string>
+    <string name="yearreview_not_enough">Only %1$d records for this year — too few for a review. Keep recording and there will be something to show at the end of the year.</string>
+    <string name="yearreview_spent">spent this year</string>
+    <string name="yearreview_driven">covered this year</string>
+    <string name="yearreview_cost_per_km">%1$s per kilometre</string>
+    <string name="yearreview_more_than_last">%1$d%% more than the year before</string>
+    <string name="yearreview_less_than_last">%1$d%% less than the year before</string>
+    <string name="yearreview_section_fuel">Fuel</string>
+    <string name="yearreview_fillups">Fill-ups: %1$d</string>
+    <string name="yearreview_liters">Litres put in: %1$s</string>
+    <string name="yearreview_avg_price">Average price per litre: %1$s</string>
+    <string name="yearreview_favourite_station">Most frequent station: %1$s</string>
+    <string name="yearreview_section_months">Months</string>
+    <string name="yearreview_busiest_month">Priciest was %1$s, %2$s</string>
+    <string name="yearreview_quietest_month">Quietest was %1$s, %2$s</string>
+    <string name="yearreview_section_trips">Trips</string>
+    <string name="yearreview_longest_trip">Longest trip: %1$s km</string>
+    <string name="yearreview_trips_recorded">Trips recorded: %1$d</string>
+    <string name="yearreview_section_categories">Where it went</string>
+    <string name="yearreview_footer">Calculated by CarCost</string>
+    <string name="yearreview_notify_title">Your %1$d in review is ready</string>
+    <string name="yearreview_notify_body">See how far you went and where the money went</string>
 </resources>

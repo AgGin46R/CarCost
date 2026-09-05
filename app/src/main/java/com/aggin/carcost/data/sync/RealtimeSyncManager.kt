@@ -263,7 +263,8 @@ class RealtimeSyncManager(private val context: Context) {
                 try {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.record)
                     if (!ensureCarExists(dto.carId)) return@onEach
-                    db.expenseDao().upsertExpense(dto.toExpense())
+                    com.aggin.carcost.data.local.repository.ExpenseRepository(db.expenseDao())
+                        .saveFromServer(dto.toExpense())
                     raiseOdometer(dto.carId)
                     Log.d(TAG, "📥 Expense inserted: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = false)
@@ -276,7 +277,8 @@ class RealtimeSyncManager(private val context: Context) {
                 try {
                     val dto = json.decodeFromJsonElement(ExpenseDto.serializer(), change.record)
                     if (!ensureCarExists(dto.carId)) return@onEach
-                    db.expenseDao().upsertExpense(dto.toExpense())
+                    com.aggin.carcost.data.local.repository.ExpenseRepository(db.expenseDao())
+                        .saveFromServer(dto.toExpense())
                     raiseOdometer(dto.carId)
                     Log.d(TAG, "✏️ Expense updated: ${dto.id}")
                     maybeNotifyExpense(dto, isUpdate = true)

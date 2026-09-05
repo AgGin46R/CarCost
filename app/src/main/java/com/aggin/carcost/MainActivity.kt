@@ -120,6 +120,7 @@ class MainActivity : ComponentActivity() {
             NotificationHelper.NAV_TYPE_ADD_FUEL    -> "add_expense/$carId?category=FUEL"
             NotificationHelper.NAV_TYPE_GPS_TRIP    -> "gps_trip/$carId"
             NotificationHelper.NAV_TYPE_NAVIGATOR   -> "navigator"
+            NotificationHelper.NAV_TYPE_YEAR_REVIEW  -> "year_review/$carId"
             else -> "car_detail/$carId"
         }
     }

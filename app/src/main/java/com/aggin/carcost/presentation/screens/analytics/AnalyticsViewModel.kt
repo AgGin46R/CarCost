@@ -124,6 +124,11 @@ data class AnalyticsUiState(
     val categoryExpenses: List<CategoryExpense> = emptyList(),
     val monthlyExpenses: List<MonthlyExpense> = emptyList(),
     val fuelStatistics: FuelStatistics? = null,
+    /**
+     * Цены литра по заправкам. Пусто, когда сравнивать не с чем: заправки без
+     * указанного места или меньше двух визитов на каждую.
+     */
+    val stationPrices: List<com.aggin.carcost.domain.fuel.StationPriceAnalyzer.Station> = emptyList(),
     val forecast: ExpenseForecast? = null,
     val currentMonthExpenses: Double = 0.0,
     val previousMonthExpenses: Double = 0.0,
@@ -302,6 +307,7 @@ class EnhancedAnalyticsViewModel(
         val categoryExpenses = calculateCategoryExpenses(expenses, totalExpenses)
         val monthlyExpenses = calculateMonthlyExpenses(expenses)
         val fuelStatistics = calculateFuelStatistics(expenses, kmDriven)
+        val stationPrices = com.aggin.carcost.domain.fuel.StationPriceAnalyzer.analyze(expenses)
         val forecast = calculateForecast(expenses)
         val (currentMonth, previousMonth, comparison) = compareMonths(expenses)
         val topMonths = calculateTopMonths(monthlyExpenses)
@@ -326,6 +332,7 @@ class EnhancedAnalyticsViewModel(
             categoryExpenses = categoryExpenses,
             monthlyExpenses = monthlyExpenses,
             fuelStatistics = fuelStatistics,
+            stationPrices = stationPrices,
             forecast = forecast,
             currentMonthExpenses = currentMonth,
             previousMonthExpenses = previousMonth,

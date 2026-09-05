@@ -46,6 +46,8 @@ import com.aggin.carcost.data.local.database.entities.FavoritePlace
 import com.aggin.carcost.data.local.database.entities.PendingWrite
 import com.aggin.carcost.data.local.database.entities.FluidLevel
 import com.aggin.carcost.data.local.database.dao.FluidLevelDao
+import com.aggin.carcost.data.local.database.entities.TyreSet
+import com.aggin.carcost.data.local.database.dao.TyreSetDao
 
 // Миграция с версии 7 на версию 8 - СТАРАЯ ВЕРСИЯ (с ошибкой)
 val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -689,6 +691,69 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
     }
 }
 
+
+/**
+ * Отметка о подтверждении записи сервером.
+ *
+ * Пустая у существующих записей: сервер их, возможно, и видел, но узнать это
+ * задним числом нельзя. Первая же синхронизация проставит отметку всем, что
+ * лежит на сервере, — а пока она пуста, запись считается неотправленной и в
+ * худшем случае уедет на сервер повторно, что безвредно: там она перезапишется
+ * сама собой по тому же идентификатору.
+ */
+val MIGRATION_41_42 = object : Migration(41, 42) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE expenses ADD COLUMN syncedAt INTEGER")
+    }
+}
+
+/**
+ * Комплекты шин.
+ *
+ * Только создание таблицы: у существующих сущностей ничего не меняется, так
+ * что старым данным эта миграция навредить не может.
+ */
+val MIGRATION_42_43 = object : Migration(42, 43) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS tyre_sets (
+                id TEXT PRIMARY KEY NOT NULL,
+                carId TEXT NOT NULL,
+                name TEXT NOT NULL,
+                season TEXT NOT NULL,
+                size TEXT,
+                purchaseDate INTEGER,
+                purchasePrice REAL,
+                totalKm INTEGER NOT NULL DEFAULT 0,
+                installedAtOdometer INTEGER,
+                isInstalled INTEGER NOT NULL DEFAULT 0,
+                storageLocation TEXT,
+                notes TEXT,
+                photoUri TEXT,
+                expectedLifeKm INTEGER,
+                syncedAt INTEGER,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                FOREIGN KEY(carId) REFERENCES cars(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_tyre_sets_carId ON tyre_sets(carId)")
+    }
+}
+
+/**
+ * Мощность двигателя и ставка транспортного налога.
+ *
+ * Обе колонки пустые: мощность есть только в ПТС, а ставка — вопрос региона.
+ * Считать налог по выдуманным значениям хуже, чем не считать вовсе.
+ */
+val MIGRATION_43_44 = object : Migration(43, 44) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE cars ADD COLUMN enginePowerHp INTEGER")
+        database.execSQL("ALTER TABLE cars ADD COLUMN taxRatePerHp REAL")
+    }
+}
+
 @Database(
     entities = [
         Car::class,
@@ -710,9 +775,10 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         ChatReaction::class,
         FavoritePlace::class,
         PendingWrite::class,
-        FluidLevel::class
+        FluidLevel::class,
+        TyreSet::class
     ],
-    version = 41,
+    version = 44,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -737,6 +803,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritePlaceDao(): FavoritePlaceDao
     abstract fun pendingWriteDao(): PendingWriteDao
     abstract fun fluidLevelDao(): FluidLevelDao
+    abstract fun tyreSetDao(): TyreSetDao
 
     companion object {
         @Volatile
@@ -781,7 +848,10 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_37_38,
                         MIGRATION_38_39,
                         MIGRATION_39_40,
-                        MIGRATION_40_41
+                        MIGRATION_40_41,
+                        MIGRATION_41_42,
+                        MIGRATION_42_43,
+                        MIGRATION_43_44
                     )
                     .build()
                 INSTANCE = instance

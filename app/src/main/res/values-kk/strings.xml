@@ -186,7 +186,7 @@
     <string name="cardetail_l_2"> / %1$s л</string>
     <string name="cardetail_udalit_rashod">Шығысты жою керек пе?</string>
     <string name="cardetail_eto_deystvie_nelzya_otmenit">Бұл әрекетті кері қайтару мүмкін емес.</string>
-    <string name="cardetail_1f_l_100km">%%.1f л/100км</string>
+    <string name="cardetail_1f_l_100km">%.1f л/100км</string>
     <string name="cardetail_detali">Мәліметтер: %1$s</string>
     <string name="cardetail_rashody">Шығыстар (%1$s)</string>
     <string name="cardetail_net_rashodov_po_filtru">Сүзгі бойынша шығыс жоқ</string>
@@ -210,14 +210,14 @@
     <string name="cardetail_podrobnee">Толығырақ</string>
     <string name="cardetail_data">Күні</string>
     <string name="cardetail_zapravleno">Құйылды</string>
-    <string name="cardetail_2f_l">%%.2f л</string>
+    <string name="cardetail_2f_l">%.2f л</string>
     <string name="cardetail_zaryazheno">Зарядталды</string>
-    <string name="cardetail_1f_kvt_ch">%%.1f кВт·сағ</string>
+    <string name="cardetail_1f_kvt_ch">%.1f кВт·сағ</string>
     <string name="cardetail_marka_topliva">Отын маркасы</string>
     <string name="cardetail_zapravka">Жанармай құю</string>
     <string name="cardetail_do_polnogo">толыққа дейін</string>
     <string name="cardetail_rashod">Шығын</string>
-    <string name="cardetail_2f_l_100_km">%%.2f л/100 км</string>
+    <string name="cardetail_2f_l_100_km">%.2f л/100 км</string>
     <string name="cardetail_rabota">Жұмыс</string>
     <string name="cardetail_servis">Сервис</string>
     <string name="cardetail_zapchasti">Қосалқы бөлшектер</string>
@@ -251,7 +251,7 @@
     <string name="addexp_kilovatt_chasov">Киловатт-сағат</string>
     <string name="addexp_kvt_ch">кВт·сағ</string>
     <string name="addexp_tsena_za_kvt_ch">кВт·сағ бағасы</string>
-    <string name="addexp_zaryad_do_100">100%% дейін зарядтау</string>
+    <string name="addexp_zaryad_do_100">100% дейін зарядтау</string>
     <string name="addexp_detali_obsluzhivaniya">Қызмет көрсету мәліметтері</string>
     <string name="addexp_nazvanie_sto">Сервис атауы</string>
     <string name="addexp_avtoservis_1">№1 автосервис</string>
@@ -379,10 +379,10 @@
     <string name="analytics_gps_poezdki">GPS сапарлары</string>
     <string name="analytics_vsego_poezdok">Барлық сапар</string>
     <string name="analytics_obschiy_probeg">Жалпы жүріс</string>
-    <string name="analytics_1f_km">%%.1f км</string>
+    <string name="analytics_1f_km">%.1f км</string>
     <string name="analytics_sr_poezdka">Орт. сапар</string>
     <string name="analytics_sr_skorost">Орт. жылдамдық</string>
-    <string name="analytics_0f_km_ch">%%.0f км/сағ</string>
+    <string name="analytics_0f_km_ch">%.0f км/сағ</string>
     <string name="analytics_samaya_dlinnaya_poezdka">🏆 Ең ұзақ сапар</string>
     <string name="analytics_god_k_godu">Жылдан жылға</string>
     <string name="analytics_top_mesyatsev_po_rashodam">Шығыс бойынша үздік айлар</string>
@@ -410,15 +410,15 @@
     <string name="analytics_istochnikami_oni_zavisyat_ot_doli_poezdok">көлікте олар электрмен жүрген сапар үлесіне байланысты, </string>
     <string name="analytics_poetomu_sravnivat_ih_s_obychnoy_mashinoy">сондықтан оларды кәдімгі көлікпен салыстыруға болмайды.</string>
     <string name="analytics_sredniy_rashod">Орташа шығын</string>
-    <string name="analytics_2f_l_100km">%%.2f л/100км</string>
+    <string name="analytics_2f_l_100km">%.2f л/100км</string>
     <string name="analytics_nuzhny_2_zapravki_do_polnogo">толыққа дейін екі рет құю қажет</string>
     <string name="analytics_vsego_zapravleno">Барлығы құйылды</string>
-    <string name="analytics_1f_l">%%.1f л</string>
+    <string name="analytics_1f_l">%.1f л</string>
     <string name="analytics_potracheno_na_toplivo">Отынға жұмсалды</string>
     <string name="analytics_srednyaya_tsena_za_litr">Литрдің орташа бағасы</string>
     <string name="analytics_rashod_elektrichestva">Электр шығыны</string>
-    <string name="analytics_1f_kvt_ch_100km">%%.1f кВт·сағ/100км</string>
-    <string name="analytics_nuzhny_2_zaryadki_do_100">100%% дейін екі рет зарядтау қажет</string>
+    <string name="analytics_1f_kvt_ch_100km">%.1f кВт·сағ/100км</string>
+    <string name="analytics_nuzhny_2_zaryadki_do_100">100% дейін екі рет зарядтау қажет</string>
     <string name="analytics_vsego_zaryazheno">Барлығы зарядталды</string>
     <string name="analytics_potracheno_na_zaryadku">Зарядтауға жұмсалды</string>
     <string name="analytics_probeg_v_raschete">Есептегі жүріс</string>
@@ -630,7 +630,7 @@
     <string name="compare_obschie_rashody_za_period">Кезеңдегі жалпы шығыс</string>
     <string name="compare_sht">%1$s дана</string>
     <string name="compare_stoimost_1_km">1 км құны</string>
-    <string name="compare_2f_km">%%.2f ₽/км</string>
+    <string name="compare_2f_km">%.2f ₽/км</string>
     <string name="compare_to_i_remont_na_10_000_km">10 000 км-ге ТҚ және жөндеу</string>
     <string name="compare_sredniy_rashod_topliva">Орташа отын шығыны</string>
     <string name="compare_net_dannyh">Дерек жоқ</string>
@@ -727,7 +727,7 @@
     <string name="gpstrip_istoriya_poezdok">Сапарлар тарихы</string>
     <string name="gpstrip_poezdki_ne_otslezhivalis">Сапарлар қадағаланбаған</string>
     <string name="gpstrip_nazhmite_start_chtoby_nachat_zapis_pervoy">Алғашқы сапарды жазу үшін «Бастау» түймесін басыңыз</string>
-    <string name="gpstrip_2f_km">%%.2f км</string>
+    <string name="gpstrip_2f_km">%.2f км</string>
     <string name="gpstrip_zapis_idet">Жазылуда…</string>
     <string name="gpstrip_zapis_probega_po_gps">GPS бойынша жүрісті жазу</string>
     <string name="gpstrip_nazhmite_start_chtoby_nachat_zapis">Жазуды бастау үшін «Бастау» түймесін басыңыз</string>
@@ -735,7 +735,7 @@
     <string name="gpstrip_start">Бастау</string>
     <string name="gpstrip_ch">%1$sсағ </string>
     <string name="gpstrip_min">%1$sмин</string>
-    <string name="gpstrip_0f_km_ch"> • %%.0f км/сағ</string>
+    <string name="gpstrip_0f_km_ch"> • %.0f км/сағ</string>
     <string name="gpstrip_pokazat_marshrut">Бағытты көрсету</string>
     <string name="gpstrip_udalit_poezdku">Сапарды жою</string>
     <string name="gpstrip_statistika_za_mesyats">Ай статистикасы</string>
@@ -786,7 +786,7 @@
     <string name="insurance_polis">Полис: %1$s</string>
     <string name="insurance_istek">Мерзімі өтті</string>
     <string name="insurance_esche_dn">Тағы %1$s күн</string>
-    <string name="insurance_stoimost_2f">Құны: %%.2f ₽</string>
+    <string name="insurance_stoimost_2f">Құны: %.2f ₽</string>
     <string name="insurance_strahovaya_kompaniya">Сақтандыру компаниясы</string>
     <string name="insurance_nomer_polisa">Полис нөмірі</string>
     <string name="insurance_stoimost">Құны (₽)</string>
@@ -863,7 +863,7 @@
     <string name="navigator_rasstoyanie">қашықтық</string>
     <string name="navigator_toplivo">отын</string>
     <string name="navigator_poehali">Кеттік!</string>
-    <string name="navigator_0f_km">%%.0f км</string>
+    <string name="navigator_0f_km">%.0f км</string>
     <string name="navigator_poezd">%1$s · %2$s сапар</string>
 
     <!-- Танысу -->
@@ -1031,7 +1031,7 @@
     <string name="profile_strahovka">Сақтандыру</string>
     <string name="profile_ezhenedelnyy_daydzhest">Апталық қорытынды</string>
     <string name="profile_nizkiy_uroven_topliva">Отын аз</string>
-    <string name="profile_prevyshenie_80_byudzheta">Бюджеттің 80%% жетті</string>
+    <string name="profile_prevyshenie_80_byudzheta">Бюджеттің 80% жетті</string>
     <string name="profile_tihie_chasy">Тыныш сағаттар</string>
     <string name="profile_ne_bespokoit_s_00_do_00">%1$s:00-ден %2$s:00-ге дейін мазаламау</string>
     <string name="profile_nachalo_00">Басы: %1$s:00</string>
@@ -1324,7 +1324,7 @@
     <string name="notify_cherez">%1$s — %2$s %3$s кейін</string>
     <string name="notify_to_po_sroku">Мерзімі бойынша ТҚ: %1$s</string>
     <string name="notify_potracheno">Жұмсалды: %1$s</string>
-    <string name="notify_proydeno_0f_km"> • Жүрілді: %%.0f км</string>
+    <string name="notify_proydeno_0f_km"> • Жүрілді: %.0f км</string>
     <string name="notify_zapravok"> • Құю саны: %1$s</string>
     <string name="notify_itogi_nedeli">Апта қорытындысы</string>
     <string name="notify_rashod_vyros_na_1f_protiv_1f_l_100_km_v">Шығын %1$s%% өсті: орташа %%.1f л/100 км орнына %%.1f. </string>
@@ -1334,11 +1334,11 @@
     <string name="notify_na_menshe">%1$s%% аз</string>
 
     <!-- Виджет -->
-    <string name="widget_1f_kvt_ch_100">%%.1f кВт·сағ/100</string>
-    <string name="widget_1f_l_100">%%.1f л/100</string>
+    <string name="widget_1f_kvt_ch_100">%.1f кВт·сағ/100</string>
+    <string name="widget_1f_l_100">%.1f л/100</string>
     <string name="widget_cherez_km">%1$s: %2$s км кейін</string>
     <string name="widget_rashod">+ Шығыс</string>
-    <string name="widget_d_km">%%,d км</string>
+    <string name="widget_d_km">%,d км</string>
     <string name="widget_rashody_za_mesyats">Айдағы шығыс</string>
     <string name="widget_avt">%1$s көлік</string>
 
@@ -1368,4 +1368,157 @@
     <string name="maneuver_hard_right">Күрт оңға</string>
     <string name="maneuver_u_turn">Бұрылыс</string>
     <string name="maneuver_finish">Келу</string>
+
+    <!-- Навигатор хабарландыруы -->
+    <string name="nav_service_speed">%1$s км/сағ</string>
+    <string name="nav_service_maneuver_street">%1$s · %3$s бойынша %2$s</string>
+    <string name="nav_service_maneuver">%1$s · %2$s</string>
+    <string name="nav_service_left">%1$s қалды</string>
+
+    <!-- Навигатордағы аялдамалар -->
+    <string name="navigator_add_stop">Аялдама қосу</string>
+    <string name="navigator_stop_n">%1$s аялдама: %2$s</string>
+    <string name="navigator_pick_stop">Аялдама орнын таңдаңыз</string>
+    <string name="navigator_stops_count">аялдама: %1$s</string>
+
+    <!-- CarBot жалғастыру ұсыныстары -->
+    <string name="carbot_follow_last_month">Өткен айда</string>
+    <string name="carbot_follow_this_month">Осы айда</string>
+    <string name="carbot_follow_peak_month">Ең қымбат ай</string>
+    <string name="carbot_follow_total">Бүкіл уақыт бойы</string>
+    <string name="carbot_follow_fuel">Орташа шығын</string>
+    <string name="carbot_follow_fuel_spend">Отынға қанша кетті</string>
+    <string name="carbot_follow_trips">GPS сапарлары</string>
+    <string name="carbot_follow_price_per_km">Километр құны</string>
+    <string name="carbot_follow_open_service">ТҚ ашу</string>
+    <string name="carbot_follow_service_spend">Қызмет көрсетуге қанша кетті</string>
+    <string name="carbot_follow_insurance">Сақтандыру қалай</string>
+    <string name="carbot_follow_open_docs">Құжаттарды көрсет</string>
+    <string name="carbot_follow_maintenance">ТҚ қалай</string>
+
+    <string name="carbot_clear">Әңгімені тазалау</string>
+    <string name="carbot_copied">Көшірілді</string>
+    <string name="carbot_greeting">👋 Сәлем! Мен **CarBot** — көлік көмекшісіңізбін. Шығыс, ТҚ немесе көлік күйі туралы сұраңыз.
+
+Не істей алатынымды білу үшін **не істей аласың** деп жазыңыз.</string>
+
+    <!-- Жанармай құю бекеттері бойынша баға -->
+    <string name="analytics_stations_title">Бекеттер бойынша баға</string>
+    <string name="analytics_stations_hint">Литр бағасы сіздің түбіртектеріңіз бойынша — жеңілдіктермен қоса</string>
+    <string name="analytics_stations_fillups">құю саны: %1$s</string>
+    <string name="analytics_stations_overpay">литріне +%1$s</string>
+    <string name="analytics_stations_total_overpay">Барлық құю ең арзан бекет бағасымен болса, %1$s үнемдер едіңіз</string>
+
+    <!-- Шиналар -->
+    <string name="tyres_title">Шиналар</string>
+    <string name="tyres_add">Жинақ қосу</string>
+    <string name="tyres_edit">Жинақты өзгерту</string>
+    <string name="tyres_empty">Жинақтар әзірге жоқ. Қысқы және жазғы шиналарды қосыңыз — қолданба әрқайсысының жүрісін бөлек санайды.</string>
+    <string name="tyres_season_summer">Жазғы</string>
+    <string name="tyres_season_winter">Қысқы</string>
+    <string name="tyres_season_all">Маусымсыз</string>
+    <string name="tyres_install">Көлікке орнату</string>
+    <string name="tyres_uninstall">Шешу</string>
+    <string name="tyres_installed_now">Қазір тұр</string>
+    <string name="tyres_km_total">%1$d км жүріс</string>
+    <string name="tyres_km_this_season">оның %1$d км осы маусымда</string>
+    <string name="tyres_wear_of_life">Тозуы %1$d%%, ресурсы %2$d км</string>
+    <string name="tyres_price_and_per_km">Жинағы %1$s, километрі %2$s</string>
+    <string name="tyres_stored_at">Сақталуы: %1$s</string>
+    <string name="tyres_delete_title">Жинақты жою керек пе?</string>
+    <string name="tyres_delete_message">«%1$s» және оның бүкіл жүрісі жойылады. Мұны кері қайтару мүмкін емес.</string>
+    <string name="tyres_field_name">Атауы</string>
+    <string name="tyres_field_size">Өлшемі</string>
+    <string name="tyres_size_example">205/55 R16 91V</string>
+    <string name="tyres_field_price">Жинақтың бағасы</string>
+    <string name="tyres_field_purchase_date">Сатып алу күні</string>
+    <string name="tyres_field_expected_life">Ресурсы, км</string>
+    <string name="tyres_expected_life_hint">Білмесеңіз бос қалдырыңыз — тозу сонда көрсетілмейді</string>
+    <string name="tyres_field_storage">Қайда сақталады</string>
+    <string name="tyres_field_notes">Ескертпелер</string>
+    <string name="cardetail_shiny">Шиналар</string>
+
+    <!-- Көлік салығы -->
+    <string name="car_engine_power">Қозғалтқыш қуаты</string>
+    <string name="car_engine_power_hint">Техпаспорттан. Көлік салығын есептеу үшін қажет</string>
+    <string name="car_hp">а.к.</string>
+    <string name="tax_title">%1$d жылғы көлік салығы</string>
+    <string name="tax_change_rate">Мөлшерлеме</string>
+    <string name="tax_rate_base">Базалық мөлшерлеме %1$s ₽ бір а.к. үшін, қуаты %2$d а.к.</string>
+    <string name="tax_rate_custom">Сіздің мөлшерлемеңіз %1$s ₽ бір а.к. үшін, қуаты %2$d а.к.</string>
+    <string name="tax_partial_year">Иелік еткен %1$d ай үшін</string>
+    <string name="tax_due">%1$s дейін төлеу керек</string>
+    <string name="tax_base_rate_warning">Бұл — Салық кодексіндегі базалық мөлшерлеме. Сіздің өңіріңізде ол басқаша болуы әбден мүмкін — түбіртектен қарап, осында енгізіңіз.</string>
+    <string name="tax_rate_dialog_title">Салық мөлшерлемесі</string>
+    <string name="tax_rate_dialog_hint">Өңіріңізде бір ат күшіне қанша сом алынады. Бұл сан салық хабарламасында көрсетілген.</string>
+    <string name="tax_rate_label">Бір а.к. үшін сом</string>
+    <string name="tax_reset_rate">Базалыққа қайтару</string>
+    <string name="tax_notify_title">Көлік салығы: %1$s</string>
+    <string name="tax_notify_body">%2$d жыл үшін шамамен %1$s ₽. Төлеу мерзімі — 1 желтоқсан</string>
+
+    <!-- Көлік паспорты -->
+    <string name="passport_title">Көлік паспорты</string>
+    <string name="passport_export">Көлік паспорты (PDF)</string>
+    <string name="passport_export_hint">Бүкіл тарих бір құжатта — сатып алушыға, сервиске немесе сақтандыруға</string>
+    <string name="passport_subtitle">%1$d жыл, %2$s</string>
+    <string name="passport_generated">Құжат %1$s жасалды</string>
+    <string name="passport_section_vehicle">Көлік</string>
+    <string name="passport_section_money">Иелік ету және шығындар</string>
+    <string name="passport_section_service">Қызмет көрсету және жөндеу тарихы</string>
+    <string name="passport_section_upcoming">Бүгінгі жағдай бойынша жоспарлы жұмыстар</string>
+    <string name="passport_section_tyres">Шиналар</string>
+    <string name="passport_section_incidents">Оқиғалар</string>
+    <string name="passport_section_documents">Құжаттар мен сақтандыру</string>
+    <string name="passport_vin">VIN</string>
+    <string name="passport_color">Түсі</string>
+    <string name="passport_purchase_date">Сатып алу күні</string>
+    <string name="passport_owned_for">Иелік ету мерзімі</string>
+    <string name="passport_years_months">%1$d ж. %2$d ай</string>
+    <string name="passport_purchase_price">Сатып алу бағасы</string>
+    <string name="passport_spent_total">Барлық уақытта жұмсалған</string>
+    <string name="passport_driven_by_owner">Иесі жүрген</string>
+    <string name="passport_cost_per_km">Бір километрдің құны</string>
+    <string name="passport_fuel_average">Толық бакқа құю бойынша орташа шығын: 100 км-ге %1$s л</string>
+    <string name="passport_works_and_shop">Жұмыстар мен сервис</string>
+    <string name="passport_overdue">%1$d км-ге мерзімі өткен</string>
+    <string name="passport_tyre_km">Жүрісі</string>
+    <string name="passport_tyre_state">Күйі</string>
+    <string name="passport_tyre_stored">Сақтауда</string>
+    <string name="passport_incident_type">Не болды</string>
+    <string name="passport_repair_cost">Жөндеу</string>
+    <string name="passport_doc_type">Түрі</string>
+    <string name="passport_doc_title">Атауы</string>
+    <string name="passport_doc_valid_until">Жарамдылық мерзімі</string>
+    <string name="passport_no_incidents">Иелік еткен бүкіл уақытта оқиға тіркелмеген.</string>
+    <string name="passport_nothing_recorded">Жазбалар жоқ.</string>
+    <string name="passport_footer">Құжатты CarCost қолданбасы иесінің жазбаларынан жинады.</string>
+    <string name="passport_creating">Паспорт жиналуда…</string>
+    <string name="passport_failed">Паспортты жинау мүмкін болмады: %1$s</string>
+
+    <!-- Жыл қорытындысы -->
+    <string name="yearreview_title">Жыл қорытындысы</string>
+    <string name="yearreview_open">Жыл қорытындысы</string>
+    <string name="yearreview_share">Бөлісу</string>
+    <string name="yearreview_no_car">Көлік табылмады</string>
+    <string name="yearreview_not_enough">Бұл жылға бар болғаны %1$d жазба — қорытынды үшін аз. Жазбаларды жүргізіңіз, сонда жыл соңында көрсететін нәрсе болады.</string>
+    <string name="yearreview_spent">жыл ішінде жұмсалды</string>
+    <string name="yearreview_driven">жыл ішінде жүрілді</string>
+    <string name="yearreview_cost_per_km">километріне %1$s</string>
+    <string name="yearreview_more_than_last">былтырғыдан %1$d%% көп</string>
+    <string name="yearreview_less_than_last">былтырғыдан %1$d%% аз</string>
+    <string name="yearreview_section_fuel">Отын</string>
+    <string name="yearreview_fillups">Құю саны: %1$d</string>
+    <string name="yearreview_liters">Құйылған литр: %1$s</string>
+    <string name="yearreview_avg_price">Литрдің орташа бағасы: %1$s</string>
+    <string name="yearreview_favourite_station">Жиі құйған жеріңіз: %1$s</string>
+    <string name="yearreview_section_months">Айлар</string>
+    <string name="yearreview_busiest_month">Ең қымбаты — %1$s, %2$s</string>
+    <string name="yearreview_quietest_month">Ең тынышы — %1$s, %2$s</string>
+    <string name="yearreview_section_trips">Сапарлар</string>
+    <string name="yearreview_longest_trip">Ең ұзақ сапар: %1$s км</string>
+    <string name="yearreview_trips_recorded">Тіркелген сапарлар: %1$d</string>
+    <string name="yearreview_section_categories">Не нәрсеге кетті</string>
+    <string name="yearreview_footer">CarCost қолданбасы есептеді</string>
+    <string name="yearreview_notify_title">%1$d жыл қорытындысы дайын</string>
+    <string name="yearreview_notify_body">Қанша жүргеніңізді және ақшаның қайда кеткенін қараңыз</string>
 </resources>

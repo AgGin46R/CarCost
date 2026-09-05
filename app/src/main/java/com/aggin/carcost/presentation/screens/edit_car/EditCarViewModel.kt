@@ -37,6 +37,7 @@ data class EditCarUiState(
     val vehicleType: VehicleType = VehicleType.CAR,
     /** Объём бака или ёмкость батареи — нужен напоминанию о скорой заправке */
     val tankCapacity: String = "",
+    val enginePowerHp: String = "",
     val fuelType: FuelType = FuelType.GASOLINE,
     val vin: String = "",
     val color: String = "",
@@ -104,6 +105,7 @@ class EditCarViewModel(
                     currentOdometer = it.currentOdometer.toString(),
                     vehicleType = it.vehicleType,
                     tankCapacity = it.tankCapacity?.toString() ?: "",
+                    enginePowerHp = it.enginePowerHp?.toString() ?: "",
                     fuelType = it.fuelType,
                     vin = it.vin ?: "",
                     color = it.color ?: "",
@@ -143,6 +145,10 @@ class EditCarViewModel(
         if (value.isEmpty() || value.matches(Regex("^\\d*\\.?\\d*$"))) {
             _uiState.value = _uiState.value.copy(tankCapacity = value)
         }
+    }
+
+    fun updateEnginePowerHp(value: String) {
+        _uiState.value = _uiState.value.copy(enginePowerHp = value.filter { it.isDigit() }.take(4))
     }
 
     fun updateVehicleType(value: VehicleType) {
@@ -271,6 +277,7 @@ class EditCarViewModel(
                     currentOdometer = state.currentOdometer.toInt(),
                     vehicleType = state.vehicleType,
                     tankCapacity = state.tankCapacity.toDoubleOrNull(),
+                    enginePowerHp = state.enginePowerHp.toIntOrNull()?.takeIf { it > 0 },
                     fuelType = state.fuelType,
                     vin = state.vin.ifBlank { null },
                     color = state.color.ifBlank { null },

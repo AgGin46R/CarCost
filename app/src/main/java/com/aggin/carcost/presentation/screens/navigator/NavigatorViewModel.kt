@@ -51,6 +51,14 @@ import kotlin.math.sqrt
 
 enum class NavigatorMode { IDLE, SEARCHING, ROUTE_READY, NAVIGATING, ARRIVED }
 
+/**
+ * Промежуточная остановка на маршруте.
+ *
+ * Отдельно от точки назначения: заездов может быть несколько, и порядок в них
+ * значим — маршрут строится через них по очереди, как в такси «с заездом».
+ */
+data class Waypoint(val point: Point, val name: String)
+
 data class TripStats(
     val todayKm: Double = 0.0,
     val weekKm: Double = 0.0,
@@ -121,7 +129,17 @@ data class NavigatorUiState(
     val errorMessage: String? = null,
     val tripStats: TripStats? = null,
     /** Ближайший манёвр — то, ради чего навигатором пользуются за рулём */
-    val nextManeuver: Maneuver? = null
+    val nextManeuver: Maneuver? = null,
+    /** Промежуточные остановки, через которые нужно проехать */
+    val waypoints: List<Waypoint> = emptyList(),
+    /**
+     * Следующее выбранное место станет заездом, а не пунктом назначения.
+     *
+     * Флаг, а не отдельный экран: места ищутся, выбираются из избранного и
+     * тыкаются на карте одними и теми же действиями, и заводить для заезда
+     * второй такой же набор экранов значило бы удвоить их без нужды.
+     */
+    val pickingWaypoint: Boolean = false
 )
 
 class NavigatorViewModel(application: Application) : AndroidViewModel(application) {
@@ -138,9 +156,25 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         if (speaker == null) speaker = YandexSpeaker(context)
     }
 
+    // ── Отклонение от маршрута ───────────────────────────────────────────────
+    //
+    // Раньше проверка стояла на 150 метрах раз в десять секунд, а расстояние
+    // считалось до ближайшей ТОЧКИ линии. В городе улицы идут в полусотне
+    // метров друг от друга: свернув не туда, водитель оставался «на маршруте»
+    // и перестроения не дожидался.
+    //
+    // Теперь расстояние считается до ближайшего ОТРЕЗКА — это и есть настоящее
+    // удаление от линии, а не от случайной вершины. С правильной мерой можно
+    // взять и порог поменьше: на шоссе, где точки редкие, до вершины бывает
+    // полсотни метров даже при движении ровно по линии, и низкий порог с
+    // прежней мерой давал бы ложные перестроения.
     private var lastDeviationCheckMs = 0L
-    private val DEVIATION_CHECK_INTERVAL = 10_000L
-    private val DEVIATION_THRESHOLD_M = 150.0
+    private var consecutiveDeviations = 0
+    private val DEVIATION_CHECK_INTERVAL = 3_000L
+    private val DEVIATION_THRESHOLD_M = 50.0
+
+    /** Сколько замеров подряд подтверждают уход с маршрута */
+    private val DEVIATIONS_TO_REBUILD = 2
 
     private val searchManager by lazy {
         SearchFactory.getInstance().createSearchManager(SearchManagerType.COMBINED)
@@ -393,6 +427,12 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
     // ── Route ────────────────────────────────────────────────────────────────
 
     fun setDestination(point: Point, name: String) {
+        // Тот же путь используется и для заезда: место выбирается одинаково,
+        // отличается только то, куда оно попадёт
+        if (_uiState.value.pickingWaypoint) {
+            addWaypoint(point, name)
+            return
+        }
         _uiState.update {
             it.copy(
                 destinationPoint = point,
@@ -405,16 +445,86 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         buildRoute(point)
     }
 
-    private fun buildRoute(destination: Point) {
+    // ── Заезды ───────────────────────────────────────────────────────────────
+
+    /** Следующее выбранное место станет заездом */
+    fun startPickingWaypoint() {
+        _uiState.update {
+            it.copy(pickingWaypoint = true, mode = NavigatorMode.IDLE, query = "", suggestions = emptyList())
+        }
+    }
+
+    fun cancelPickingWaypoint() {
+        _uiState.update { it.copy(pickingWaypoint = false) }
+        if (_uiState.value.destinationPoint != null) {
+            _uiState.update { it.copy(mode = NavigatorMode.ROUTE_READY) }
+        }
+    }
+
+    /**
+     * Добавляет остановку и перестраивает маршрут.
+     *
+     * Заезд встаёт в конец списка — перед пунктом назначения, но после уже
+     * добавленных. Порядок задаёт водитель тем, в каком порядке добавляет:
+     * угадывать оптимальный обход за него нельзя, «сначала заправка, потом
+     * магазин» и наоборот — разные поездки.
+     */
+    fun addWaypoint(point: Point, name: String) {
+        val dest = _uiState.value.destinationPoint
+        if (dest == null) {
+            // Пункт назначения ещё не выбран — тогда это он и есть
+            _uiState.update { it.copy(pickingWaypoint = false) }
+            setDestination(point, name)
+            return
+        }
+        _uiState.update {
+            it.copy(
+                waypoints = it.waypoints + Waypoint(point, name),
+                pickingWaypoint = false,
+                isLoadingRoute = true,
+                suggestions = emptyList(),
+                query = ""
+            )
+        }
+        buildRoute(dest, keepNavigating = _uiState.value.mode == NavigatorMode.NAVIGATING)
+    }
+
+    fun removeWaypoint(index: Int) {
+        val state = _uiState.value
+        if (index !in state.waypoints.indices) return
+        val dest = state.destinationPoint ?: return
+        _uiState.update {
+            it.copy(
+                waypoints = it.waypoints.filterIndexed { i, _ -> i != index },
+                isLoadingRoute = true
+            )
+        }
+        buildRoute(dest, keepNavigating = state.mode == NavigatorMode.NAVIGATING)
+    }
+
+    /**
+     * @param keepNavigating не выходить в предпросмотр, а продолжить вести.
+     *   Без этого перестроение на ходу переключало экран в ROUTE_READY, ведение
+     *   прекращалось, и со стороны водителя это выглядело так, будто маршрут
+     *   вообще не перестраивается: подсказки просто замолкали.
+     */
+    private fun buildRoute(destination: Point, keepNavigating: Boolean = false) {
         val currentLat = _uiState.value.currentLat ?: 56.0097
         val currentLon = _uiState.value.currentLon ?: 92.8664
         val from = Point(currentLat, currentLon)
 
         drivingSession?.cancel()
-        val requestPoints = listOf(
-            RequestPoint(from, RequestPointType.WAYPOINT, null, null, null),
-            RequestPoint(destination, RequestPointType.WAYPOINT, null, null, null)
-        )
+        // Заезды идут между началом и концом в том порядке, в каком их добавили.
+        // Тип WAYPOINT, а не VIAPOINT: у остановки маршрут разрывается на этапы
+        // и до неё считается своё время прибытия — именно это и нужно, когда
+        // человек едет «с заездом», а не просто мимо.
+        val requestPoints = buildList {
+            add(RequestPoint(from, RequestPointType.WAYPOINT, null, null, null))
+            _uiState.value.waypoints.forEach { stop ->
+                add(RequestPoint(stop.point, RequestPointType.WAYPOINT, null, null, null))
+            }
+            add(RequestPoint(destination, RequestPointType.WAYPOINT, null, null, null))
+        }
         val drivingOptions = DrivingOptions().apply { routesCount = 3 }
         drivingSession = drivingRouter.requestRoutes(
             requestPoints,
@@ -438,10 +548,20 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                                 routeTimeMin = timeMin,
                                 etaString = eta,
                                 isLoadingRoute = false,
-                                mode = NavigatorMode.ROUTE_READY
+                                mode = if (keepNavigating) NavigatorMode.NAVIGATING
+                                       else NavigatorMode.ROUTE_READY
                             )
                         }
                         estimateFuelCost(distKm)
+                        if (keepNavigating) {
+                            // Новый маршрут — новый первый манёвр: снимаем
+                            // отметку об озвученном, иначе подсказка о повороте
+                            // сразу после перестроения не прозвучит
+                            announcedManeuver = null
+                            val lat = _uiState.value.currentLat
+                            val lon = _uiState.value.currentLon
+                            if (lat != null && lon != null) updateManeuver(lat, lon)
+                        }
                     }
                 }
                 override fun onDrivingRoutesError(error: Error) {
@@ -544,6 +664,8 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
                 query = "",
                 suggestions = emptyList(),
                 destinationPoint = null,
+                waypoints = emptyList(),
+                pickingWaypoint = false,
                 destinationName = "",
                 currentRoute = null,
                 allRoutes = emptyList(),
@@ -597,6 +719,7 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         val route = state.allRoutes.getOrNull(state.selectedRouteIndex) ?: return
         val maneuver = nextManeuver(route, lat, lon)
         _uiState.update { it.copy(nextManeuver = maneuver) }
+        pushGuidanceToNotification(maneuver)
 
         if (maneuver == null || maneuver.action == ManeuverAction.STRAIGHT) return
         if (maneuver.distanceM > ANNOUNCE_DISTANCE_M) return
@@ -610,6 +733,48 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         speaker?.speak(getApplication<Application>().getString(R.string.navigator_voice_cherez, maneuver.distanceLabel, getApplication<Application>().getString(maneuver.action.labelRes).lowercase(), street))
     }
 
+    /**
+     * Отдаёт манёвр и остаток пути в уведомление службы навигации.
+     *
+     * В уведомлении раньше была одна скорость. Скорость водитель и так видит
+     * на приборной панели, а вот поворот и расстояние до него не написаны
+     * больше нигде — и именно они нужны, когда экран погас или телефон лежит
+     * в держателе боком.
+     *
+     * Текст собирается здесь, а не в службе: язык интерфейса известен модели,
+     * и вторая копия этой логики разошлась бы с первой.
+     */
+    private fun pushGuidanceToNotification(maneuver: Maneuver?) {
+        val app = getApplication<Application>()
+        val state = _uiState.value
+
+        val title = when {
+            maneuver == null -> app.getString(R.string.navigator_marshrut)
+            maneuver.street != null -> app.getString(
+                R.string.nav_service_maneuver_street,
+                maneuver.distanceLabel,
+                app.getString(maneuver.action.labelRes),
+                maneuver.street
+            )
+            else -> app.getString(
+                R.string.nav_service_maneuver,
+                maneuver.distanceLabel,
+                app.getString(maneuver.action.labelRes)
+            )
+        }
+
+        val details = listOfNotNull(
+            state.destinationName.takeIf { it.isNotBlank() },
+            state.routeDistanceKm?.let {
+                app.getString(R.string.nav_service_left, app.getString(R.string.navigator_0f_km).format(it))
+            },
+            state.etaString.takeIf { it.isNotBlank() }
+                ?.let { app.getString(R.string.navigator_pribytie, it) }
+        ).joinToString(" · ")
+
+        com.aggin.carcost.data.navigation.NavigationService.updateGuidance(app, title, details)
+    }
+
     private fun checkRouteDeviation(lat: Double, lon: Double) {
         val now = System.currentTimeMillis()
         if (now - lastDeviationCheckMs < DEVIATION_CHECK_INTERVAL) return
@@ -619,12 +784,64 @@ class NavigatorViewModel(application: Application) : AndroidViewModel(applicatio
         val pts = route.geometry.points
         if (pts.isEmpty()) return
 
-        val minDist = pts.minOf { pt -> haversineMeters(lat, lon, pt.latitude, pt.longitude) }
-        if (minDist > DEVIATION_THRESHOLD_M) {
-            val dest = _uiState.value.destinationPoint ?: return
-            speaker?.speak(getApplication<Application>().getString(R.string.navigator_perestraivayu_marshrut))
-            buildRoute(dest)
+        val minDist = distanceToPolylineMeters(lat, lon, pts)
+        if (minDist <= DEVIATION_THRESHOLD_M) {
+            consecutiveDeviations = 0
+            return
         }
+
+        // Одиночный выброс GPS не повод перестраивать маршрут: в тоннеле и
+        // между домами координата прыгает на сотни метров и возвращается
+        consecutiveDeviations++
+        if (consecutiveDeviations < DEVIATIONS_TO_REBUILD) return
+
+        consecutiveDeviations = 0
+        val dest = _uiState.value.destinationPoint ?: return
+        speaker?.speak(getApplication<Application>().getString(R.string.navigator_perestraivayu_marshrut))
+        buildRoute(dest, keepNavigating = true)
+    }
+
+    /**
+     * Расстояние до ломаной — до ближайшего отрезка, а не до ближайшей вершины.
+     *
+     * Разница существенна там, где точки маршрута редкие: на прямом шоссе с
+     * вершинами через сотню метров машина, едущая ровно по линии, удалена от
+     * ближайшей вершины на полсотни. По вершинам это выглядит как отклонение,
+     * по отрезкам — как ноль, чем оно и является.
+     */
+    private fun distanceToPolylineMeters(
+        lat: Double,
+        lon: Double,
+        pts: List<com.yandex.mapkit.geometry.Point>
+    ): Double {
+        if (pts.size == 1) return haversineMeters(lat, lon, pts[0].latitude, pts[0].longitude)
+
+        var best = Double.MAX_VALUE
+        // На широте города градус долготы короче градуса широты; без поправки
+        // отрезки «восток — запад» считались бы длиннее, чем они есть
+        val lonScale = cos(Math.toRadians(lat))
+
+        for (i in 0 until pts.lastIndex) {
+            val ax = pts[i].longitude * lonScale
+            val ay = pts[i].latitude
+            val bx = pts[i + 1].longitude * lonScale
+            val by = pts[i + 1].latitude
+            val px = lon * lonScale
+            val py = lat
+
+            val dx = bx - ax
+            val dy = by - ay
+            val lenSq = dx * dx + dy * dy
+            val t = if (lenSq == 0.0) 0.0
+                    else (((px - ax) * dx + (py - ay) * dy) / lenSq).coerceIn(0.0, 1.0)
+
+            val nearestLat = ay + t * dy
+            val nearestLon = (ax + t * dx) / lonScale
+            val d = haversineMeters(lat, lon, nearestLat, nearestLon)
+            if (d < best) best = d
+            if (best < 1.0) break
+        }
+        return best
     }
 
     private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

@@ -113,7 +113,17 @@ fun DocumentsScreen(
             }
 
             when (selectedTab) {
-                0 -> {
+                0 -> Column(Modifier.fillMaxSize()) {
+                    // Транспортный налог — он не документ, но живёт рядом с
+                    // ними: человек приходит сюда, когда речь про бумаги и
+                    // обязательные платежи
+                    uiState.tax?.let { tax ->
+                        VehicleTaxCard(
+                            tax = tax,
+                            onRateChange = { rate -> viewModel.setTaxRate(carId, rate) }
+                        )
+                    }
+
                     // Documents tab
                     if (uiState.isLoading) {
                         SkeletonCardList(count = 4, cardHeight = 90.dp)
@@ -490,4 +500,127 @@ private fun getDocumentIcon(type: DocumentType) = when (type) {
     DocumentType.WARRANTY -> Icons.Default.Verified
     DocumentType.PURCHASE_AGREEMENT -> Icons.Default.Handshake
     DocumentType.OTHER -> Icons.Default.Article
+}
+
+/**
+ * Транспортный налог за прошедший год.
+ *
+ * Сумма всегда показывается вместе со ставкой, по которой посчитана. Без этого
+ * человек не может понять, почему цифра расходится с квитанцией, — а она
+ * разойдётся у большинства: регионы меняют ставки каждый год.
+ */
+@Composable
+private fun VehicleTaxCard(
+    tax: VehicleTaxInfo,
+    onRateChange: (Double?) -> Unit
+) {
+    var editing by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AccountBalance, null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.tax_title, tax.year),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { editing = true }) {
+                    Text(stringResource(R.string.tax_change_rate))
+                }
+            }
+
+            Text(
+                text = "%.0f ₽".format(tax.amount),
+                style = MaterialTheme.typography.headlineMedium
+            )
+
+            Text(
+                text = stringResource(
+                    if (tax.isCustomRate) R.string.tax_rate_custom else R.string.tax_rate_base,
+                    "%.2f".format(tax.ratePerHp),
+                    tax.powerHp
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (tax.ownedMonths < 12) {
+                Text(
+                    text = stringResource(R.string.tax_partial_year, tax.ownedMonths),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Text(
+                text = stringResource(
+                    R.string.tax_due,
+                    SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(tax.dueDate))
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            if (!tax.isCustomRate) {
+                Text(
+                    text = stringResource(R.string.tax_base_rate_warning),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+    }
+
+    if (editing) {
+        var input by remember {
+            mutableStateOf(if (tax.isCustomRate) "%.2f".format(tax.ratePerHp) else "")
+        }
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text(stringResource(R.string.tax_rate_dialog_title)) },
+            text = {
+                Column {
+                    Text(
+                        stringResource(R.string.tax_rate_dialog_hint),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { v -> input = v.filter { it.isDigit() || it == '.' || it == ',' } },
+                        label = { Text(stringResource(R.string.tax_rate_label)) },
+                        placeholder = { Text("%.2f".format(tax.ratePerHp)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRateChange(input.replace(',', '.').toDoubleOrNull())
+                    editing = false
+                }) { Text(stringResource(R.string.action_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    // Сброс к базовой ставке — отдельное действие, а не пустое
+                    // поле: пустое поле легко оставить по невнимательности
+                    onRateChange(null)
+                    editing = false
+                }) { Text(stringResource(R.string.tax_reset_rate)) }
+            }
+        )
+    }
 }

@@ -2,6 +2,7 @@ package com.aggin.carcost.presentation.screens.car_detail
 
 import android.app.Application
 import android.util.Log
+import com.aggin.carcost.R
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -88,6 +89,9 @@ class CarDetailViewModel(
     private val _userRole = MutableStateFlow<MemberRole?>(null)
     private val _isSyncing = MutableStateFlow(false)
     private val _displayLimit = MutableStateFlow(60)
+
+    /** Идёт сборка паспорта — второе нажатие игнорируем */
+    private var isBuildingPassport = false
 
     // Sources for health score — each emits lists from local DB
     private val _remindersFlow = database.maintenanceReminderDao().getAllRemindersByCarId(carId)
@@ -447,5 +451,36 @@ class CarDetailViewModel(
             }
         }
         return result
+    }
+
+    /**
+     * Паспорт автомобиля одним PDF.
+     *
+     * Второй вход к тому же документу, что и в экране экспорта: там он лежит
+     * среди отчётов, а сюда человек приходит, когда машину показывают или
+     * продают. Итог сообщается через [onResult] — на этом экране нет снекбара,
+     * а молчащая кнопка выглядит сломанной.
+     */
+    fun buildVehiclePassport(onResult: (String?) -> Unit) {
+        if (isBuildingPassport) return
+        isBuildingPassport = true
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            try {
+                val service = com.aggin.carcost.data.export.ExportService(app)
+                val file = service.exportVehiclePassport(carId)
+                if (file == null) {
+                    onResult(app.getString(R.string.passport_failed, ""))
+                } else {
+                    service.shareFile(file)
+                    onResult(null)
+                }
+            } catch (e: Exception) {
+                Log.e("CarDetailVM", "Паспорт не собрался", e)
+                onResult(app.getString(R.string.passport_failed, e.message ?: ""))
+            } finally {
+                isBuildingPassport = false
+            }
+        }
     }
 }

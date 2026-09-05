@@ -44,6 +44,10 @@ data class CarDto(
     val fuelType: String = "GASOLINE",
     @SerialName("tank_capacity")
     val tankCapacity: Double? = null,
+    @SerialName("engine_power_hp")
+    val enginePowerHp: Int? = null,
+    @SerialName("tax_rate_per_hp")
+    val taxRatePerHp: Double? = null,
     val currency: String = "RUB",
     @SerialName("is_active")
     val isActive: Boolean = true,
@@ -246,6 +250,8 @@ private fun Car.toDto(userId: String) = CarDto(
     vehicleType = vehicleType.name,
     fuelType = fuelType.name,
     tankCapacity = tankCapacity,
+    enginePowerHp = enginePowerHp,
+    taxRatePerHp = taxRatePerHp,
     currency = currency,
     isActive = isActive,
     createdAt = createdAt,
@@ -269,6 +275,8 @@ internal fun CarDto.toCar() = Car(
     vehicleType = try { VehicleType.valueOf(vehicleType) } catch (e: Exception) { VehicleType.CAR },
     fuelType = try { FuelType.valueOf(fuelType) } catch (e: Exception) { FuelType.GASOLINE },
     tankCapacity = tankCapacity,
+    enginePowerHp = enginePowerHp,
+    taxRatePerHp = taxRatePerHp,
     currency = currency,
     isActive = isActive,
     createdAt = createdAt,

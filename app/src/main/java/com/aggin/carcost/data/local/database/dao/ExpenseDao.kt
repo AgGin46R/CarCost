@@ -186,6 +186,10 @@ interface ExpenseDao {
      * вспомнить про мойку на 900 — считать надо по максимуму, а не по
      * последней внесённой.
      */
+    /** Помечает запись как подтверждённую сервером */
+    @Query("UPDATE expenses SET syncedAt = :timestamp WHERE id = :expenseId")
+    suspend fun markSynced(expenseId: String, timestamp: Long = System.currentTimeMillis())
+
     @Query("SELECT MAX(odometer) FROM expenses WHERE carId = :carId")
     suspend fun getMaxOdometer(carId: String): Int?
 

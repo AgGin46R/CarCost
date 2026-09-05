@@ -63,6 +63,8 @@ import com.aggin.carcost.presentation.screens.search.SearchScreen
 import com.aggin.carcost.presentation.screens.navigator.NavigatorScreen
 import com.aggin.carcost.presentation.screens.fuel_calculator.FuelCalculatorScreen
 import com.aggin.carcost.presentation.screens.fluid_levels.FluidLevelsScreen
+import com.aggin.carcost.presentation.screens.tyres.TyresScreen
+import com.aggin.carcost.presentation.screens.yearreview.YearReviewScreen
 import com.aggin.carcost.presentation.screens.carbot.CarBotScreen
 
 sealed class Screen(val route: String) {
@@ -216,6 +218,14 @@ sealed class Screen(val route: String) {
 
     object FluidLevels : Screen("fluid_levels/{carId}") {
         fun createRoute(carId: String) = "fluid_levels/$carId"
+    }
+
+    object Tyres : Screen("tyres/{carId}") {
+        fun createRoute(carId: String) = "tyres/$carId"
+    }
+
+    object YearReview : Screen("year_review/{carId}") {
+        fun createRoute(carId: String) = "year_review/$carId"
     }
 
     object CarBot : Screen("carbot")
@@ -720,6 +730,24 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             FluidLevelsScreen(carId = carId, navController = navController)
+        }
+
+        // Шины
+        composable(
+            route = Screen.Tyres.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            TyresScreen(carId = carId, navController = navController)
+        }
+
+        // Итоги года
+        composable(
+            route = Screen.YearReview.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            YearReviewScreen(carId = carId, navController = navController)
         }
 
         // CarBot

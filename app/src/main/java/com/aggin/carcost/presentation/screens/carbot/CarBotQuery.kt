@@ -61,10 +61,16 @@ object CarBotQuery {
         "июле", "августе", "сентябре", "октябре", "ноябре", "декабре"
     )
 
-    fun parse(raw: String): Parsed {
+    /**
+     * @param previous разбор предыдущего вопроса — для уточнений вроде
+     *   «а за август?» и «а на топливо?». Такие фразы не содержат ни глагола,
+     *   ни величины: человек продолжает начатый разговор, а не начинает новый,
+     *   и без памяти о предыдущем вопросе бот отвечал на них «не понял».
+     */
+    fun parse(raw: String, previous: Parsed? = null): Parsed {
         val text = raw.lowercase(Locale("ru")).replace('ё', 'е')
-        val period = detectPeriod(text)
-        val category = detectCategory(text)
+        var period = detectPeriod(text)
+        var category = detectCategory(text)
         var intent = detectIntent(text)
 
         // «Сколько на мойку в июле?» — вопрос о деньгах, хотя ни одного слова
@@ -76,6 +82,18 @@ object CarBotQuery {
             text.hasAny("сколько", "почем", "во что обош")
         ) {
             intent = Intent.SPENDING
+        }
+
+        // Уточнение: величина не названа, но назван срок или категория —
+        // значит спрашивают то же самое, но про другое. Недостающие части
+        // берём из предыдущего вопроса.
+        if (intent == Intent.UNKNOWN && previous != null &&
+            previous.intent != Intent.UNKNOWN && previous.intent != Intent.HELP &&
+            (period != null || category != null)
+        ) {
+            intent = previous.intent
+            if (category == null) category = previous.category
+            if (period == null) period = previous.period
         }
 
         return Parsed(intent = intent, period = period, category = category)

@@ -32,9 +32,21 @@ class CarBotEngine(private val db: AppDatabase, private val appContext: Context)
      * @return null, если вопрос не понят — тогда вызывающий может обратиться
      *   к языковой модели, если она загружена
      */
+    /** Разбор предыдущего вопроса — чтобы работали уточнения «а за август?» */
+    private var lastParsed: CarBotQuery.Parsed? = null
+
+    /** Что бот понял в последний раз. Экран строит по этому подсказки-продолжения */
+    val lastIntent: CarBotQuery.Intent?
+        get() = lastParsed?.intent
+
+    fun forgetContext() {
+        lastParsed = null
+    }
+
     suspend fun rulesBasedQuery(text: String, carId: String?): String? {
         val car = if (carId != null) db.carDao().getCarById(carId) else null
-        val q = CarBotQuery.parse(text)
+        val q = CarBotQuery.parse(text, lastParsed)
+        if (q.intent != CarBotQuery.Intent.UNKNOWN) lastParsed = q
         val lower = text.lowercase(Locale("ru"))
 
         return when (q.intent) {
@@ -66,10 +78,21 @@ class CarBotEngine(private val db: AppDatabase, private val appContext: Context)
         rulesBasedQuery(text, carId)
             ?: "Не понял вопрос. Попробуйте иначе или нажмите **Помощь** — там список того, что я умею."
 
-    /** Check for proactive alerts (overdue TO, expiring insurance, budget overflow). */
-    suspend fun checkProactiveAlerts(carId: String?): String? {
-        if (carId == null) return null
-        val car = db.carDao().getCarById(carId) ?: return null
+    /**
+     * Предупреждения при открытии: просроченное ТО, истекающая страховка,
+     * перерасход бюджета.
+     *
+     * Вся функция выполняется на потоке ввода-вывода. Внутри есть запросы вида
+     * getPoliciesForCarSync и getBudgetsSync — они не suspend, и Room выполняет
+     * их на вызывающем потоке. Вызов идёт из viewModelScope, то есть с
+     * главного, Room бросал исключение, а окружающий пустой catch его глотал:
+     * предупреждения о страховке и бюджете не появлялись никогда. Ровно та же
+     * болезнь была у напоминаний о ТО и чинилась отдельно — здесь она осталась
+     * ещё в двух местах.
+     */
+    suspend fun checkProactiveAlerts(carId: String?): String? = withContext(Dispatchers.IO) {
+        if (carId == null) return@withContext null
+        val car = db.carDao().getCarById(carId) ?: return@withContext null
         val alerts = mutableListOf<String>()
 
         // Overdue maintenance
@@ -79,9 +102,7 @@ class CarBotEngine(private val db: AppDatabase, private val appContext: Context)
             // главного, и Room бросал исключение. Оно тут же гасилось окружающим
             // catch — поэтому бот не падал, а просто НИКОГДА не показывал
             // предупреждения о просроченном ТО.
-            val reminders = withContext(Dispatchers.IO) {
-                db.maintenanceReminderDao().getRemindersByCarIdSync(car.id)
-            }
+            val reminders = db.maintenanceReminderDao().getRemindersByCarIdSync(car.id)
             reminders.filter { it.isActive }.forEach { r ->
                 val kmLeft = r.nextChangeOdometer - car.currentOdometer
                 if (kmLeft <= 0) {
@@ -124,7 +145,7 @@ class CarBotEngine(private val db: AppDatabase, private val appContext: Context)
             }
         } catch (_: Exception) {}
 
-        return if (alerts.isEmpty()) null
+        if (alerts.isEmpty()) null
         else "🔔 **Важные уведомления для ${car.brand} ${car.model}:**\n\n" + alerts.joinToString("\n")
     }
 

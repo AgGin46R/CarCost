@@ -15,6 +15,8 @@ import com.aggin.carcost.data.notifications.FirstRecordNudgeWorker
 import com.aggin.carcost.data.notifications.FuelReminderWorker
 import com.aggin.carcost.data.notifications.DocumentExpiryWorker
 import com.aggin.carcost.data.notifications.InsuranceExpiryWorker
+import com.aggin.carcost.data.notifications.VehicleTaxWorker
+import com.aggin.carcost.data.notifications.YearReviewWorker
 import com.aggin.carcost.data.notifications.FluidCheckWorker
 import com.aggin.carcost.data.notifications.WeeklySummaryWorker
 import com.aggin.carcost.data.notifications.YearOwnerCheckWorker
@@ -181,6 +183,8 @@ class App : Application(), HasTracerConfiguration {
             scheduleFirstRecordNudge()
             scheduleInsuranceCheck()
             scheduleDocumentExpiryCheck()
+            scheduleVehicleTaxReminder()
+            scheduleYearReviewNotification()
             scheduleWeeklySummary()
             scheduleBudgetAlert()
             scheduleFluidCheck()
@@ -356,6 +360,39 @@ class App : Application(), HasTracerConfiguration {
             .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             InsuranceExpiryWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    /**
+     * Напоминание о транспортном налоге.
+     *
+     * Проверка ежедневная, но сам воркер молчит десять с половиной месяцев в
+     * году: срок уплаты один, и точный день напоминания решает он сам.
+     */
+    private fun scheduleVehicleTaxReminder() {
+        val workRequest = PeriodicWorkRequestBuilder<VehicleTaxWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            VehicleTaxWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    /**
+     * Уведомление об итогах года.
+     *
+     * Как и налог: ежедневная проверка, но пишет только в первых числах
+     * января. Отдельное однократное задание на конкретную дату пришлось бы
+     * переставлять каждый год и терялось бы при переустановке.
+     */
+    private fun scheduleYearReviewNotification() {
+        val workRequest = PeriodicWorkRequestBuilder<YearReviewWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            YearReviewWorker.WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
         )

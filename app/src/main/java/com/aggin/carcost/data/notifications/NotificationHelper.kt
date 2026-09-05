@@ -23,6 +23,7 @@ object NotificationHelper {
     const val NAV_TYPE_ADD_FUEL = "add_fuel"
     const val NAV_TYPE_GPS_TRIP = "gps_trip"
     const val NAV_TYPE_NAVIGATOR = "navigator"
+    const val NAV_TYPE_YEAR_REVIEW = "year_review"
     const val NAV_TYPE_UPDATE = "update"
 
     // ── Channels ────────────────────────────────────────────────────────────────

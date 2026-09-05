@@ -735,7 +735,13 @@ fun NavigatorScreen(
                         Box(Modifier.weight(1f)) {
                             if (uiState.query.isEmpty()) {
                                 Text(
-                                    stringResource(R.string.navigator_kuda_edem),
+                                    // Когда выбирается заезд, поле говорит именно
+                                    // об этом: иначе возврат к поиску выглядит как
+                                    // потеря уже построенного маршрута
+                                    if (uiState.pickingWaypoint)
+                                        stringResource(R.string.navigator_pick_stop)
+                                    else
+                                        stringResource(R.string.navigator_kuda_edem),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.bodyLarge
                                 )
@@ -1163,7 +1169,10 @@ fun NavigatorScreen(
                     showSaveDialog = true
                 },
                 onStart = { viewModel.startNavigation() },
-                onDismiss = { viewModel.clearDestination() }
+                onDismiss = { viewModel.clearDestination() },
+                waypoints = uiState.waypoints,
+                onAddWaypoint = { viewModel.startPickingWaypoint() },
+                onRemoveWaypoint = viewModel::removeWaypoint
             )
         }
 
@@ -1320,7 +1329,10 @@ private fun RouteInfoCard(
     onSelectRoute: (Int) -> Unit = {},
     onSave: () -> Unit = {},
     onStart: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    waypoints: List<com.aggin.carcost.presentation.screens.navigator.Waypoint> = emptyList(),
+    onAddWaypoint: () -> Unit = {},
+    onRemoveWaypoint: (Int) -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1365,6 +1377,50 @@ private fun RouteInfoCard(
                     Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close),
                         modifier = Modifier.size(18.dp))
                 }
+            }
+
+            // Заезды: показываются между пунктом назначения и выбором маршрута.
+            // Каждый со своей кнопкой удаления — убрать один заезд из середины
+            // должно быть так же просто, как добавить.
+            waypoints.forEachIndexed { index, stop ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Box(
+                        Modifier.size(40.dp), contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = stringResource(R.string.navigator_stop_n, index + 1, stop.name.take(28)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { onRemoveWaypoint(index) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.action_delete),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+            TextButton(onClick = onAddWaypoint, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.navigator_add_stop))
             }
 
             // Alternative route selector (shown when multiple routes available)

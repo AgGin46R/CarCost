@@ -21,6 +21,7 @@ import com.aggin.carcost.data.remote.repository.SupabaseInsurancePolicyRepositor
 import com.aggin.carcost.data.remote.repository.SupabaseMaintenanceReminderRepository
 import com.aggin.carcost.data.remote.repository.SupabasePlannedExpenseRepository
 import com.aggin.carcost.data.remote.repository.SupabaseSavingsGoalRepository
+import com.aggin.carcost.data.remote.repository.SupabaseTyreSetRepository
 
 /**
  * Сборка [SyncRepository] в одном месте.
@@ -59,6 +60,7 @@ object SyncRepositoryFactory {
         supabaseSavingsGoalRepo = SupabaseSavingsGoalRepository(auth),
         supabaseCategoryBudgetRepo = SupabaseCategoryBudgetRepository(auth),
         supabaseCarDocumentRepo = SupabaseCarDocumentRepository(auth),
-        supabaseAchievementRepo = SupabaseAchievementRepository(auth)
+        supabaseAchievementRepo = SupabaseAchievementRepository(auth),
+        supabaseTyreSetRepo = SupabaseTyreSetRepository(auth)
     )
 }

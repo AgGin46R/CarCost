@@ -97,6 +97,14 @@ fun EnhancedAnalyticsScreen(
                 },
                 actions = {
                     IconButton(onClick = {
+                        navController.navigateOnce(
+                            com.aggin.carcost.presentation.navigation.Screen.YearReview
+                                .createRoute(carId)
+                        )
+                    }) {
+                        Icon(Icons.Default.EmojiEvents, stringResource(R.string.yearreview_open))
+                    }
+                    IconButton(onClick = {
                         // Pre-fill with avg consumption if available
                         val avgL100 = uiState.fuelStatistics?.averageConsumption ?: 0.0
                         navController.navigateOnce(
@@ -221,6 +229,10 @@ fun EnhancedAnalyticsScreen(
 
                     uiState.fuelStatistics?.let { fs ->
                         item { FuelStatisticsCard(fs) }
+                    }
+
+                    if (uiState.stationPrices.isNotEmpty()) {
+                        item { StationPricesCard(uiState.stationPrices) }
                     }
 
                     // Прогноза может не быть — пока мало истории. Тогда вместо
@@ -846,6 +858,84 @@ fun FuelStatisticsCard(fuelStats: FuelStatistics) {
                         }
                     ),
                     modifier = Modifier.fillMaxWidth().height(150.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Цены литра по заправкам.
+ *
+ * Показывается, только когда есть что сравнивать. Заправка, где были один раз,
+ * в список не попадает: одна цена в один день — это не цена заправки.
+ */
+@Composable
+fun StationPricesCard(
+    stations: List<com.aggin.carcost.domain.fuel.StationPriceAnalyzer.Station>
+) {
+    if (stations.isEmpty()) return
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                stringResource(R.string.analytics_stations_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.analytics_stations_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+
+            stations.forEachIndexed { index, station ->
+                if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            station.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (index == 0) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                        Text(
+                            stringResource(R.string.analytics_stations_fillups, station.fillUps),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            currencyFormat(station.averagePerLiter, decimals = 2),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        // У самой дешёвой разницы нет — и подписывать её нечем
+                        if (station.overpayPerLiter > 0.009) {
+                            Text(
+                                stringResource(
+                                    R.string.analytics_stations_overpay,
+                                    currencyFormat(station.overpayPerLiter, decimals = 2)
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Итог имеет смысл только при разных ценах: иначе это ноль,
+            // напечатанный отдельной строкой
+            val overpay = com.aggin.carcost.domain.fuel.StationPriceAnalyzer.totalOverpay(stations)
+            if (overpay > 1.0) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.analytics_stations_total_overpay, currencyFormat(overpay)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
