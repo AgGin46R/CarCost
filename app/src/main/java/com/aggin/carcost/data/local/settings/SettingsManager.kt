@@ -41,6 +41,30 @@ class SettingsManager(private val context: Context) {
         val QUIET_HOURS_END_KEY = intPreferencesKey("quiet_hours_end")     // час 0–23
         // Бюджетный алерт
         val NOTIF_BUDGET_ALERT_KEY = booleanPreferencesKey("notif_budget_alert")
+
+        /**
+         * Геозоны вокруг заправок.
+         *
+         * По умолчанию выключено, и это не осторожность ради осторожности:
+         * функция требует фонового местоположения, а его нельзя включать
+         * молча за человека.
+         */
+        val GEOFENCE_FUEL_KEY = booleanPreferencesKey("geofence_fuel")
+
+        /**
+         * Попадает ли час в окно тишины.
+         *
+         * Отдельной чистой функцией ради одного случая: окно почти всегда
+         * переходит через полночь (22:00–8:00), и наивное `hour in start..end`
+         * тогда не срабатывает никогда. Ошибка тихая — уведомления просто
+         * продолжают приходить ночью, и по коду настроек не видно почему.
+         */
+        fun isWithinQuietWindow(hour: Int, start: Int, end: Int): Boolean = when {
+            // Окно нулевой длины — тишины нет
+            start == end -> false
+            start < end -> hour in start until end      // напр. 1:00–7:00
+            else -> hour >= start || hour < end         // напр. 22:00–8:00
+        }
     }
 
     val themeFlow: Flow<String> = context.dataStore.data
@@ -75,6 +99,9 @@ class SettingsManager(private val context: Context) {
 
     val quietHoursEndFlow: Flow<Int> = context.dataStore.data
         .map { it[QUIET_HOURS_END_KEY] ?: 8 }   // по умолчанию до 8:00
+
+    val geofenceFuelFlow: Flow<Boolean> = context.dataStore.data
+        .map { it[GEOFENCE_FUEL_KEY] ?: false }
 
     val notifBudgetAlertFlow: Flow<Boolean> = context.dataStore.data
         .map { it[NOTIF_BUDGET_ALERT_KEY] ?: true }
@@ -127,6 +154,67 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[NOTIF_BUDGET_ALERT_KEY] = enabled }
     }
 
+    suspend fun setGeofenceFuel(enabled: Boolean) {
+        context.dataStore.edit { it[GEOFENCE_FUEL_KEY] = enabled }
+    }
+
+    /**
+     * Вид уведомления — то, чем управляет переключатель в профиле.
+     *
+     * Видов меньше, чем поводов написать: несколько поводов делят один
+     * переключатель, если человек воспринимает их как одно. Жидкости — то же
+     * обслуживание, налог и документы — те же сроки, что и страховка.
+     * Разводить каждый повод в свой переключатель значит превратить настройки
+     * в список, который никто не читает.
+     */
+    enum class NotifKind {
+        MAINTENANCE,
+
+        /** Страховки, документы, транспортный налог — всё, у чего есть срок */
+        PAPERWORK,
+
+        /** Еженедельная сводка и итоги года */
+        DIGEST,
+
+        FUEL,
+        BUDGET,
+
+        /**
+         * Переключателя нет и быть не должно.
+         *
+         * Сообщения совладельцев, приглашения, обновления приложения и таймер
+         * парковки, который человек завёл сам. Спрятать их под настройку
+         * «напоминания» значило бы, что выключивший напоминания перестаёт
+         * получать сообщения.
+         */
+        ALWAYS
+    }
+
+    /**
+     * Включён ли этот вид уведомлений.
+     *
+     * Чтение синхронное — как и у тихих часов: вызывается из воркеров и
+     * приёмников, где корутину уже не запустить.
+     */
+    fun isNotifEnabled(kind: NotifKind): Boolean {
+        if (kind == NotifKind.ALWAYS) return true
+
+        val prefs = runCatching {
+            kotlinx.coroutines.runBlocking { context.dataStore.data.first() }
+        }.getOrNull() ?: return true  // не смогли прочитать настройки — не молчим
+
+        val key = when (kind) {
+            NotifKind.MAINTENANCE -> NOTIF_MAINTENANCE_KEY
+            NotifKind.PAPERWORK -> NOTIF_INSURANCE_KEY
+            NotifKind.DIGEST -> NOTIF_DIGEST_KEY
+            NotifKind.FUEL -> NOTIF_FUEL_KEY
+            NotifKind.BUDGET -> NOTIF_BUDGET_ALERT_KEY
+            NotifKind.ALWAYS -> return true
+        }
+        // Пустая настройка означает «не трогали», а не «выключено»
+        return prefs[key] ?: true
+    }
+
     /** Проверяет, попадает ли текущее время в тихие часы. */
     fun isCurrentlyQuietHours(): Boolean {
         val prefs = runCatching {
@@ -139,8 +227,7 @@ class SettingsManager(private val context: Context) {
         val start = prefs[QUIET_HOURS_START_KEY] ?: 22
         val end = prefs[QUIET_HOURS_END_KEY] ?: 8
         val now = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        return if (start <= end) now in start until end  // напр. 1:00–7:00
-        else now >= start || now < end                   // напр. 22:00–8:00 (через полночь)
+        return isWithinQuietWindow(now, start, end)
     }
 
     fun lastChatSeenFlow(carId: String): Flow<Long> {

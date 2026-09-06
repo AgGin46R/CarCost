@@ -24,6 +24,9 @@ object NotificationHelper {
     const val NAV_TYPE_GPS_TRIP = "gps_trip"
     const val NAV_TYPE_NAVIGATOR = "navigator"
     const val NAV_TYPE_YEAR_REVIEW = "year_review"
+
+    /** Название заправки для подстановки в форму расхода */
+    const val EXTRA_NAV_EXTRA = "nav_extra"
     const val NAV_TYPE_UPDATE = "update"
 
     // ── Channels ────────────────────────────────────────────────────────────────
@@ -66,7 +69,11 @@ object NotificationHelper {
         } else {
             context.getString(R.string.notify_toplivo_na_ishode_okolo_l, estimatedLiters.toInt())
         }
-        notify(context, CHANNEL_ID, notificationId, context.getString(R.string.notify_zapravte_avtomobil, carName), body)
+        notify(
+            context, CHANNEL_ID, notificationId,
+            context.getString(R.string.notify_zapravte_avtomobil, carName), body,
+            kind = SettingsManager.NotifKind.FUEL
+        )
     }
 
     fun sendMaintenanceNotification(
@@ -81,7 +88,11 @@ object NotificationHelper {
             kmLeft <= 100 -> context.getString(R.string.notify_ostalos_km, serviceType, kmLeft)
             else -> context.getString(R.string.notify_cherez_km, serviceType, kmLeft)
         }
-        notify(context, CHANNEL_ID, notificationId, context.getString(R.string.notify_tehobsluzhivanie, carName), body)
+        notify(
+            context, CHANNEL_ID, notificationId,
+            context.getString(R.string.notify_tehobsluzhivanie, carName), body,
+            kind = SettingsManager.NotifKind.MAINTENANCE
+        )
     }
 
     // ── Бюджет ────────────────────────────────────────────────────────────────
@@ -95,7 +106,7 @@ object NotificationHelper {
     ) {
         val title = context.getString(R.string.notify_byudzhet_pochti_ischerpan, carName)
         val body = context.getString(R.string.notify_ispolzovano_mesyachnogo_limita, categoryName, usedPercent)
-        notify(context, CHANNEL_ID, notificationId, title, body)
+        notify(context, CHANNEL_ID, notificationId, title, body, kind = SettingsManager.NotifKind.BUDGET)
     }
 
     // ── Чат ─────────────────────────────────────────────────────────────────
@@ -199,17 +210,28 @@ object NotificationHelper {
 
     // ── FCM generic ─────────────────────────────────────────────────────────
 
+    /**
+     * @param navExtra дополнительное значение для перехода — например,
+     *   название заправки, которое подставится в форму расхода. Что с ним
+     *   делать, решает [com.aggin.carcost.MainActivity] по [navType]
+     */
     fun sendGenericNotification(
         context: Context,
         notificationId: Int,
         title: String,
         body: String,
         carId: String? = null,
-        navType: String? = null
+        navType: String? = null,
+        navExtra: String? = null,
+        kind: SettingsManager.NotifKind = SettingsManager.NotifKind.ALWAYS,
+        ignoreQuietHours: Boolean = false
     ) {
         val intent = if (carId != null && navType != null)
-            makeNavIntent(context, navType, carId, notificationId) else null
-        notify(context, CHANNEL_SOCIAL_ID, notificationId, title, body, intent)
+            makeNavIntent(context, navType, carId, notificationId, navExtra) else null
+        notify(
+            context, CHANNEL_SOCIAL_ID, notificationId, title, body, intent,
+            kind = kind, ignoreQuietHours = ignoreQuietHours
+        )
     }
 
     // ── Internal ────────────────────────────────────────────────────────────
@@ -218,12 +240,14 @@ object NotificationHelper {
         context: Context,
         navType: String,
         carId: String,
-        requestCode: Int
+        requestCode: Int,
+        navExtra: String? = null
     ): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_NAV_TYPE, navType)
             putExtra(EXTRA_NAV_CAR_ID, carId)
+            navExtra?.let { putExtra(EXTRA_NAV_EXTRA, it) }
         }
         return PendingIntent.getActivity(
             context,
@@ -233,16 +257,34 @@ object NotificationHelper {
         )
     }
 
+    /**
+     * Единственное место, где уведомление действительно показывается.
+     *
+     * Проверка переключателя стоит именно здесь, а не в каждом воркере.
+     * Раньше её не было нигде: три переключателя в профиле сохранялись и не
+     * значили ничего — человек выключал напоминания о ТО и продолжал их
+     * получать. Настройка, которая не работает, хуже отсутствующей: с ней
+     * человек считает, что уже всё выключил, и идёт отключать уведомления
+     * приложения целиком.
+     *
+     * @param kind чем управляется этот вид уведомлений
+     * @param ignoreQuietHours для того, что человек назначил сам на конкретное
+     *   время. Таймер парковки на три часа ночи — не беспокойство, а то, о чём
+     *   попросили; проглотить его значит сломать функцию
+     */
     private fun notify(
         context: Context,
         channelId: String,
         id: Int,
         title: String,
         body: String,
-        contentIntent: PendingIntent? = null
+        contentIntent: PendingIntent? = null,
+        kind: SettingsManager.NotifKind = SettingsManager.NotifKind.ALWAYS,
+        ignoreQuietHours: Boolean = false
     ) {
-        // Не беспокоить в тихие часы (применяется только к локальным Worker-уведомлениям)
-        if (SettingsManager(context).isCurrentlyQuietHours()) return
+        val settings = SettingsManager(context)
+        if (!settings.isNotifEnabled(kind)) return
+        if (!ignoreQuietHours && settings.isCurrentlyQuietHours()) return
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val builder = NotificationCompat.Builder(context, channelId)

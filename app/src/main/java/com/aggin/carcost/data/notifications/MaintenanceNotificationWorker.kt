@@ -60,6 +60,7 @@ class MaintenanceNotificationWorker(
                     else -> applicationContext.getString(R.string.notify_cherez, applicationContext.getString(reminder.type.displayNameRes), daysLeft, dayWord(daysLeft))
                 }
                 NotificationHelper.sendGenericNotification(
+                    kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.MAINTENANCE,
                     context = applicationContext,
                     notificationId = DATE_NOTIFICATION_ID_BASE + index,
                     title = applicationContext.getString(R.string.notify_to_po_sroku, carName),

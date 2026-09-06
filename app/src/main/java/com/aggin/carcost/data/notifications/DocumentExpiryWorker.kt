@@ -36,6 +36,7 @@ class DocumentExpiryWorker(
                 val docTitle = if (document.title.isNotBlank()) document.title else typeLabel
                 val body = applicationContext.getString(R.string.notify_istekaet_cherez, docTitle, days, dayWord(days))
                 NotificationHelper.sendGenericNotification(
+                    kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.PAPERWORK,
                     context = applicationContext,
                     notificationId = 6000 + i + days * 10,
                     title = applicationContext.getString(R.string.notify_dokument, carName),

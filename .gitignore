@@ -17,3 +17,6 @@ local.properties
 # Не коммитить: конфигурация Firebase
 app/google-services.json
 
+
+# Байткод питоновских инструментов локализации
+__pycache__/

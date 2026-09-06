@@ -116,8 +116,14 @@ class MainActivity : ComponentActivity() {
         return when (navType) {
             NotificationHelper.NAV_TYPE_CHAT        -> "chat/$carId"
             NotificationHelper.NAV_TYPE_ADD_EXPENSE -> "add_expense/$carId"
-            // Категория задаётся тем же параметром, что и у чипов быстрого ввода
-            NotificationHelper.NAV_TYPE_ADD_FUEL    -> "add_expense/$carId?category=FUEL"
+            // Категория задаётся тем же параметром, что и у чипов быстрого ввода.
+            // Название заправки, если оно есть, кодируем: в нём бывают пробелы
+            // и кириллица, а маршрут — это URI
+            NotificationHelper.NAV_TYPE_ADD_FUEL    -> {
+                val station = intent.getStringExtra(NotificationHelper.EXTRA_NAV_EXTRA)
+                if (station.isNullOrBlank()) "add_expense/$carId?category=FUEL"
+                else "add_expense/$carId?category=FUEL&location=${android.net.Uri.encode(station)}"
+            }
             NotificationHelper.NAV_TYPE_GPS_TRIP    -> "gps_trip/$carId"
             NotificationHelper.NAV_TYPE_NAVIGATOR   -> "navigator"
             NotificationHelper.NAV_TYPE_YEAR_REVIEW  -> "year_review/$carId"

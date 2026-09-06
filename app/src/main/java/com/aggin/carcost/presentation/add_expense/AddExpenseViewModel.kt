@@ -136,6 +136,9 @@ class AddExpenseViewModel(
     private val initialCategory: String? = savedStateHandle.get<String>("category")
     private val lockedCategory: Boolean = savedStateHandle.get<Boolean>("lockedCategory") ?: false
 
+    /** Заправка из уведомления «похоже, вы заправились» */
+    private val initialLocation: String? = savedStateHandle.get<String>("location")
+
     private val database = AppDatabase.getDatabase(application)
     private val carRepository = CarRepository(database.carDao())
     private val expenseRepository = ExpenseRepository(database.expenseDao())
@@ -178,6 +181,13 @@ class AddExpenseViewModel(
 
             // Образец для «как в прошлый раз» — по той категории, что открылась
             loadLastSimilar(_uiState.value.category)
+
+            // Место из уведомления ставится ПОСЛЕ образца: образец тоже
+            // заполняет место, и при обратном порядке подставленная заправка
+            // молча заменялась бы на прошлую
+            initialLocation?.takeIf { it.isNotBlank() }?.let { place ->
+                _uiState.value = _uiState.value.copy(location = place)
+            }
 
             // Места из истории — чтобы название колонки не набирать заново
             runCatching { database.expenseDao().getRecentLocations(carId) }
@@ -866,6 +876,7 @@ class AddExpenseViewModel(
                             val over = monthlyTotal - budget.monthlyLimit
                             val catName = NotificationHelper.categoryDisplayName(getApplication(), state.category.name)
                             NotificationHelper.sendGenericNotification(
+                                kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.BUDGET,
                                 context = getApplication(),
                                 notificationId = state.category.ordinal + 3000,
                                 title = getApplication<Application>().getString(R.string.addexp_prevyshen_byudzhet, catName),

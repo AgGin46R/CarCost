@@ -68,6 +68,7 @@ class FluidCheckWorker(
             }
 
             NotificationHelper.sendGenericNotification(
+                kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.MAINTENANCE,
                 context = applicationContext,
                 notificationId = notifId + abs(car.id.hashCode() % 900),
                 title = title,

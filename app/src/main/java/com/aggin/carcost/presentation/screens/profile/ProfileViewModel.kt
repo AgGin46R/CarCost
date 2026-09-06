@@ -528,6 +528,29 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { settingsManager.setNotifBudgetAlert(enabled) }
     }
 
+    /**
+     * Геозоны вокруг заправок.
+     *
+     * Включение сразу же строит зоны, выключение — снимает. Иначе после
+     * выключения телефон продолжал бы будить приложение на каждом въезде на
+     * заправку, а человек считал бы, что всё отключено.
+     */
+    fun setGeofenceFuel(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setGeofenceFuel(enabled)
+            val app = getApplication<Application>()
+            if (enabled) {
+                val car = com.aggin.carcost.data.local.database.AppDatabase
+                    .getDatabase(app).carDao().getAllActiveCarsSync().firstOrNull()
+                if (car != null) {
+                    com.aggin.carcost.data.geofence.FuelGeofenceManager.refresh(app, car.id)
+                }
+            } else {
+                com.aggin.carcost.data.geofence.FuelGeofenceManager.disable(app)
+            }
+        }
+    }
+
     fun setQuietHoursEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsManager.setQuietHoursEnabled(enabled) }
     }

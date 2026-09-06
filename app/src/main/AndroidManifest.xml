@@ -36,14 +36,40 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!--
-        ACCESS_BACKGROUND_LOCATION удалено: оно объявлялось, но НИ РАЗУ не
-        запрашивалось в коде. Запись поездок идёт через сервис переднего плана
-        с постоянным уведомлением, а ему это разрешение не требуется.
+        ACCESS_BACKGROUND_LOCATION: геозоны вокруг заправок из истории.
 
-        RuStore относит его к чувствительным и просит обосновать каждое —
-        обосновывать разрешение ради несуществующей функции нечем, и лишний
-        повод для отказа при модерации не нужен.
+        Разрешение уже удаляли однажды — тогда оно объявлялось, но НИ РАЗУ не
+        запрашивалось в коде, и обосновывать при модерации было нечего.
+        Сейчас за ним стоит настоящая функция: приложение узнаёт, что человек
+        постоял на знакомой заправке и уехал, и предлагает записать заправку.
+        Без фонового местоположения геозоны не срабатывают при закрытом
+        приложении, то есть не работают вовсе.
+
+        Запрашивается ОТДЕЛЬНО и только по включению переключателя в профиле —
+        по умолчанию функция выключена. Записи поездок это разрешение
+        по-прежнему не требуется: там сервис переднего плана.
     -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!--
+        Bluetooth для адаптера OBD-II.
+
+        С Android 12 разрешения разделили: BLUETOOTH_CONNECT нужен для работы
+        с уже сопряжённым адаптером, BLUETOOTH_SCAN — для поиска. Старые
+        BLUETOOTH и BLUETOOTH_ADMIN оставлены для версий до двенадцатой, где
+        новых просто не существует, и ограничены maxSdkVersion, чтобы не
+        просить лишнего на свежих телефонах.
+
+        neverForLocation говорит системе, что сканирование не используется для
+        определения местоположения — так и есть, адаптер ищется по имени.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
@@ -141,6 +167,15 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Срабатывание геозоны заправки -->
+        <receiver
+            android:name=".data.geofence.FuelGeofenceReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.aggin.carcost.FUEL_GEOFENCE" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".data.parking.ParkingTimerReceiver"

@@ -10,6 +10,8 @@ class ParkingTimerReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == ACTION_PARKING_EXPIRED) {
             NotificationHelper.sendGenericNotification(
+                kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.ALWAYS,
+                ignoreQuietHours = true,
                 context = context,
                 notificationId = 7000,
                 title = "Время парковки истекло",

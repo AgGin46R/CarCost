@@ -109,6 +109,7 @@ class WeeklySummaryWorker(
         }
 
         NotificationHelper.sendGenericNotification(
+            kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.DIGEST,
             context = applicationContext,
             notificationId = 9000,
             title = applicationContext.getString(R.string.notify_itogi_nedeli),

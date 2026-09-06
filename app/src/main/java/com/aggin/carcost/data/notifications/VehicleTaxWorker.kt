@@ -59,6 +59,7 @@ class VehicleTaxWorker(
             ) ?: return@forEachIndexed
 
             NotificationHelper.sendGenericNotification(
+                kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.PAPERWORK,
                 context = applicationContext,
                 notificationId = 7100 + index,
                 title = applicationContext.getString(

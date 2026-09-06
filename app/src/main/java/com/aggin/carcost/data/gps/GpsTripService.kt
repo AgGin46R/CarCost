@@ -16,6 +16,10 @@ import androidx.lifecycle.lifecycleScope
 import com.aggin.carcost.MainActivity
 import com.aggin.carcost.R
 import com.aggin.carcost.data.local.database.AppDatabase
+import com.aggin.carcost.data.local.settings.SettingsManager
+import com.aggin.carcost.data.notifications.NotificationHelper
+import com.aggin.carcost.domain.fuel.NearbyStationFinder
+import kotlinx.coroutines.flow.first
 import com.aggin.carcost.data.local.database.entities.GpsTrip
 import com.aggin.carcost.data.remote.repository.SupabaseAuthRepository
 import com.aggin.carcost.domain.gamification.AchievementChecker
@@ -27,6 +31,14 @@ import kotlin.math.roundToInt
 class GpsTripService : LifecycleService() {
 
     companion object {
+        /**
+         * Короче этого поездка на заправку не тянет: до соседней колонки во
+         * дворе не ездят, а вот вернуться домой и остановиться в двухстах
+         * метрах от давней заправки — запросто
+         */
+        private const val MIN_TRIP_FOR_STATION_HINT_M = 1_000.0
+        private const val STATION_HINT_NOTIFICATION_ID = 7300
+
         const val ACTION_START = "action_start_trip"
         const val ACTION_STOP = "action_stop_trip"
         const val EXTRA_CAR_ID = "extra_car_id"
@@ -164,8 +176,50 @@ class GpsTripService : LifecycleService() {
                     db.carDao().updateOdometer(carIdVal, newOdometer)
                 }
             }
+
+            // Поездка закончилась у знакомой заправки — предложить записать
+            suggestFuelIfNearStation(db, carIdVal)
+
             // Stop service AFTER the write completes — prevents data loss
             stopSelf()
+        }
+    }
+
+    /**
+     * Предлагает записать заправку, если поездка закончилась там, где человек
+     * уже заправлялся.
+     *
+     * Никаких новых разрешений: координаты заправок уже лежат в расходах, а
+     * место окончания поездки — это последняя точка маршрута, который мы и так
+     * писали. Внешнего справочника АЗС нет — приложение узнаёт только те места,
+     * куда владелец заезжал сам.
+     *
+     * Молчит, если: точки маршрута не набрались, поездка короткая (заправка не
+     * бывает в двухстах метрах от дома), заправку уже записали руками, или
+     * уведомления о топливе выключены.
+     */
+    private suspend fun suggestFuelIfNearStation(db: AppDatabase, carIdVal: String) {
+        try {
+            val last = routePoints.lastOrNull() ?: return
+            if (totalDistanceMeters < MIN_TRIP_FOR_STATION_HINT_M) return
+
+            val expenses = db.expenseDao().getExpensesByCarIdSync(carIdVal)
+            val match = NearbyStationFinder.find(expenses, last.first, last.second) ?: return
+
+            NotificationHelper.sendGenericNotification(
+                kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.FUEL,
+                context = applicationContext,
+                notificationId = STATION_HINT_NOTIFICATION_ID,
+                title = getString(R.string.fuelhint_title),
+                body = getString(R.string.fuelhint_body, match.name),
+                carId = carIdVal,
+                navType = NotificationHelper.NAV_TYPE_ADD_FUEL,
+                navExtra = match.name
+            )
+        } catch (e: Exception) {
+            // Подсказка — приятное дополнение, а не часть записи поездки.
+            // Её падение не должно мешать сохранению самой поездки
+            android.util.Log.w("GpsTripService", "Подсказка о заправке не сработала", e)
         }
     }
 

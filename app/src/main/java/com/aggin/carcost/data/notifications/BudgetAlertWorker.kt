@@ -27,7 +27,9 @@ class BudgetAlertWorker(
     override suspend fun doWork(): Result {
         val settings = SettingsManager(applicationContext)
 
-        // Проверяем, включён ли алерт бюджета
+        // Переключатель бюджета проверяется в NotificationHelper вместе с
+        // остальными. Но выйти раньше дешевле: иначе воркер зря прочитает все
+        // расходы всех машин, чтобы в конце промолчать
         if (!settings.notifBudgetAlertFlow.first()) return Result.success()
 
         val db = AppDatabase.getDatabase(applicationContext)

@@ -4,6 +4,8 @@ import androidx.compose.ui.res.stringResource
 import com.aggin.carcost.R
 import android.app.Application
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -11,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.aggin.carcost.data.local.database.entities.ExpenseCategory
+import com.aggin.carcost.presentation.common.displayName
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,136 +112,162 @@ fun ExportScreen(
             )
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            when {
-                uiState.isLoading -> {
-                    CircularProgressIndicator()
-                }
-                uiState.car != null -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+        when {
+            uiState.isLoading -> Box(
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) { CircularProgressIndicator() }
+
+            uiState.car == null -> Box(
+                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(R.string.export_ne_udalos_zagruzit_dannye_ob_avtomobile),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // Раньше всё это лежало в Box с выравниванием по центру и без
+            // прокрутки. Содержимое выше экрана, поэтому его обрезало сверху и
+            // снизу разом: до кнопок резервной копии и восстановления добраться
+            // было нельзя вообще — они оказывались за нижней границей
+            else -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "${uiState.car?.brand} ${uiState.car?.model}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.export_vyberite_format_i_period_dlya_eksporta),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // ── Отчёты ──────────────────────────────────────────────────
+                SectionTitle(stringResource(R.string.export_section_reports))
+
+                PeriodFilterCard(
+                    startDate = uiState.filterStartDate,
+                    endDate = uiState.filterEndDate,
+                    onStartDateSelected = { viewModel.setDateFilter(it, uiState.filterEndDate) },
+                    onEndDateSelected = { viewModel.setDateFilter(uiState.filterStartDate, it) },
+                    onClear = { viewModel.setDateFilter(null, null) }
+                )
+
+                CategoryFilterCard(
+                    selectedCategories = uiState.selectedCategories,
+                    onToggle = { viewModel.toggleCategory(it) },
+                    onSelectAll = { viewModel.selectAllCategories() }
+                )
+
+                ExportButton(
+                    text = stringResource(R.string.export_eksport_v_pdf),
+                    icon = Icons.Default.PictureAsPdf,
+                    onClick = { viewModel.exportToPdf() },
+                    enabled = !uiState.isExporting
+                )
+
+                ExportButton(
+                    text = stringResource(R.string.export_eksport_v_csv),
+                    icon = Icons.Default.TableRows,
+                    onClick = { viewModel.exportToCsv() },
+                    enabled = !uiState.isExporting
+                )
+
+                // ── Паспорт ─────────────────────────────────────────────────
+                //
+                // Отдельным разделом, а не рядом с отчётами: фильтры периода и
+                // категорий на него не действуют, и соседство обещало бы обратное
+                SectionTitle(stringResource(R.string.export_section_passport))
+
+                ExportButton(
+                    text = stringResource(R.string.passport_export),
+                    icon = Icons.Default.Description,
+                    onClick = { viewModel.exportVehiclePassport() },
+                    enabled = !uiState.isExporting,
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+
+                Hint(stringResource(R.string.passport_export_hint))
+
+                // ── Резервная копия ─────────────────────────────────────────
+                SectionTitle(stringResource(R.string.export_section_backup))
+
+                ExportButton(
+                    text = stringResource(R.string.export_rezervnaya_kopiya_vse_avto),
+                    icon = Icons.Default.BackupTable,
+                    onClick = { viewModel.exportBackup() },
+                    enabled = !uiState.isExporting,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+
+                ExportButton(
+                    text = stringResource(R.string.export_vosstanovit_iz_kopii),
+                    icon = Icons.Default.Restore,
+                    onClick = { restoreLauncher.launch(arrayOf("application/json", "*/*")) },
+                    enabled = !uiState.isExporting && !uiState.isRestoring,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+
+                Hint(
+                    stringResource(R.string.export_v_kopiyu_vhodyat_avtomobili_rashody_to) +
+                        stringResource(R.string.export_strahovki_intsidenty_byudzhety_tseli_i) +
+                        stringResource(R.string.export_starye_csv_kopii_vosstanovit_nelzya)
+                )
+
+                if (uiState.isExporting) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
                         Text(
-                            text = stringResource(R.string.export_eksport_dannyh_dlya_avtomobilya),
-                            style = MaterialTheme.typography.headlineSmall
+                            text = stringResource(R.string.export_sozdanie_fayla),
+                            style = MaterialTheme.typography.bodySmall
                         )
-                        Text(
-                            text = "${uiState.car?.brand} ${uiState.car?.model}",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                        Text(
-                            text = stringResource(R.string.export_vyberite_format_i_period_dlya_eksporta),
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Фильтр периода
-                        PeriodFilterCard(
-                            startDate = uiState.filterStartDate,
-                            endDate = uiState.filterEndDate,
-                            onStartDateSelected = { viewModel.setDateFilter(it, uiState.filterEndDate) },
-                            onEndDateSelected = { viewModel.setDateFilter(uiState.filterStartDate, it) },
-                            onClear = { viewModel.setDateFilter(null, null) }
-                        )
-
-                        // Фильтр по категориям
-                        CategoryFilterCard(
-                            selectedCategories = uiState.selectedCategories,
-                            onToggle = { viewModel.toggleCategory(it) },
-                            onSelectAll = { viewModel.selectAllCategories() }
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        ExportButton(
-                            text = stringResource(R.string.export_eksport_v_pdf),
-                            icon = Icons.Default.PictureAsPdf,
-                            onClick = { viewModel.exportToPdf() },
-                            enabled = !uiState.isExporting
-                        )
-
-                        ExportButton(
-                            text = stringResource(R.string.export_eksport_v_csv),
-                            icon = Icons.Default.TableRows,
-                            onClick = { viewModel.exportToCsv() },
-                            enabled = !uiState.isExporting
-                        )
-
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                        // Паспорт стоит за разделителем вместе с бэкапом, а не
-                        // рядом с отчётами: фильтры периода и категорий на него
-                        // не действуют, и соседство с ними обещало бы обратное
-                        ExportButton(
-                            text = stringResource(R.string.passport_export),
-                            icon = Icons.Default.Description,
-                            onClick = { viewModel.exportVehiclePassport() },
-                            enabled = !uiState.isExporting,
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-
-                        Text(
-                            text = stringResource(R.string.passport_export_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
-                        )
-
-                        ExportButton(
-                            text = stringResource(R.string.export_rezervnaya_kopiya_vse_avto),
-                            icon = Icons.Default.BackupTable,
-                            onClick = { viewModel.exportBackup() },
-                            enabled = !uiState.isExporting,
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        ExportButton(
-                            text = stringResource(R.string.export_vosstanovit_iz_kopii),
-                            icon = Icons.Default.Restore,
-                            onClick = { restoreLauncher.launch(arrayOf("application/json", "*/*")) },
-                            enabled = !uiState.isExporting && !uiState.isRestoring,
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-
-                        Text(
-                            text = stringResource(R.string.export_v_kopiyu_vhodyat_avtomobili_rashody_to) +
-                                stringResource(R.string.export_strahovki_intsidenty_byudzhety_tseli_i) +
-                                stringResource(R.string.export_starye_csv_kopii_vosstanovit_nelzya),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-
-                        if (uiState.isExporting) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            CircularProgressIndicator()
-                            Text(
-                                text = stringResource(R.string.export_sozdanie_fayla),
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
                     }
                 }
-                else -> {
-                    Text(stringResource(R.string.export_ne_udalos_zagruzit_dannye_ob_avtomobile))
-                }
+
+                // Нижний отступ: без него последняя подпись прилипает к краю
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
+}
+
+/** Заголовок раздела на экране экспорта */
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 12.dp)
+    )
+}
+
+/** Пояснение под кнопкой */
+@Composable
+private fun Hint(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -348,7 +377,9 @@ private fun CategoryFilterCard(
                     FilterChip(
                         selected = cat in selectedCategories,
                         onClick = { onToggle(cat) },
-                        label = { Text(cat.name, style = MaterialTheme.typography.labelSmall) }
+                        // Название категории, а не имя константы: в чипах
+                        // стояло FUEL и MAINTENANCE — и мимо перевода тоже
+                        label = { Text(cat.displayName(), style = MaterialTheme.typography.labelSmall) }
                     )
                 }
             }
@@ -365,14 +396,18 @@ private fun ExportButton(
     containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
     contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onPrimary
 ) {
+    // Высота минимальная, а не фиксированная: при жёстких 56.dp длинная
+    // подпись — «Резервная копия (все авто)», её перевод на казахский —
+    // не помещалась в строку и обрезалась многоточием посреди слова
     Button(
         onClick = onClick,
         enabled = enabled,
         colors = ButtonDefaults.buttonColors(containerColor = containerColor, contentColor = contentColor),
-        modifier = Modifier.fillMaxWidth().height(56.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-        Text(text)
+        Text(text, textAlign = TextAlign.Start, modifier = Modifier.weight(1f, fill = false))
     }
 }

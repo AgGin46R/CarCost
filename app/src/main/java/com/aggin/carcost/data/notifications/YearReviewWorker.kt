@@ -43,6 +43,7 @@ class YearReviewWorker(
             if (!summary.hasEnoughData) return@forEachIndexed
 
             NotificationHelper.sendGenericNotification(
+                kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.DIGEST,
                 context = applicationContext,
                 notificationId = 7200 + index,
                 title = applicationContext.getString(R.string.yearreview_notify_title, year),

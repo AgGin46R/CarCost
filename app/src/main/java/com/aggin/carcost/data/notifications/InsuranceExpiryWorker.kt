@@ -39,6 +39,7 @@ class InsuranceExpiryWorker(
                 }
                 val body = applicationContext.getString(R.string.notify_istekaet_cherez, typeLabel, days, dayWord(days))
                 NotificationHelper.sendGenericNotification(
+                    kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.PAPERWORK,
                     context = applicationContext,
                     notificationId = 5000 + i + days * 10,
                     title = applicationContext.getString(R.string.notify_strahovka, carName),

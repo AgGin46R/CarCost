@@ -65,6 +65,7 @@ import com.aggin.carcost.presentation.screens.fuel_calculator.FuelCalculatorScre
 import com.aggin.carcost.presentation.screens.fluid_levels.FluidLevelsScreen
 import com.aggin.carcost.presentation.screens.tyres.TyresScreen
 import com.aggin.carcost.presentation.screens.yearreview.YearReviewScreen
+import com.aggin.carcost.presentation.screens.obd.ObdScreen
 import com.aggin.carcost.presentation.screens.carbot.CarBotScreen
 
 sealed class Screen(val route: String) {
@@ -87,13 +88,22 @@ sealed class Screen(val route: String) {
         fun createRoute(carId: String) = "edit_car/$carId"
     }
 
-    object AddExpense : Screen("add_expense/{carId}?plannedId={plannedId}&category={category}&lockedCategory={lockedCategory}") {
-        fun createRoute(carId: String, plannedId: String? = null, category: String? = null, lockedCategory: Boolean = false): String {
+    object AddExpense : Screen("add_expense/{carId}?plannedId={plannedId}&category={category}&lockedCategory={lockedCategory}&location={location}") {
+        fun createRoute(
+            carId: String,
+            plannedId: String? = null,
+            category: String? = null,
+            lockedCategory: Boolean = false,
+            location: String? = null
+        ): String {
             var route = "add_expense/$carId"
             val params = listOfNotNull(
                 plannedId?.let { "plannedId=$it" },
                 category?.let { "category=$it" },
-                if (lockedCategory) "lockedCategory=true" else null
+                if (lockedCategory) "lockedCategory=true" else null,
+                // Название места — свободный текст с пробелами и кириллицей,
+                // в маршрут оно должно попасть закодированным
+                location?.takeIf { it.isNotBlank() }?.let { "location=${android.net.Uri.encode(it)}" }
             )
             if (params.isNotEmpty()) route += "?" + params.joinToString("&")
             return route
@@ -226,6 +236,10 @@ sealed class Screen(val route: String) {
 
     object YearReview : Screen("year_review/{carId}") {
         fun createRoute(carId: String) = "year_review/$carId"
+    }
+
+    object Obd : Screen("obd/{carId}") {
+        fun createRoute(carId: String) = "obd/$carId"
     }
 
     object CarBot : Screen("carbot")
@@ -446,6 +460,11 @@ fun AppNavigation(
                 navArgument("lockedCategory") {
                     type = NavType.BoolType
                     defaultValue = false
+                },
+                navArgument("location") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 }
             )
         ) { backStackEntry ->
@@ -748,6 +767,15 @@ fun AppNavigation(
         ) { backStackEntry ->
             val carId = backStackEntry.arguments?.getString("carId") ?: ""
             YearReviewScreen(carId = carId, navController = navController)
+        }
+
+        // Диагностика OBD-II
+        composable(
+            route = Screen.Obd.route,
+            arguments = listOf(navArgument("carId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val carId = backStackEntry.arguments?.getString("carId") ?: ""
+            ObdScreen(carId = carId, navController = navController)
         }
 
         // CarBot

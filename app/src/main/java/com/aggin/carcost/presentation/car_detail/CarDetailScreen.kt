@@ -61,9 +61,6 @@ fun CarDetailScreen(
     viewModel: CarDetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    // Строка берётся здесь: внутри onClick контекста Composable уже нет
-    val passportBuilding = stringResource(R.string.passport_creating)
 
     /** Расход, по которому нажали: показываем карточку с подробностями и чеком */
     var selectedExpense by remember {
@@ -206,23 +203,12 @@ fun CarDetailScreen(
                                 leadingIcon = { Icon(Icons.Default.DonutLarge, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.passport_export)) },
+                                text = { Text(stringResource(R.string.obd_open)) },
                                 onClick = {
                                     showMenu = false
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        passportBuilding,
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                    viewModel.buildVehiclePassport { error ->
-                                        if (error != null) {
-                                            android.widget.Toast.makeText(
-                                                context, error, android.widget.Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-                                    }
+                                    navController.navigateOnce(Screen.Obd.createRoute(carId))
                                 },
-                                leadingIcon = { Icon(Icons.Default.Description, null) }
+                                leadingIcon = { Icon(Icons.Default.Bluetooth, null) }
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.cardetail_eksport_dannyh)) },

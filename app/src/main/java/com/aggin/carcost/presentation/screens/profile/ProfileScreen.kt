@@ -226,6 +226,7 @@ fun ProfileScreen(
     val notifDigest by settingsManager.notifDigestFlow.collectAsState(initial = true)
     val notifFuel by settingsManager.notifFuelFlow.collectAsState(initial = true)
     val notifBudgetAlert by settingsManager.notifBudgetAlertFlow.collectAsState(initial = true)
+    val geofenceFuel by settingsManager.geofenceFuelFlow.collectAsState(initial = false)
     val quietHoursEnabled by settingsManager.quietHoursEnabledFlow.collectAsState(initial = false)
     val quietHoursStart by settingsManager.quietHoursStartFlow.collectAsState(initial = 22)
     val quietHoursEnd by settingsManager.quietHoursEndFlow.collectAsState(initial = 8)
@@ -345,6 +346,8 @@ fun ProfileScreen(
                 notifDigest = notifDigest,
                 notifFuel = notifFuel,
                 notifBudgetAlert = notifBudgetAlert,
+                geofenceFuel = geofenceFuel,
+                onToggleGeofenceFuel = { viewModel.setGeofenceFuel(it) },
                 quietHoursEnabled = quietHoursEnabled,
                 quietHoursStart = quietHoursStart,
                 quietHoursEnd = quietHoursEnd,
@@ -1313,6 +1316,8 @@ fun NotificationSection(
     notifDigest: Boolean,
     notifFuel: Boolean,
     notifBudgetAlert: Boolean,
+    geofenceFuel: Boolean,
+    onToggleGeofenceFuel: (Boolean) -> Unit,
     quietHoursEnabled: Boolean,
     quietHoursStart: Int,
     quietHoursEnd: Int,
@@ -1345,11 +1350,15 @@ fun NotificationSection(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            NotifToggleRow(stringResource(R.string.profile_napominaniya_o_to), notifMaintenance, onToggleMaintenance)
-            NotifToggleRow(stringResource(R.string.profile_strahovka), notifInsurance, onToggleInsurance)
-            NotifToggleRow(stringResource(R.string.profile_ezhenedelnyy_daydzhest), notifDigest, onToggleDigest)
+            NotifToggleRow(stringResource(R.string.profile_notif_maintenance), notifMaintenance, onToggleMaintenance)
+            NotifToggleRow(stringResource(R.string.profile_notif_paperwork), notifInsurance, onToggleInsurance)
+            NotifToggleRow(stringResource(R.string.profile_notif_digest), notifDigest, onToggleDigest)
             NotifToggleRow(stringResource(R.string.profile_nizkiy_uroven_topliva), notifFuel, onToggleFuel)
             NotifToggleRow(stringResource(R.string.profile_prevyshenie_80_byudzheta), notifBudgetAlert, onToggleBudgetAlert)
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            GeofenceFuelToggle(enabled = geofenceFuel, onToggle = onToggleGeofenceFuel)
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
@@ -1401,6 +1410,88 @@ fun NotificationSection(
                 )
             }
         }
+    }
+}
+
+/**
+ * Геозоны вокруг заправок.
+ *
+ * Отдельно от остальных переключателей и с объяснением прямо под ним: это
+ * единственная настройка приложения, которая просит фоновое местоположение, и
+ * человек должен понимать, за что платит, до того как нажмёт.
+ *
+ * Разрешение запрашивается только по включению — не при первом запуске и не
+ * заранее «на всякий случай».
+ */
+@Composable
+private fun GeofenceFuelToggle(enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    val context = LocalContext.current
+
+    // Фоновое местоположение с Android 11 нельзя запросить обычным диалогом:
+    // система показывает его только в настройках приложения. Поэтому сначала
+    // обычное разрешение, а за фоновым — отправляем в настройки
+    val backgroundLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            onToggle(true)
+        } else {
+            openAppSettings(context)
+        }
+    }
+
+    val fineLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        when {
+            !granted -> openAppSettings(context)
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> onToggle(true)
+            else -> backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                stringResource(R.string.geofence_fuel_title),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                stringResource(R.string.geofence_fuel_explain),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = { wanted ->
+                if (!wanted) {
+                    onToggle(false)
+                    return@Switch
+                }
+                if (com.aggin.carcost.data.geofence.FuelGeofenceManager.hasPermission(context)) {
+                    onToggle(true)
+                } else {
+                    fineLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+            }
+        )
+    }
+}
+
+/** Открывает системные настройки приложения — там выдают фоновое местоположение */
+private fun openAppSettings(context: android.content.Context) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", context.packageName, null)
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 }
 

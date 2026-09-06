@@ -39,6 +39,7 @@ import io.github.jan.supabase.realtime.Realtime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import com.my.tracker.MyTracker
@@ -185,6 +186,7 @@ class App : Application(), HasTracerConfiguration {
             scheduleDocumentExpiryCheck()
             scheduleVehicleTaxReminder()
             scheduleYearReviewNotification()
+            refreshFuelGeofences()
             scheduleWeeklySummary()
             scheduleBudgetAlert()
             scheduleFluidCheck()
@@ -379,6 +381,29 @@ class App : Application(), HasTracerConfiguration {
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
         )
+    }
+
+    /**
+     * Пересборка геозон вокруг заправок.
+     *
+     * Система забывает геозоны при перезагрузке телефона и при обновлении
+     * приложения. Без пересборки при запуске функция тихо переставала
+     * работать — а человек считал бы, что переключатель включён и всё в силе.
+     */
+    private fun refreshFuelGeofences() {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val settings = SettingsManager(this@App)
+                if (!settings.geofenceFuelFlow.first()) return@launch
+                val car = com.aggin.carcost.data.local.database.AppDatabase
+                    .getDatabase(this@App).carDao().getAllActiveCarsSync().firstOrNull()
+                    ?: return@launch
+                com.aggin.carcost.data.geofence.FuelGeofenceManager
+                    .refresh(this@App, car.id)
+            } catch (e: Exception) {
+                android.util.Log.w("App", "Геозоны не пересобрались: ${e.message}")
+            }
+        }
     }
 
     /**
