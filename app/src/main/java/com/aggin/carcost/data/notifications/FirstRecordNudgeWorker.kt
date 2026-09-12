@@ -41,7 +41,7 @@ class FirstRecordNudgeWorker(
         const val WORK_NAME = "first_record_nudge"
 
         /** Идентификатор уведомления. Не пересекается с остальными в этом пакете */
-        private const val NOTIFICATION_ID = 9100
+        private val NOTIFICATION_ID = NotificationIds.FIRST_RECORD_NUDGE
     }
 
     override suspend fun doWork(): Result {

@@ -1681,4 +1681,21 @@ Type **what can you do** to see what I am capable of.</string>
     <string name="profile_notif_paperwork">Insurance, documents, tax</string>
     <string name="profile_notif_digest">Summaries and year reviews</string>
     <string name="profile_notif_maintenance">Servicing and fluids</string>
+
+    <string name="backup_komplektov_shin">tyre sets: %1$d</string>
+    <string name="backup_poezdok">trips: %1$d</string>
+    <string name="backup_tegov">tags: %1$d</string>
+    <string name="backup_dostizheniy">achievements: %1$d</string>
+    <string name="backup_mest">saved places: %1$d</string>
+
+    <string name="health_base">Base score</string>
+    <string name="health_no_overdue">No overdue servicing</string>
+    <string name="health_overdue">Overdue services: %1$d</string>
+    <string name="health_insurance_ok">Insurance is valid</string>
+    <string name="health_insurance_none">No valid insurance</string>
+    <string name="health_incidents">Incidents this year: %1$d</string>
+
+    <string name="currency_mixed_title">Different currencies are mixed here</string>
+    <string name="currency_mixed_totals">The totals below add them up as if they were the same — do not trust these numbers. You can correct the currency of a record when editing it.</string>
+    <string name="currency_mixed_cars">The selected cars are kept in different currencies. Their totals and cost per kilometre cannot be compared — this is different money.</string>
 </resources>

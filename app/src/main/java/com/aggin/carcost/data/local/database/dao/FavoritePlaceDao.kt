@@ -16,6 +16,10 @@ interface FavoritePlaceDao {
     @Query("SELECT * FROM favorite_places WHERE id = :id")
     suspend fun getFavoritePlaceById(id: String): FavoritePlace?
 
+    /** Все избранные места — для резервной копии */
+    @Query("SELECT * FROM favorite_places")
+    suspend fun getAllSync(): List<FavoritePlace>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFavoritePlace(place: FavoritePlace)
 

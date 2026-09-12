@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.analytics
 
+import com.aggin.carcost.presentation.common.MixedCurrencyWarning
+
 import androidx.compose.ui.res.stringResource
 import com.aggin.carcost.R
 import android.app.Application
@@ -130,29 +132,9 @@ fun EnhancedAnalyticsScreen(
         // Пересчитать по курсу нельзя — неизвестно ни курс какого дня брать, ни
         // какая валюта в записи настоящая. Поэтому не досочиняем, а говорим.
         if (hasMixedCurrencies(uiState.expenses)) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        stringResource(R.string.analytics_v_rashodah_smeshany_raznye_valyuty),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Text(
-                        stringResource(R.string.analytics_itogi_nizhe_skladyvayut_ih_kak_odinakovye) +
-                            stringResource(R.string.analytics_im_doveryat_nelzya_valyutu_zapisi_mozhno) +
-                            stringResource(R.string.analytics_ee_izmenenii),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-            }
+            MixedCurrencyWarning(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
         }
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,

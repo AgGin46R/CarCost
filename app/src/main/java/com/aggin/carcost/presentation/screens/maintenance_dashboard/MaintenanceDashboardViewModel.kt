@@ -33,6 +33,7 @@ class MaintenanceDashboardViewModel(application: Application) : AndroidViewModel
     private val reminderDao = db.maintenanceReminderDao()
     private val carDao = db.carDao()
     private val gpsTripDao = db.gpsTripDao()
+    private val expenseDao = db.expenseDao()
 
     private val _uiState = MutableStateFlow(MaintenanceDashboardUiState())
     val uiState: StateFlow<MaintenanceDashboardUiState> = _uiState.asStateFlow()
@@ -47,7 +48,9 @@ class MaintenanceDashboardViewModel(application: Application) : AndroidViewModel
                 reminders.map { reminder ->
                     val car = carMap[reminder.carId]
                     val currentOdometer = car?.currentOdometer ?: reminder.lastChangeOdometer
-                    val kmRemaining = (reminder.nextChangeOdometer ?: currentOdometer) - currentOdometer
+                    // nextChangeOdometer объявлен non-null — проверка на null
+                    // здесь была мёртвой и вводила в заблуждение
+                    val kmRemaining = reminder.nextChangeOdometer - currentOdometer
 
                     // Date-based urgency check
                     val daysRemaining = reminder.nextChangeDate?.let { nextDate ->
@@ -59,13 +62,30 @@ class MaintenanceDashboardViewModel(application: Application) : AndroidViewModel
                         kmRemaining <= 500 || daysRemaining != null && daysRemaining <= 7 -> ReminderUrgency.SOON
                         else -> ReminderUrgency.OK
                     }
-                    val predicted = if (car != null && reminder.nextChangeOdometer != null) {
+                    // Прогноз строится по одометру из расходов, а поездки по
+                    // GPS идут запасным источником: их записывает меньшинство,
+                    // и раньше прогноз у большинства не появлялся вообще
+                    val predicted = if (car == null) null else {
                         try {
-                            val since = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
-                            val trips = gpsTripDao.getTripsSince(car.id, since).firstOrNull() ?: emptyList()
-                            MaintenancePredictionEngine.predictNextServiceDate(car, reminder, trips)
-                        } catch (_: Exception) { null }
-                    } else null
+                            val expenses = expenseDao.getExpensesByCarIdSync(car.id)
+                            val trips = gpsTripDao.getTripsByCarIdSync(car.id)
+                            MaintenancePredictionEngine.predictNextServiceDate(
+                                currentOdometer = car.currentOdometer,
+                                reminder = reminder,
+                                expenses = expenses,
+                                trips = trips
+                            )
+                        } catch (e: Exception) {
+                            // Прогноз — дополнение к списку, а не сам список.
+                            // Но молчать полностью нельзя: если он перестанет
+                            // появляться, по журналу будет видно почему
+                            android.util.Log.w(
+                                "MaintenanceDashboard",
+                                "Прогноз для ${reminder.id} не посчитался", e
+                            )
+                            null
+                        }
+                    }
                     ReminderWithCar(reminder, car, kmRemaining, urgency, predicted)
                 }.sortedWith(compareBy({ it.urgency.ordinal }, { it.kmRemaining }))
             }.collect { items ->

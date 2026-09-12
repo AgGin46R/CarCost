@@ -69,7 +69,7 @@ class FuelReminderWorker(
             if (estimatedRemaining < threshold) {
                 NotificationHelper.sendFuelNotification(
                     context = applicationContext,
-                    notificationId = 1000 + index,
+                    notificationId = NotificationIds.fuelLow(index),
                     carName = "${car.brand} ${car.model}",
                     estimatedLiters = estimatedRemaining,
                     tankCapacity = tankCapacity

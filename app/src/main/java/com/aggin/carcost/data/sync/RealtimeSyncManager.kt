@@ -1,5 +1,7 @@
 package com.aggin.carcost.data.sync
 
+import com.aggin.carcost.data.notifications.NotificationIds
+
 import android.content.Context
 import android.util.Log
 import com.aggin.carcost.data.local.database.AppDatabase
@@ -440,7 +442,7 @@ class RealtimeSyncManager(private val context: Context) {
                         // Look up car name for the notification
                         val car = db.carDao().getCarById(dto.carId)
                         val carName = if (car != null) "${car.brand} ${car.model}" else "авто"
-                        val notifId = INVITATION_NOTIF_BASE + (abs(dto.id.hashCode()) % NOTIF_RANGE)
+                        val notifId = NotificationIds.realtimeInvitation(dto.id)
                         NotificationHelper.sendInvitationNotification(context, notifId, carName)
                         Log.d(TAG, "📨 Invitation received for car ${dto.carId}")
                     } catch (e: Exception) { Log.e(TAG, "Error handling invitation insert", e) }
@@ -499,7 +501,7 @@ class RealtimeSyncManager(private val context: Context) {
         val carName = "${car.brand} ${car.model}"
         val actorEmail = db.carMemberDao().getEmailByUserId(dto.userId)
         val categoryName = NotificationHelper.categoryDisplayName(context, dto.category)
-        val notifId = EXPENSE_NOTIF_BASE + (abs(dto.id.hashCode()) % NOTIF_RANGE)
+        val notifId = NotificationIds.realtimeExpense(dto.id)
 
         NotificationHelper.sendSharedExpenseNotification(
             context = context,
@@ -526,7 +528,7 @@ class RealtimeSyncManager(private val context: Context) {
         val carName = "${car.brand} ${car.model}"
         val actorEmail = db.carMemberDao().getEmailByUserId(dto.userId)
         val typeName = NotificationHelper.reminderTypeDisplayName(context, dto.type)
-        val notifId = REMINDER_NOTIF_BASE + (abs(dto.id.hashCode()) % NOTIF_RANGE)
+        val notifId = NotificationIds.realtimeReminder(dto.id)
 
         NotificationHelper.sendSharedReminderNotification(
             context = context,
@@ -564,7 +566,7 @@ class RealtimeSyncManager(private val context: Context) {
         val car = db.carDao().getCarById(dto.carId) ?: return
         val carName = "${car.brand} ${car.model}"
         val sender = dto.userEmail.substringBefore("@")
-        val notifId = CHAT_NOTIF_BASE + (abs(dto.id.hashCode()) % NOTIF_RANGE)
+        val notifId = NotificationIds.realtimeChat(dto.id)
 
         NotificationHelper.sendChatNotification(
             context = context,
@@ -597,10 +599,5 @@ class RealtimeSyncManager(private val context: Context) {
          */
         private const val CONNECT_DEBOUNCE_MS   = 5_000L
 
-        private const val EXPENSE_NOTIF_BASE    = 20_000
-        private const val REMINDER_NOTIF_BASE  = 30_000
-        private const val CHAT_NOTIF_BASE      = 40_000
-        private const val INVITATION_NOTIF_BASE = 50_000
-        private const val NOTIF_RANGE           = 9_000
     }
 }

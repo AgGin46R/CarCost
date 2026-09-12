@@ -24,6 +24,20 @@ interface ExpenseTagDao {
     @Query("SELECT * FROM expense_tags WHERE userId = :userId ORDER BY name ASC")
     fun getAllTags(userId: String): Flow<List<ExpenseTag>>
 
+    /**
+     * Все теги устройства, независимо от владельца.
+     *
+     * Нужно резервной копии: она снимает состояние телефона целиком, а не
+     * состояние текущего аккаунта. Иначе теги пропали бы при восстановлении
+     * у того, кто зашёл под другим аккаунтом.
+     */
+    @Query("SELECT * FROM expense_tags")
+    suspend fun getAllTagsSync(): List<ExpenseTag>
+
+    /** Связи расход-тег целиком — тоже для резервной копии */
+    @Query("SELECT * FROM expense_tag_cross_ref")
+    suspend fun getAllCrossRefsSync(): List<ExpenseTagCrossRef>
+
     // Запрос с подсчетом расходов
     @Query("""
         SELECT 

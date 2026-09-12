@@ -1680,4 +1680,21 @@
     <string name="profile_notif_paperwork">Страхоўкі, дакументы, падатак</string>
     <string name="profile_notif_digest">Зводкі і вынікі</string>
     <string name="profile_notif_maintenance">Абслугоўванне і вадкасці</string>
+
+    <string name="backup_komplektov_shin">камплектаў шын: %1$d</string>
+    <string name="backup_poezdok">паездак: %1$d</string>
+    <string name="backup_tegov">тэгаў: %1$d</string>
+    <string name="backup_dostizheniy">дасягненняў: %1$d</string>
+    <string name="backup_mest">месцаў у навігатары: %1$d</string>
+
+    <string name="health_base">Базавы бал</string>
+    <string name="health_no_overdue">Няма пратэрмінаванага ТА</string>
+    <string name="health_overdue">Пратэрмінаваных ТА: %1$d</string>
+    <string name="health_insurance_ok">Страхоўка дзейнічае</string>
+    <string name="health_insurance_none">Няма дзейснай страхоўкі</string>
+    <string name="health_incidents">Здарэнняў за год: %1$d</string>
+
+    <string name="currency_mixed_title">Тут змешаныя розныя валюты</string>
+    <string name="currency_mixed_totals">Вынікі ніжэй складаюць іх як аднолькавыя — давяраць гэтым лікам нельга. Валюту запісу можна выправіць пры яе змяненні.</string>
+    <string name="currency_mixed_cars">Абраныя машыны вядуцца ў розных валютах. Параўноўваць іх сумы і кошт кіламетра нельга — гэта розныя грошы.</string>
 </resources>

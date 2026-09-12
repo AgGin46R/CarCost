@@ -8,6 +8,7 @@ import com.aggin.carcost.R
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.notifications.NotificationHelper
+import com.aggin.carcost.data.notifications.NotificationIds
 import com.aggin.carcost.domain.fuel.NearbyStationFinder
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
@@ -31,7 +32,6 @@ class FuelGeofenceReceiver : BroadcastReceiver() {
 
         private const val TAG = "FuelGeofence"
         private const val PREFS = "fuel_geofence"
-        private const val NOTIFICATION_ID = 7400
 
         /**
          * Сколько времени после простоя выезд ещё считается заправкой.
@@ -106,7 +106,7 @@ class FuelGeofenceReceiver : BroadcastReceiver() {
                 NotificationHelper.sendGenericNotification(
                     kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.FUEL,
                     context = context,
-                    notificationId = NOTIFICATION_ID,
+                    notificationId = NotificationIds.GEOFENCE_FILL_UP,
                     title = context.getString(R.string.fuelhint_title),
                     body = context.getString(R.string.fuelhint_body, name),
                     carId = car.id,

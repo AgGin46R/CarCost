@@ -1,11 +1,14 @@
 package com.aggin.carcost.data.local.database.entities
 
+import kotlinx.serialization.Serializable
+
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
 import androidx.room.Index
 import java.util.UUID
 
+@Serializable
 @Entity(tableName = "expense_tags")
 data class ExpenseTag(
     @PrimaryKey
@@ -17,6 +20,7 @@ data class ExpenseTag(
 )
 
 // Промежуточная таблица для связи "многие ко многим"
+@Serializable
 @Entity(
     tableName = "expense_tag_cross_ref",
     primaryKeys = ["expenseId", "tagId"],

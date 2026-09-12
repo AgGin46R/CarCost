@@ -504,8 +504,11 @@ class ChatViewModel(
         _uiState.update { it.copy(editingMessage = null) }
         viewModelScope.launch {
             supabaseChat.updateMessage(msg.id, trimmed).onSuccess {
-                val updated = msg.copy(message = trimmed, isEdited = true)
-                db.chatMessageDao().insert(updated)
+                // Обновляем поля, а не перевставляем строку. insert() — это
+                // INSERT OR REPLACE: строка удаляется и вставляется заново, и
+                // вместе с удалением каскад уносит все реакции на сообщение.
+                // Человек правил опечатку, а реакции пропадали у всех
+                db.chatMessageDao().updateContent(msg.id, trimmed, isEdited = true)
             }
         }
     }
@@ -762,7 +765,7 @@ class ChatViewModel(
                 }
 
                 val message = pending.copy(mediaUrl = uploadResult.getOrNull())
-                db.chatMessageDao().insert(message)
+                db.chatMessageDao().updateMediaUrl(message.id, message.mediaUrl)
                 supabaseChat.sendMessage(message)
                 // Только вид вложения — ни имени файла, ни его содержимого
                 com.aggin.carcost.data.analytics.Analytics.chatMessageSent("file")
@@ -858,7 +861,7 @@ class ChatViewModel(
                 }
 
                 val message = pending.copy(mediaUrl = uploadResult.getOrNull())
-                db.chatMessageDao().insert(message)
+                db.chatMessageDao().updateMediaUrl(message.id, message.mediaUrl)
                 supabaseChat.sendMessage(message)
                 com.aggin.carcost.data.analytics.Analytics.chatMessageSent("video")
             } catch (e: Exception) {

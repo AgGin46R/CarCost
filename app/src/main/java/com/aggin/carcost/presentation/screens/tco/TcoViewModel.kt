@@ -37,6 +37,13 @@ data class TcoUiState(
     val depreciationPoints: List<DepreciationCalculator.DepreciationPoint> = emptyList(),
     val estimatedCurrentValue: Double = 0.0,                   // from depreciation model or user override
     val totalDepreciation: Double = 0.0,                       // purchasePrice - currentValue
+    /**
+     * В расходах смешаны валюты — итоги ниже складывают разные деньги.
+     *
+     * Флаг, а не список расходов: экрану нужен ответ, а не данные для его
+     * получения
+     */
+    val hasMixedCurrencies: Boolean = false,
     val isLoading: Boolean = true
 )
 
@@ -65,6 +72,7 @@ class TcoViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun calculate(car: Car, expenses: List<Expense>) {
         val purchasePrice = car.purchasePrice ?: 0.0
+        val mixedCurrencies = com.aggin.carcost.presentation.common.hasMixedCurrencies(expenses)
         val totalExpenses = expenses.sumOf { it.amount }
         val tco = purchasePrice + totalExpenses
 
@@ -113,6 +121,7 @@ class TcoViewModel(application: Application) : AndroidViewModel(application) {
                 car = car,
                 purchasePrice = purchasePrice,
                 totalExpenses = totalExpenses,
+                hasMixedCurrencies = mixedCurrencies,
                 totalCostOfOwnership = tco,
                 kmDriven = kmDriven,
                 monthsOwned = monthsOwned,

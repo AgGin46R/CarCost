@@ -32,6 +32,9 @@ class BudgetAlertWorker(
         // расходы всех машин, чтобы в конце промолчать
         if (!settings.notifBudgetAlertFlow.first()) return Result.success()
 
+        // Порядковый номер предупреждения — смещение внутри блока бюджета
+        var alertIndex = 0
+
         val db = AppDatabase.getDatabase(applicationContext)
         val carDao = db.carDao()
         val expenseDao = db.expenseDao()
@@ -49,7 +52,6 @@ class BudgetAlertWorker(
         val endOfMonth = System.currentTimeMillis()
 
         val cars = carDao.getAllActiveCars().first()
-        var notifId = 2000
 
         cars.forEach { car ->
             val budgets = budgetDao.getBudgetsByCarIdAndPeriod(car.id, month, year).first()
@@ -71,7 +73,7 @@ class BudgetAlertWorker(
                     val categoryName = NotificationHelper.categoryDisplayName(applicationContext, budget.category.name)
                     NotificationHelper.sendBudgetAlertNotification(
                         context = applicationContext,
-                        notificationId = notifId++,
+                        notificationId = NotificationIds.budget(alertIndex++),
                         carName = carName,
                         categoryName = categoryName,
                         usedPercent = usedPct

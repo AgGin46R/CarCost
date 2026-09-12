@@ -48,6 +48,7 @@ import androidx.navigation.NavController
 import com.aggin.carcost.R
 import com.aggin.carcost.domain.year.YearSummaryCalculator
 import com.aggin.carcost.presentation.common.LocalCarCurrency
+import com.aggin.carcost.presentation.common.MixedCurrencyWarning
 import com.aggin.carcost.presentation.common.displayName
 import com.aggin.carcost.presentation.common.currencyFormat
 import androidx.compose.runtime.CompositionLocalProvider
@@ -151,6 +152,14 @@ fun YearReviewScreen(
                             )
                         }
                     }
+                }
+
+                if (uiState.hasMixedCurrencies) {
+                    // Страницу отправляют другим, поэтому оговорка обязана быть
+                    // на самой странице, а не рядом с ней
+                    MixedCurrencyWarning(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
                 }
 
                 CompositionLocalProvider(

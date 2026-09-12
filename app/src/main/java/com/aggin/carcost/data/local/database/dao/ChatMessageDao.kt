@@ -10,11 +10,16 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE carId = :carId ORDER BY createdAt ASC")
     fun getMessagesByCarId(carId: String): Flow<List<ChatMessage>>
 
+    /**
+     * Вставка НОВОГО сообщения.
+     *
+     * REPLACE здесь означает «удалить строку и вставить заново», а вместе с
+     * удалением срабатывает каскад на chat_reactions. Поэтому вызывать это
+     * можно только для сообщения, которого в базе ещё нет. Для существующего —
+     * [updateContent] или [updateMediaUrl].
+     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: ChatMessage)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(messages: List<ChatMessage>)
 
     /** Insert new messages without touching existing ones — preserves chat_reactions cascade. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -23,6 +28,16 @@ interface ChatMessageDao {
     /** Update only the text content of an existing message (used to sync edits without cascade). */
     @Query("UPDATE chat_messages SET message = :message, isEdited = :isEdited WHERE id = :id")
     suspend fun updateContent(id: String, message: String, isEdited: Boolean)
+
+    /**
+     * Проставляет ссылку на загруженный файл существующему сообщению.
+     *
+     * Вложение сначала кладётся в базу без ссылки, чтобы оно было видно в
+     * ленте во время загрузки, а потом ссылка дописывается. Перевставка строки
+     * ради этого снесла бы реакции — по той же причине, что и у правки текста.
+     */
+    @Query("UPDATE chat_messages SET mediaUrl = :mediaUrl WHERE id = :id")
+    suspend fun updateMediaUrl(id: String, mediaUrl: String?)
 
     @Query("DELETE FROM chat_messages WHERE id = :messageId")
     suspend fun deleteById(messageId: String)

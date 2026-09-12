@@ -1063,7 +1063,10 @@ fun CarHealthCard(score: com.aggin.carcost.domain.health.CarHealthScore) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            factor.label,
+                            // Подпись — ресурс: число подставляется здесь, где
+                            // есть контекст, а расчёт остаётся без Android
+                            factor.count?.let { stringResource(factor.labelRes, it) }
+                                ?: stringResource(factor.labelRes),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                         )

@@ -44,9 +44,6 @@ class BackgroundSyncWorker(
         const val WORK_NAME = "background_sync"
         private const val TAG = "BackgroundSyncWorker"
 
-        private const val CHAT_BASE     = 50_000
-        private const val EXPENSE_BASE  = 55_000
-        private const val REMINDER_BASE = 60_000
 
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<BackgroundSyncWorker>(
@@ -156,7 +153,7 @@ class BackgroundSyncWorker(
 
                     NotificationHelper.sendChatNotification(
                         context = context,
-                        notificationId = CHAT_BASE + abs(carId.hashCode() % 8_000),
+                        notificationId = NotificationIds.backgroundChat(carId),
                         carName = carName,
                         senderName = sender,
                         message = body,
@@ -192,7 +189,7 @@ class BackgroundSyncWorker(
                     if (expenses.size == 1) {
                         NotificationHelper.sendSharedExpenseNotification(
                             context = context,
-                            notificationId = EXPENSE_BASE + abs(carId.hashCode() % 8_000),
+                            notificationId = NotificationIds.backgroundExpense(carId),
                             carName = carName,
                             categoryName = categoryName,
                             amount = exp.amount,
@@ -203,7 +200,7 @@ class BackgroundSyncWorker(
                     } else {
                         NotificationHelper.sendSharedExpenseNotification(
                             context = context,
-                            notificationId = EXPENSE_BASE + abs(carId.hashCode() % 8_000),
+                            notificationId = NotificationIds.backgroundExpense(carId),
                             carName = carName,
                             categoryName = applicationContext.getString(R.string.notify_novyh_rashodov, expenses.size),
                             amount = expenses.sumOf { it.amount },
@@ -240,7 +237,7 @@ class BackgroundSyncWorker(
 
                     NotificationHelper.sendSharedReminderNotification(
                         context = context,
-                        notificationId = REMINDER_BASE + abs(carId.hashCode() % 8_000),
+                        notificationId = NotificationIds.backgroundReminder(carId),
                         carName = carName,
                         reminderTypeName = typeName,
                         actorEmail = actorEmail,

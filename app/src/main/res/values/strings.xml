@@ -1591,4 +1591,21 @@
     <string name="profile_notif_paperwork">Страховки, документы, налог</string>
     <string name="profile_notif_digest">Сводки и итоги</string>
     <string name="profile_notif_maintenance">Обслуживание и жидкости</string>
+
+    <string name="backup_komplektov_shin">комплектов шин: %1$d</string>
+    <string name="backup_poezdok">поездок: %1$d</string>
+    <string name="backup_tegov">тегов: %1$d</string>
+    <string name="backup_dostizheniy">достижений: %1$d</string>
+    <string name="backup_mest">мест в навигаторе: %1$d</string>
+
+    <string name="health_base">Базовый балл</string>
+    <string name="health_no_overdue">Нет просроченного ТО</string>
+    <string name="health_overdue">Просроченных ТО: %1$d</string>
+    <string name="health_insurance_ok">Страховка действует</string>
+    <string name="health_insurance_none">Нет действующей страховки</string>
+    <string name="health_incidents">Происшествий за год: %1$d</string>
+
+    <string name="currency_mixed_title">Здесь смешаны разные валюты</string>
+    <string name="currency_mixed_totals">Итоги ниже складывают их как одинаковые — доверять этим числам нельзя. Валюту записи можно поправить при её изменении.</string>
+    <string name="currency_mixed_cars">Выбранные машины ведутся в разных валютах. Сравнивать их суммы и стоимость километра нельзя — это разные деньги.</string>
 </resources>

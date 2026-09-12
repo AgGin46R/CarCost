@@ -1,11 +1,14 @@
 package com.aggin.carcost.data.local.database.entities
 
+import kotlinx.serialization.Serializable
+
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.util.UUID
 
+@Serializable
 @Entity(
     tableName = "gps_trips",
     foreignKeys = [

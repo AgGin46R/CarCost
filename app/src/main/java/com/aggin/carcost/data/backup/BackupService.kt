@@ -42,10 +42,27 @@ data class CarCostBackup(
     val incidents: List<CarIncident> = emptyList(),
     val budgets: List<CategoryBudget> = emptyList(),
     val savingsGoals: List<SavingsGoal> = emptyList(),
-    val fluidLevels: List<FluidLevel> = emptyList()
+    val fluidLevels: List<FluidLevel> = emptyList(),
+
+    // ── Добавлено во второй версии формата ──────────────────────────────────
+    //
+    // Этих сущностей в копии не было, хотя данные у человека есть: комплекты
+    // шин с накопленным пробегом, записанные поездки, теги расходов со
+    // связями, разблокированные достижения и избранные места навигатора.
+    // Восстановление молча возвращало неполную картину, и заметить пропажу
+    // можно было только зная, что искать.
+    //
+    // Значения по умолчанию пустые, поэтому копия первой версии читается
+    // как есть — старые файлы не ломаются.
+    val tyreSets: List<TyreSet> = emptyList(),
+    val gpsTrips: List<GpsTrip> = emptyList(),
+    val tags: List<ExpenseTag> = emptyList(),
+    val tagLinks: List<ExpenseTagCrossRef> = emptyList(),
+    val achievements: List<Achievement> = emptyList(),
+    val favoritePlaces: List<FavoritePlace> = emptyList()
 ) {
     companion object {
-        const val FORMAT_VERSION = 1
+        const val FORMAT_VERSION = 2
     }
 
     /**
@@ -67,6 +84,11 @@ data class CarCostBackup(
             if (budgets.isNotEmpty()) add(context.getString(R.string.backup_byudzhetov, budgets.size))
             if (savingsGoals.isNotEmpty()) add(context.getString(R.string.backup_tseley, savingsGoals.size))
             if (fluidLevels.isNotEmpty()) add(context.getString(R.string.backup_zamerov_zhidkostey, fluidLevels.size))
+            if (tyreSets.isNotEmpty()) add(context.getString(R.string.backup_komplektov_shin, tyreSets.size))
+            if (gpsTrips.isNotEmpty()) add(context.getString(R.string.backup_poezdok, gpsTrips.size))
+            if (tags.isNotEmpty()) add(context.getString(R.string.backup_tegov, tags.size))
+            if (achievements.isNotEmpty()) add(context.getString(R.string.backup_dostizheniy, achievements.size))
+            if (favoritePlaces.isNotEmpty()) add(context.getString(R.string.backup_mest, favoritePlaces.size))
         }.joinToString(", ").ifEmpty { context.getString(R.string.backup_pusto) }
 }
 
@@ -102,6 +124,8 @@ class BackupService(private val context: Context) {
         val budgets = mutableListOf<CategoryBudget>()
         val goals = mutableListOf<SavingsGoal>()
         val fluids = mutableListOf<FluidLevel>()
+        val tyres = mutableListOf<TyreSet>()
+        val trips = mutableListOf<GpsTrip>()
 
         for (car in cars) {
             expenses += db.expenseDao().getExpensesByCarIdSync(car.id)
@@ -113,7 +137,16 @@ class BackupService(private val context: Context) {
             budgets += db.categoryBudgetDao().getAllForCarSync(car.id)
             goals += db.savingsGoalDao().getGoalsByCarIdSync(car.id)
             fluids += db.fluidLevelDao().getFluidLevelsByCarIdSync(car.id)
+            tyres += db.tyreSetDao().getByCarIdSync(car.id)
+            trips += db.gpsTripDao().getTripsByCarIdSync(car.id)
         }
+
+        // Теги, достижения и избранные места к машине не привязаны — берём
+        // целиком, а не по автомобилям
+        val tags = db.expenseTagDao().getAllTagsSync()
+        val tagLinks = db.expenseTagDao().getAllCrossRefsSync()
+        val achievements = db.achievementDao().getAllSync()
+        val places = db.favoritePlaceDao().getAllSync()
 
         return CarCostBackup(
             createdAt = System.currentTimeMillis(),
@@ -126,7 +159,13 @@ class BackupService(private val context: Context) {
             incidents = incidents,
             budgets = budgets,
             savingsGoals = goals,
-            fluidLevels = fluids
+            fluidLevels = fluids,
+            tyreSets = tyres,
+            gpsTrips = trips,
+            tags = tags,
+            tagLinks = tagLinks,
+            achievements = achievements,
+            favoritePlaces = places
         )
     }
 
@@ -181,6 +220,22 @@ class BackupService(private val context: Context) {
             ownedOnly(backup.budgets) { it.carId }.forEach { db.categoryBudgetDao().insertBudget(it) }
             ownedOnly(backup.savingsGoals) { it.carId }.forEach { db.savingsGoalDao().insert(it) }
             ownedOnly(backup.fluidLevels) { it.carId }.forEach { db.fluidLevelDao().insert(it) }
+            ownedOnly(backup.tyreSets) { it.carId }.forEach { db.tyreSetDao().upsert(it) }
+            ownedOnly(backup.gpsTrips) { it.carId }.forEach { db.gpsTripDao().insert(it) }
+
+            // Теги — до связей: у связи внешний ключ и на тег, и на расход
+            backup.tags.forEach { db.expenseTagDao().insertTag(it) }
+            backup.achievements.forEach { db.achievementDao().upsert(it) }
+            backup.favoritePlaces.forEach { db.favoritePlaceDao().insertFavoritePlace(it) }
+
+            // Связь без своего расхода или тега упрётся в внешний ключ и
+            // оборвёт восстановление на середине. Такое бывает у копии, снятой
+            // до удаления расхода: тег остался, расход исчез
+            val knownExpenses = backup.expenses.map { it.id }.toSet()
+            val knownTags = backup.tags.map { it.id }.toSet()
+            backup.tagLinks
+                .filter { it.expenseId in knownExpenses && it.tagId in knownTags }
+                .forEach { db.expenseTagDao().insertExpenseTagCrossRef(it) }
 
             Log.d(TAG, "Backup restored: ${backup.summary(context)}")
             Result.success(Unit)

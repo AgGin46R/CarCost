@@ -1,5 +1,7 @@
 package com.aggin.carcost.data.local.database.entities
 
+import kotlinx.serialization.Serializable
+
 import androidx.annotation.StringRes
 import com.aggin.carcost.R
 
@@ -32,6 +34,7 @@ enum class AchievementType(
     HIGH_MILEAGE(R.string.ach_stotysyachnik, R.string.achd_probeg_avto_dostig_100_000_km, "💫")
 }
 
+@Serializable
 @Entity(tableName = "achievements")
 data class Achievement(
     @PrimaryKey

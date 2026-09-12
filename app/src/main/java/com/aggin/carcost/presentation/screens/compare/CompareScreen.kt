@@ -1,5 +1,8 @@
 package com.aggin.carcost.presentation.screens.compare
 
+import com.aggin.carcost.presentation.common.MixedCurrencyWarning
+import com.aggin.carcost.presentation.common.carsUseDifferentCurrencies
+
 import androidx.compose.ui.res.stringResource
 import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
@@ -59,6 +62,18 @@ fun CompareScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Машины в разных валютах сопоставлять нельзя. Здесь это важнее
+            // всего: без предупреждения экран выставляет их рядом как
+            // сопоставимые, и вывод получается прямо ложным
+            val comparedCars = uiState.availableCars.filter { it.id in uiState.selectedCarIds }
+            if (carsUseDifferentCurrencies(comparedCars)) {
+                item {
+                    MixedCurrencyWarning(
+                        explanationRes = R.string.currency_mixed_cars
+                    )
+                }
+            }
+
             // ── Car selection ─────────────────────────────────────────────────
             item {
                 Text(

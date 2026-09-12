@@ -27,7 +27,6 @@ class FluidCheckWorker(
         // Базовый id, чтобы не конфликтовать с другими уведомлениями. К нему
         // прибавляется хеш автомобиля — так повторная проверка обновляет уже
         // показанное уведомление, а не добавляет ещё одно.
-        val notifId = 5000
 
         // Одно уведомление на автомобиль, а не на каждую жидкость.
         //
@@ -70,7 +69,7 @@ class FluidCheckWorker(
             NotificationHelper.sendGenericNotification(
                 kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.MAINTENANCE,
                 context = applicationContext,
-                notificationId = notifId + abs(car.id.hashCode() % 900),
+                notificationId = NotificationIds.fluid(car.id),
                 title = title,
                 body = overdue.joinToString("\n")
             )

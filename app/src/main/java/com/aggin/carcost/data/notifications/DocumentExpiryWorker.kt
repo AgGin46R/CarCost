@@ -38,7 +38,7 @@ class DocumentExpiryWorker(
                 NotificationHelper.sendGenericNotification(
                     kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.PAPERWORK,
                     context = applicationContext,
-                    notificationId = 6000 + i + days * 10,
+                    notificationId = NotificationIds.document(i, days),
                     title = applicationContext.getString(R.string.notify_dokument, carName),
                     body = body,
                     carId = document.carId,

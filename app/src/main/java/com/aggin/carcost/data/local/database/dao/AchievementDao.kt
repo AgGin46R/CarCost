@@ -22,6 +22,10 @@ interface AchievementDao {
     @Query("SELECT * FROM achievements WHERE userId = :userId ORDER BY unlockedAt DESC")
     suspend fun getAchievementsSync(userId: String): List<Achievement>
 
+    /** Все достижения устройства — для резервной копии */
+    @Query("SELECT * FROM achievements")
+    suspend fun getAllSync(): List<Achievement>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(achievement: Achievement)
 }

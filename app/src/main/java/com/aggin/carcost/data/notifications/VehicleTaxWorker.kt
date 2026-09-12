@@ -61,7 +61,7 @@ class VehicleTaxWorker(
             NotificationHelper.sendGenericNotification(
                 kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.PAPERWORK,
                 context = applicationContext,
-                notificationId = 7100 + index,
+                notificationId = NotificationIds.vehicleTax(index),
                 title = applicationContext.getString(
                     R.string.tax_notify_title,
                     "${car.brand} ${car.model}"

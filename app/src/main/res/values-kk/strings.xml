@@ -1680,4 +1680,21 @@
     <string name="profile_notif_paperwork">Сақтандыру, құжаттар, салық</string>
     <string name="profile_notif_digest">Жиынтықтар мен қорытындылар</string>
     <string name="profile_notif_maintenance">Қызмет көрсету және сұйықтықтар</string>
+
+    <string name="backup_komplektov_shin">шина жинақтары: %1$d</string>
+    <string name="backup_poezdok">сапарлар: %1$d</string>
+    <string name="backup_tegov">тегтер: %1$d</string>
+    <string name="backup_dostizheniy">жетістіктер: %1$d</string>
+    <string name="backup_mest">навигатордағы орындар: %1$d</string>
+
+    <string name="health_base">Базалық ұпай</string>
+    <string name="health_no_overdue">Мерзімі өткен ТҚ жоқ</string>
+    <string name="health_overdue">Мерзімі өткен ТҚ: %1$d</string>
+    <string name="health_insurance_ok">Сақтандыру жарамды</string>
+    <string name="health_insurance_none">Жарамды сақтандыру жоқ</string>
+    <string name="health_incidents">Жыл ішіндегі оқиғалар: %1$d</string>
+
+    <string name="currency_mixed_title">Мұнда әртүрлі валюталар араласқан</string>
+    <string name="currency_mixed_totals">Төмендегі қорытындылар оларды бірдей деп қосады — бұл сандарға сенуге болмайды. Жазбаның валютасын өзгерту кезінде түзетуге болады.</string>
+    <string name="currency_mixed_cars">Таңдалған көліктер әртүрлі валютада жүргізіледі. Олардың сомалары мен километр құнын салыстыруға болмайды — бұл әртүрлі ақша.</string>
 </resources>

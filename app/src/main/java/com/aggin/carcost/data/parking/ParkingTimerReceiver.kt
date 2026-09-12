@@ -1,5 +1,7 @@
 package com.aggin.carcost.data.parking
 
+import com.aggin.carcost.data.notifications.NotificationIds
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -13,7 +15,7 @@ class ParkingTimerReceiver : BroadcastReceiver() {
                 kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.ALWAYS,
                 ignoreQuietHours = true,
                 context = context,
-                notificationId = 7000,
+                notificationId = NotificationIds.PARKING_TIMER,
                 title = "Время парковки истекло",
                 body = "Не забудьте передвинуть или оплатить парковку."
             )

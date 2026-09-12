@@ -18,6 +18,7 @@ import com.aggin.carcost.R
 import com.aggin.carcost.data.local.database.AppDatabase
 import com.aggin.carcost.data.local.settings.SettingsManager
 import com.aggin.carcost.data.notifications.NotificationHelper
+import com.aggin.carcost.data.notifications.NotificationIds
 import com.aggin.carcost.domain.fuel.NearbyStationFinder
 import kotlinx.coroutines.flow.first
 import com.aggin.carcost.data.local.database.entities.GpsTrip
@@ -37,7 +38,6 @@ class GpsTripService : LifecycleService() {
          * метрах от давней заправки — запросто
          */
         private const val MIN_TRIP_FOR_STATION_HINT_M = 1_000.0
-        private const val STATION_HINT_NOTIFICATION_ID = 7300
 
         const val ACTION_START = "action_start_trip"
         const val ACTION_STOP = "action_stop_trip"
@@ -209,7 +209,7 @@ class GpsTripService : LifecycleService() {
             NotificationHelper.sendGenericNotification(
                 kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.FUEL,
                 context = applicationContext,
-                notificationId = STATION_HINT_NOTIFICATION_ID,
+                notificationId = NotificationIds.STATION_HINT,
                 title = getString(R.string.fuelhint_title),
                 body = getString(R.string.fuelhint_body, match.name),
                 carId = carIdVal,

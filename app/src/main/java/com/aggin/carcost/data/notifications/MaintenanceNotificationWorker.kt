@@ -20,7 +20,6 @@ class MaintenanceNotificationWorker(
         private const val NOTIFICATION_THRESHOLD_DAYS = 7
         // Своя область id, чтобы не пересекаться с остальными уведомлениями
         // (5000 — жидкости, 6000 — документы, 9001 — обновление, 50000+ — чат и расходы)
-        private const val DATE_NOTIFICATION_ID_BASE = 7000
     }
 
     override suspend fun doWork(): Result {
@@ -39,7 +38,7 @@ class MaintenanceNotificationWorker(
             if (kmLeft <= NOTIFICATION_THRESHOLD_KM) {
                 NotificationHelper.sendMaintenanceNotification(
                     context = applicationContext,
-                    notificationId = index + 1,
+                    notificationId = NotificationIds.maintenanceByKm(index),
                     carName = carName,
                     serviceType = applicationContext.getString(reminder.type.displayNameRes),
                     kmLeft = kmLeft
@@ -62,7 +61,7 @@ class MaintenanceNotificationWorker(
                 NotificationHelper.sendGenericNotification(
                     kind = com.aggin.carcost.data.local.settings.SettingsManager.NotifKind.MAINTENANCE,
                     context = applicationContext,
-                    notificationId = DATE_NOTIFICATION_ID_BASE + index,
+                    notificationId = NotificationIds.maintenanceByDate(index),
                     title = applicationContext.getString(R.string.notify_to_po_sroku, carName),
                     body = body,
                     carId = reminder.carId,

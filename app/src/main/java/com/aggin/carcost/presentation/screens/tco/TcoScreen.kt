@@ -1,5 +1,7 @@
 package com.aggin.carcost.presentation.screens.tco
 
+import com.aggin.carcost.presentation.common.MixedCurrencyWarning
+
 import androidx.compose.ui.res.stringResource
 import com.aggin.carcost.R
 import androidx.compose.foundation.layout.*
@@ -80,6 +82,11 @@ fun TcoScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.padding(padding)
         ) {
+            // Смешанные валюты: суммы ниже складывают разные деньги
+            if (uiState.hasMixedCurrencies) {
+                item { MixedCurrencyWarning() }
+            }
+
             // Главная карточка TCO
             item { TcoSummaryCard(uiState) }
 

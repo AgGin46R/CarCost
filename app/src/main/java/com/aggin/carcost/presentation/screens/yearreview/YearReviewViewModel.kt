@@ -29,6 +29,8 @@ data class YearReviewUiState(
     val summary: YearSummaryCalculator.YearSummary? = null,
     /** Годы, за которые вообще есть записи — по убыванию */
     val availableYears: List<Int> = emptyList(),
+    /** В расходах смешаны валюты — суммы на странице складывают разные деньги */
+    val hasMixedCurrencies: Boolean = false,
     val error: String? = null
 )
 
@@ -61,6 +63,15 @@ class YearReviewViewModel(
         return if (cal.get(Calendar.MONTH) == Calendar.JANUARY) year - 1 else year
     }
 
+    /** Границы года — чтобы валюты проверялись по показанным записям, а не по всем */
+    private fun yearRange(year: Int): LongRange {
+        val cal = Calendar.getInstance()
+        cal.clear(); cal.set(year, Calendar.JANUARY, 1)
+        val from = cal.timeInMillis
+        cal.clear(); cal.set(year + 1, Calendar.JANUARY, 1)
+        return from until cal.timeInMillis
+    }
+
     fun load(year: Int) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
@@ -81,7 +92,9 @@ class YearReviewViewModel(
                     isLoading = false,
                     car = car,
                     summary = YearSummaryCalculator.calculate(expenses, trips, year),
-                    availableYears = years
+                    availableYears = years,
+                    hasMixedCurrencies = com.aggin.carcost.presentation.common
+                        .hasMixedCurrencies(expenses.filter { it.date in yearRange(year) })
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Итоги года не собрались", e)
